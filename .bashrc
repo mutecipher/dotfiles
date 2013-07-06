@@ -116,3 +116,9 @@ export GOPATH=$HOME/programming/go
 export GOBIN=$GOPATH/bin
 export PATH=$PATH:$GOBIN:$ANDROIDPATH/tools:$ANDROIDPATH/platform-tools
 
+# Starts an HTTP server from a directory
+function server() {
+  local port="${1:-8000}"
+  xdg-open "http://localhost:${port}/"
+  python -m SimpleHTTPServer "$port"
+}
