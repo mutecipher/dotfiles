@@ -122,3 +122,17 @@ function server() {
   xdg-open "http://localhost:${port}/"
   python -m SimpleHTTPServer "$port"
 }
+
+# Append current git branch in prompt
+
+parse_git_branch() {
+  if ! git rev-parse --git-dir > /dev/null 2>&1; then
+    return 0
+  fi
+
+  git_branch=$(git branch 2>/dev/null| sed -n '/^\*/s/^\* //p')
+
+  echo "[$git_branch]"
+}
+
+PS1="${debian_chroot:+($debian_chroot)}\[\033[01;36m\]$\[\033[01;44m\]\$(parse_git_branch)\[\033[00m\] "
