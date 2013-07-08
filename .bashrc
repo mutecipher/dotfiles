@@ -107,7 +107,7 @@ fi
 #alias ll='ls -l'
 #alias la='ls -A'
 #alias l='ls -CF'
-#alias school='-l cjhutchi csl.cpsc.ucalgary.ca'
+alias school='ssh -l cjhutchi csl.cpsc.ucalgary.ca'
 
 # Alias definitions.
 # You may want to put all your additions into a separate file like
@@ -154,4 +154,6 @@ parse_git_branch() {
   echo "[$git_branch]"
 }
 
-PS1="\[\033[01;44m\]\$(parse_git_branch)\[\033[00m\] ${debian_chroot:+($debian_chroot)}$ "
+#PS1="\[\033[01;36m\]\[\033[01;33m\]\$(parse_git_branch)\[\033[00m\]$ "
+export GIT_PS1_SHOWDIRTYSTATE=1
+PS1="${debian_chroot:+($debian_chroot)}$\[\033[01;36m\]\$(__git_ps1)\[\033[00m\] "
