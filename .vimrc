@@ -1,157 +1,125 @@
-# ~/.bashrc: executed by bash(1) for non-login shells.
-# see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
-# for examples
+" vim settings
+set nocp " don't behave in vi compatible mode
+set hidden " hides buffers rather than discarding them
+set lpl " load plugins on startup
+set shell=bash " default shell
+set autochdir " auto change to directory of current file
+set swf " create swap files
+set bk " backup files
+set backupdir=~/tmp " set a central area for backup files
+set dir=~/tmp " swap file directory
+set ofu=syntaxcomplete#Complete
+filetype plugin indent on " set by filetype and indent
+colorscheme desert " set color scheme
+set background=dark " set background type
+syntax enable " highlight syntax
+set scrolloff=10
+"set sidescrolloff=3
+set wildmode=list:longest
+set wildmenu
+set wildignore=*.o,*.obj,*~
+set lazyredraw
 
-# Set some colors
-#BLACK='\e[0;30m'
-#BLUE='\e[0;34m'
-#GREEN='\e[0;32m'
-#CYAN='\e[0;36m'
-#RED='\e[0;31m'
-#PURPLE='\e[0;35m'
-#BROWN='\e[0;33m'
-#LIGHTGRAY='\e[0;37m'
-#DARKGRAY='\e[1;30m'
-#LIGHTBLUE='\e[1;34m'
-#LIGHTGREEN='\e[1;32m'
-#LIGHTCYAN='\e[1;36m'
-#LIGHTRED='\e[1;31m'
-#LIGHTPURPLE='\e[1;35m'
-#YELLOW='\e[1;33m'
-#WHITE='\e[1;37m'
-#NC='\e[0m'              # No Color
+" display options
+set ruler " turn on ruler to show location of cursor
+set number " show line numbers
+set showmode " always show current mode
+set modeline
+set spl=en " set spellcheck lang
+set cursorline " cursor highlighting
 
-# If not running interactively, don't do anything
-case $- in
-    *i*) ;;
-      *) return;;
-esac
+" text area settings
+set expandtab
+"set smarttab
+set laststatus=2
+set tabstop=2 " set tab size
+set shiftwidth=2 " 
+set autoindent " self explanitory
+set smartindent " self explanitory
+set wrap " wrap to next line 
+set wrapmargin=80 " wrap line after X chars
+set textwidth=80 " set max line length
+highlight ColorColumn ctermbg=233
+set foldcolumn=4
+set foldenable
+set foldlevel=2
+set foldmethod=syntax
+set foldminlines=0
+set relativenumber
 
-# don't put duplicate lines or lines starting with space in the history.
-# See bash(1) for more options
-HISTCONTROL=ignoreboth
+" search settings
+set ignorecase smartcase " ignore word case when searching
+set incsearch " increment search with each char entered 
+set hlsearch " highlight search results
 
-# append to the history file, don't overwrite it
-shopt -s histappend
+" removing keymappings for arrow keys
+map <Left> <Nop>
+map <Right> <Nop>
+map <Up> <Nop>
+map <Down> <Nop>
+nnoremap j gj
+nnoremap k gk
 
-# for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
-HISTSIZE=1000
-HISTFILESIZE=2000
+" make changing windows easier
+nnoremap <c-j> <c-w>j
+nnoremap <c-k> <c-w>k
+nnoremap <c-h> <c-w>h
+nnoremap <c-l> <c-w>l
 
-# check the window size after each command and, if necessary,
-# update the values of LINES and COLUMNS.
-shopt -s checkwinsize
+" faster window resizing
+if bufwinnr(1)
+  map + <C-W>+
+  map - <C-W>-
+endif
 
-# If set, the pattern "**" used in a pathname expansion context will
-# match all files and zero or more directories and subdirectories.
-#shopt -s globstar
+" make changing tabs easier
+map <c-t> <esc>:tabnew<CR>
+map <c-Right> <esc>:tabNext<CR>
+map <c-Left> <esc>:tabprevious<CR>
 
-# make less more friendly for non-text input files, see lesspipe(1)
-#[ -x /usr/bin/lesspipe ] && eval "$(SHELL=/bin/sh lesspipe)"
+" reselect visual block after indent
+vnoremap < <gv
+vnoremap > >gv
 
-# set variable identifying the chroot you work in (used in the prompt below)
-if [ -z "${debian_chroot:-}" ] && [ -r /etc/debian_chroot ]; then
-    debian_chroot=$(cat /etc/debian_chroot)
-fi
+" better navigation of omnicomplete
+set completeopt=longest,menuone
+function! OmniPopup(action)
+	if pumvisible()
+		if a:action == 'j'
+			return "\<C-N>"
+		elseif a:action == 'k'
+			return "\<C-P>"
+		endif
+	endif
+	return a:action
+endfunction
 
-# set a fancy prompt (non-color, unless we know we "want" color)
-case "$TERM" in
-    xterm-color) color_prompt=yes;;
-esac
+inoremap <silent><C-J> <C-R>=OmniPopup('j')<CR>
+inoremap <silent><C-K> <C-R>=OmniPopul('k')<CR>
 
-# uncomment for a colored prompt, if the terminal has the capability; turned
-# off by default to not distract the user: the focus in a terminal window
-# should be on the output of commands, not on the prompt
-force_color_prompt=yes
+hi CursorLine cterm=NONE ctermbg=black
 
-if [ -n "$force_color_prompt" ]; then
-    if [ -x /usr/bin/tput ] && tput setaf 1 >&/dev/null; then
-	# We have color support; assume it's compliant with Ecma-48
-	# (ISO/IEC-6429). (Lack of such support is extremely rare, and such
-	# a case would tend to support setf rather than setaf.)
-	color_prompt=yes
-   else
-	color_prompt=
-    fi
-fi
+augroup CursorLine
+  au!
+  au VimEnter,WinEnter,BufWinEnter * setlocal cursorline
+  au WinLeave * setlocal nocursorline
+augroup END
 
-if [ "$color_prompt" = yes ]; then
-    PS1='${debian_chroot:+($debian_chroot)}\$ '
-else
-    PS1='${debian_chroot:+($debian_chroot)}\u@\h:\w\$ '
-fi
-unset color_prompt force_color_prompt
+" automatically reload vimrc when its saved
+au BufWritePost .vimrc so ~/.vimrc
 
-# If this is an xterm set the title to user@host:dir
-case "$TERM" in
-xterm*|rxvt*)
-   # PS1="\[\e]0;${debian_chroot:+($debian_chroot)}\u@\h: \w\a\]$PS1"
-    ;;
-*)
-    ;;
-esac
+" This is the way I like my quotation marks and various braces
+inoremap '' ''<Left>
+inoremap "" ""<Left>
+inoremap () ()<Left>
+inoremap <> <><Left>
+inoremap {} {}<Left>
+inoremap [] []<Left>
+inoremap () ()<Left>
 
-# enable color support of ls and also add handy aliases
-if [ -x /usr/bin/dircolors ]; then
-    test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
-    alias ls='ls --color=auto'
-    #alias dir='dir --color=auto'
-    #alias vdir='vdir --color=auto'
-
-    alias grep='grep --color=auto'
-    #alias fgrep='fgrep --color=auto'
-    #alias egrep='egrep --color=auto'
-fi
-
-# some more ls aliases
-#alias ll='ls -l'
-#alias la='ls -A'
-#alias l='ls -CF'
-#alias school='-l cjhutchi csl.cpsc.ucalgary.ca'
-
-# Alias definitions.
-# You may want to put all your additions into a separate file like
-# ~/.bash_aliases, instead of adding them here directly.
-# See /usr/share/doc/bash-doc/examples in the bash-doc package.
-
-if [ -f ~/.bash_aliases ]; then
-    . ~/.bash_aliases
-fi
-
-# enable programmable completion features (you don't need to enable
-# this, if it's already enabled in /etc/bash.bashrc and /etc/profile
-# sources /etc/bash.bashrc).
-if ! shopt -oq posix; then
-  if [ -f /usr/share/bash-completion/bash_completion ]; then
-    . /usr/share/bash-completion/bash_completion
-  elif [ -f /etc/bash_completion ]; then
-    . /etc/bash_completion
-  fi
-fi
-
-# MY ADDED PATHS
-export ANDROIDPATH=$HOME/programming/resources/android-sdk-linux
-export GOPATH=$HOME/programming/go
-export GOBIN=$GOPATH/bin
-
-# PATH
-export PATH=$PATH:$GOBIN:$ANDROIDPATH/tools:$ANDROIDPATH/platform-tools
-
-# Starts an HTTP server from a directory
-function server() {
-  local port="${1:-8000}"
-  xdg-open "http://localhost:${port}/" && python -m SimpleHTTPServer "$port"
-}
-
-# Append current git branch in prompt
-parse_git_branch() {
-  if ! git rev-parse --git-dir > /dev/null 2>&1; then
-    return 0
-  fi
-
-  git_branch=$(git branch 2>/dev/null| sed -n '/^\*/s/^\* //p')
-
-  echo "[$git_branch]"
-}
-
-PS1="\[\033[01;44m\]\$(parse_git_branch)\[\033[00m\] ${debian_chroot:+($debian_chroot)}$ "
+" Hard to type things
+"imap >> →
+"imap << ←
+"imap ^^ ↑
+"imap VV ↓
+"imap aa λ
