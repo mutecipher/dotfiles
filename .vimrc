@@ -110,13 +110,13 @@ augroup END
 au BufWritePost .vimrc so ~/.vimrc
 
 " This is the way I like my quotation marks and various braces
-inoremap '' ''<Left>
-inoremap "" ""<Left>
-inoremap () ()<Left>
-inoremap <> <><Left>
-inoremap {} {}<Left>
-inoremap [] []<Left>
-inoremap () ()<Left>
+inoremap '' '  '<Left><Left>
+inoremap "" "  "<Left><Left>
+inoremap () (  )<Left><Left>
+inoremap <> <  ><Left><Left>
+inoremap {} {  }<Left><Left>
+inoremap [] [  ]<Left><Left>
+inoremap () (  )<Left><Left>
 
 " Hard to type things
 "imap >> →
