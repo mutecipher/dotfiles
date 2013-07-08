@@ -1,0 +1,7 @@
+[user]
+	name = Cory Hutchison
+	email = chutc124@gmail.com
+[core]
+	editor = vim
+[color]
+	ui = true
