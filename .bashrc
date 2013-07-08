@@ -2,6 +2,25 @@
 # see /usr/share/doc/bash/examples/startup-files (in the package bash-doc)
 # for examples
 
+# Set some colors
+#BLACK='\e[0;30m'
+#BLUE='\e[0;34m'
+#GREEN='\e[0;32m'
+#CYAN='\e[0;36m'
+#RED='\e[0;31m'
+#PURPLE='\e[0;35m'
+#BROWN='\e[0;33m'
+#LIGHTGRAY='\e[0;37m'
+#DARKGRAY='\e[1;30m'
+#LIGHTBLUE='\e[1;34m'
+#LIGHTGREEN='\e[1;32m'
+#LIGHTCYAN='\e[1;36m'
+#LIGHTRED='\e[1;31m'
+#LIGHTPURPLE='\e[1;35m'
+#YELLOW='\e[1;33m'
+#WHITE='\e[1;37m'
+#NC='\e[0m'              # No Color
+
 # If not running interactively, don't do anything
 case $- in
     *i*) ;;
@@ -88,7 +107,7 @@ fi
 #alias ll='ls -l'
 #alias la='ls -A'
 #alias l='ls -CF'
-alias school='-l cjhutchi csl.cpsc.ucalgary.ca'
+#alias school='-l cjhutchi csl.cpsc.ucalgary.ca'
 
 # Alias definitions.
 # You may want to put all your additions into a separate file like
@@ -114,17 +133,17 @@ fi
 export ANDROIDPATH=$HOME/programming/resources/android-sdk-linux
 export GOPATH=$HOME/programming/go
 export GOBIN=$GOPATH/bin
+
+# PATH
 export PATH=$PATH:$GOBIN:$ANDROIDPATH/tools:$ANDROIDPATH/platform-tools
 
 # Starts an HTTP server from a directory
 function server() {
   local port="${1:-8000}"
-  xdg-open "http://localhost:${port}/"
-  python -m SimpleHTTPServer "$port"
+  xdg-open "http://localhost:${port}/" && python -m SimpleHTTPServer "$port"
 }
 
 # Append current git branch in prompt
-
 parse_git_branch() {
   if ! git rev-parse --git-dir > /dev/null 2>&1; then
     return 0
@@ -135,4 +154,4 @@ parse_git_branch() {
   echo "[$git_branch]"
 }
 
-PS1="${debian_chroot:+($debian_chroot)}\[\033[01;36m\]$\[\033[01;44m\]\$(parse_git_branch)\[\033[00m\] "
+PS1="\[\033[01;44m\]\$(parse_git_branch)\[\033[00m\] ${debian_chroot:+($debian_chroot)}$ "
