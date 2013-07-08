@@ -18,7 +18,7 @@ set scrolloff=10
 set wildmode=list:longest
 set wildmenu
 set wildignore=*.o,*.obj,*~
-set lazyredraw
+"set lazyredraw
 
 " display options
 set ruler " turn on ruler to show location of cursor
@@ -27,10 +27,11 @@ set showmode " always show current mode
 set modeline
 set spl=en " set spellcheck lang
 set cursorline " cursor highlighting
+set colorcolumn=80
 
 " text area settings
 set expandtab
-"set smarttab
+set smarttab
 set laststatus=2
 set tabstop=2 " set tab size
 set shiftwidth=2 " 
@@ -43,7 +44,7 @@ highlight ColorColumn ctermbg=233
 set foldcolumn=4
 set foldenable
 set foldlevel=2
-set foldmethod=syntax
+set foldmethod=manual
 set foldminlines=0
 set relativenumber
 
