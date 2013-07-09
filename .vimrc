@@ -1,4 +1,7 @@
-" vim settings
+" ==========
+" random vim settings
+" ==========
+
 set nocp " don't behave in vi compatible mode
 set hidden " hides buffers rather than discarding them
 set lpl " load plugins on startup
@@ -14,22 +17,28 @@ colorscheme desert " set color scheme
 set background=dark " set background type
 syntax enable " highlight syntax
 set scrolloff=10
-"set sidescrolloff=3
+set sidescrolloff=3
 set wildmode=list:longest
 set wildmenu
 set wildignore=*.o,*.obj,*~
-"set lazyredraw
+set lazyredraw
 
+" ==========
 " display options
+" ==========
+
 set ruler " turn on ruler to show location of cursor
 set number " show line numbers
 set showmode " always show current mode
 set modeline
 set spl=en " set spellcheck lang
 set cursorline " cursor highlighting
-set colorcolumn=80
+set colorcolumn=79
 
+" ==========
 " text area settings
+" ==========
+
 set expandtab
 set smarttab
 set laststatus=2
@@ -48,10 +57,17 @@ set foldmethod=manual
 set foldminlines=0
 set relativenumber
 
+" ==========
 " search settings
+" ==========
+
 set ignorecase smartcase " ignore word case when searching
 set incsearch " increment search with each char entered 
 set hlsearch " highlight search results
+
+" ==========
+" misc functions/configs
+" ==========
 
 " removing keymappings for arrow keys
 map <Left> <Nop>
@@ -82,21 +98,9 @@ map <c-Left> <esc>:tabprevious<CR>
 vnoremap < <gv
 vnoremap > >gv
 
-" better navigation of omnicomplete
-set completeopt=longest,menuone
-function! OmniPopup(action)
-	if pumvisible()
-		if a:action == 'j'
-			return "\<C-N>"
-		elseif a:action == 'k'
-			return "\<C-P>"
-		endif
-	endif
-	return a:action
-endfunction
-
-inoremap <silent><C-J> <C-R>=OmniPopup('j')<CR>
-inoremap <silent><C-K> <C-R>=OmniPopul('k')<CR>
+" ========== 
+" cursorline highlighting
+" ==========
 
 hi CursorLine cterm=NONE ctermbg=black
 
@@ -106,10 +110,10 @@ augroup CursorLine
   au WinLeave * setlocal nocursorline
 augroup END
 
-" automatically reload vimrc when its saved
-au BufWritePost .vimrc so ~/.vimrc
+" ==========
+" this is the way I like my quotation marks and various braces
+" ==========
 
-" This is the way I like my quotation marks and various braces
 inoremap '' '  '<Left><Left>
 inoremap "" "  "<Left><Left>
 inoremap () (  )<Left><Left>
@@ -118,9 +122,39 @@ inoremap {} {  }<Left><Left>
 inoremap [] [  ]<Left><Left>
 inoremap () (  )<Left><Left>
 
-" Hard to type things
+" ==========
+" automatically reload vimrc when its saved
+" ==========
+
+au BufWritePost .vimrc so ~/.vimrc
+
+
+
+
+" ==========
+" stuff that's not being used right now
+" ==========
+
+" hard to type things
 "imap >> →
 "imap << ←
 "imap ^^ ↑
 "imap VV ↓
 "imap aa λ
+
+" better navigation of omnicomplete
+"  set completeopt=longest,menuone
+"  function! OmniPopup(action)
+"    if pumvisible()
+"      if a:action == 'j'
+"        return "\<C-N>"
+"      elseif a:action == 'k'
+"        return "\<C-P>"
+"      endif
+"    endif
+"    return a:action
+"  endfunction
+
+"  inoremap <silent><C-J> <C-R>=OmniPopup('j')<CR>
+"  inoremap <silent><C-K> <C-R>=OmniPopul('k')<CR>
+
