@@ -114,13 +114,21 @@ augroup END
 " this is the way I like my quotation marks and various braces
 " ==========
 
-inoremap '' '  '<Left><Left>
-inoremap "" "  "<Left><Left>
-inoremap () (  )<Left><Left>
-inoremap <> <  ><Left><Left>
-inoremap {} {  }<Left><Left>
-inoremap [] [  ]<Left><Left>
-inoremap () (  )<Left><Left>
+inoremap '' ''<Left>
+inoremap "" ""<Left>
+inoremap () ()<Left>
+inoremap <> <><Left>
+inoremap {} {}<Left>
+inoremap [] []<Left>
+inoremap () ()<Left>
+
+inoremap ' ''<Right>
+inoremap " ""<Right>
+inoremap ( ()<Right>
+inoremap < <><Right>
+inoremap { {}<Right>
+inoremap [ []<Right>
+inoremap ( ()<Right>
 
 " ==========
 " automatically reload vimrc when its saved
