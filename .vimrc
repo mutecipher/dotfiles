@@ -5,13 +5,13 @@
 set nocp " don't behave in vi compatible mode
 set hidden " hides buffers rather than discarding them
 set lpl " load plugins on startup
-set shell=bash " default shell
+set shell=xterm " default shell
 set autochdir " auto change to directory of current file
 set swf " create swap files
 set bk " backup files
 set backupdir=~/tmp " set a central area for backup files
 set dir=~/tmp " swap file directory
-set ofu=syntaxcomplete#Complete
+"set ofu=syntaxcomplete#Complete
 filetype plugin indent on " set by filetype and indent
 colorscheme desert " set color scheme
 set background=dark " set background type
@@ -69,6 +69,13 @@ set hlsearch " highlight search results
 " misc functions/configs
 " ==========
 
+" text selection movement (single lines)
+nnoremap <c-Up> ddkP
+nnoremap <c-Down> ddp
+" text selection movement (multiple lines)
+vmap <c-Up> xkP`[V`]
+vmap <c-Down> xp`[V`]
+
 " removing keymappings for arrow keys
 map <Left> <Nop>
 map <Right> <Nop>
@@ -85,8 +92,8 @@ nnoremap <c-l> <c-w>l
 
 " faster window resizing
 if bufwinnr(1)
-  map + <C-W>+
-  map - <C-W>-
+  map + <c-W>+
+  map - <c-W>-
 endif
 
 " make changing tabs easier
@@ -122,13 +129,13 @@ inoremap {} {}<Left>
 inoremap [] []<Left>
 inoremap () ()<Left>
 
-inoremap ' ''<Right>
-inoremap " ""<Right>
-inoremap ( ()<Right>
-inoremap < <><Right>
-inoremap { {}<Right>
-inoremap [ []<Right>
-inoremap ( ()<Right>
+" inoremap ' ''<Right>
+" inoremap " ""<Right>
+" inoremap ( ()<Right>
+" inoremap < <><Right>
+" inoremap { {}<Right>
+" inoremap [ []<Right>
+" inoremap ( ()<Right>
 
 " ==========
 " automatically reload vimrc when its saved
