@@ -1,10 +1,10 @@
 [user]
-	name = Cory Hutchison
-	email = chutc124@gmail.com
+  name = Cory Hutchison
+  email = chutc124@gmail.com
 [core]
-	editor = vim
+  editor = vim
 [color]
-	ui = true
+  ui = true
 [color "branch"]
   current = green reverse
   local = green
