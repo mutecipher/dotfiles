@@ -20,7 +20,7 @@ set scrolloff=10
 "set wildmode=list:longest
 "set wildmenu
 "set wildignore=*.o,*.obj,*~
-"set lazyredraw
+set lazyredraw
 
 
 " ==========
@@ -123,20 +123,6 @@ augroup END
 
 
 " ==========
-" this is the way I like my quotation marks and various braces
-" ==========
-
-inoremap '' ''<Left>
-inoremap "" ""<Left>
-inoremap () ()<Left>
-inoremap <> <><Left>
-inoremap {} {}<Left>
-inoremap [] []<Left>
-inoremap () ()<Left>
-
-
-
-" ==========
 " automatically reload vimrc when its saved
 " ==========
 
@@ -169,6 +155,18 @@ au BufWritePost .vimrc so ~/.vimrc
 
 "  inoremap <silent><C-J> <C-R>=OmniPopup('j')<CR>
 "  inoremap <silent><C-K> <C-R>=OmniPopul('k')<CR>
+
+" ==========
+" this is the way I like my quotation marks and various braces
+" ==========
+
+" inoremap '' ''<Left>
+" inoremap "" ""<Left>
+" inoremap () ()<Left>
+" inoremap <> <><Left>
+" inoremap {} {}<Left>
+" inoremap [] []<Left>
+" inoremap () ()<Left>
 
 " inoremap ' ''<Right>
 " inoremap " ""<Right>
