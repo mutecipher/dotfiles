@@ -17,11 +17,11 @@ colorscheme desert " set color scheme
 set background=dark " set background type
 syntax enable " highlight syntax
 set scrolloff=10
-set sidescrolloff=3
-set wildmode=list:longest
-set wildmenu
-set wildignore=*.o,*.obj,*~
-set lazyredraw
+"set wildmode=list:longest
+"set wildmenu
+"set wildignore=*.o,*.obj,*~
+"set lazyredraw
+
 
 " ==========
 " display options
@@ -34,6 +34,7 @@ set modeline
 set spl=en " set spellcheck lang
 set cursorline " cursor highlighting
 set colorcolumn=79
+
 
 " ==========
 " text area settings
@@ -50,12 +51,13 @@ set wrap " wrap to next line
 set wrapmargin=80 " wrap line after X chars
 set textwidth=80 " set max line length
 highlight ColorColumn ctermbg=233
-set foldcolumn=4
-set foldenable
-set foldlevel=2
-set foldmethod=manual
-set foldminlines=0
+"set foldcolumn=4
+"set foldenable
+"set foldlevel=2
+"set foldmethod=manual
+"set foldminlines=0
 set relativenumber
+
 
 " ==========
 " search settings
@@ -64,6 +66,7 @@ set relativenumber
 set ignorecase smartcase " ignore word case when searching
 set incsearch " increment search with each char entered 
 set hlsearch " highlight search results
+
 
 " ==========
 " misc functions/configs
@@ -105,6 +108,7 @@ map <c-Left> <esc>:tabprevious<CR>
 vnoremap < <gv
 vnoremap > >gv
 
+
 " ========== 
 " cursorline highlighting
 " ==========
@@ -116,6 +120,7 @@ augroup CursorLine
   au VimEnter,WinEnter,BufWinEnter * setlocal cursorline
   au WinLeave * setlocal nocursorline
 augroup END
+
 
 " ==========
 " this is the way I like my quotation marks and various braces
@@ -129,21 +134,13 @@ inoremap {} {}<Left>
 inoremap [] []<Left>
 inoremap () ()<Left>
 
-" inoremap ' ''<Right>
-" inoremap " ""<Right>
-" inoremap ( ()<Right>
-" inoremap < <><Right>
-" inoremap { {}<Right>
-" inoremap [ []<Right>
-" inoremap ( ()<Right>
+
 
 " ==========
 " automatically reload vimrc when its saved
 " ==========
 
 au BufWritePost .vimrc so ~/.vimrc
-
-
 
 
 " ==========
@@ -173,3 +170,10 @@ au BufWritePost .vimrc so ~/.vimrc
 "  inoremap <silent><C-J> <C-R>=OmniPopup('j')<CR>
 "  inoremap <silent><C-K> <C-R>=OmniPopul('k')<CR>
 
+" inoremap ' ''<Right>
+" inoremap " ""<Right>
+" inoremap ( ()<Right>
+" inoremap < <><Right>
+" inoremap { {}<Right>
+" inoremap [ []<Right>
+" inoremap ( ()<Right>
