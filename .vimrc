@@ -156,10 +156,6 @@ au BufWritePost .vimrc so ~/.vimrc
 "  inoremap <silent><C-J> <C-R>=OmniPopup('j')<CR>
 "  inoremap <silent><C-K> <C-R>=OmniPopul('k')<CR>
 
-" ==========
-" this is the way I like my quotation marks and various braces
-" ==========
-
 " inoremap '' ''<Left>
 " inoremap "" ""<Left>
 " inoremap () ()<Left>
