@@ -81,9 +81,10 @@ function server() {
 export ANDROIDPATH=$HOME/programming/resources/android-sdk-linux
 export GOPATH=$HOME/programming/go
 export GOBIN=$GOPATH/bin
+export APPENGINE=$HOME/programming/resources/go_appengine
 
 # PATH
-export PATH=$PATH:$GOBIN:$ANDROIDPATH/tools:$ANDROIDPATH/platform-tools
+export PATH=$PATH:$APPENGINE:$GOBIN:$ANDROIDPATH/tools:$ANDROIDPATH/platform-tools
 
 # Append current git branch in prompt
 #parse_git_branch() {
