@@ -1,0 +1,31 @@
+#!/bin/bash
+
+numArg=$#
+if [ $numArg != 2 ] ; then
+	echo "You've entered either too many or too little arguments, expected 2"
+	echo "You supplied $numArg"
+	echo "Usage: asm_compile <input.asm> <output_name>"
+	exit
+else
+	echo "Compiling asm using NASM"
+	input=$1
+	output=$2
+	inter=asm0000.o
+	nasm -f elf -o $inter $input
+	ret=$?
+	if [ $ret != 0 ] ; then
+		echo "NASM compilation failed"
+		exit
+	else 
+		echo "Compiling using GCC for final output"
+		gcc -o $output $inter
+		ret=$?
+		if [ $ret != 0 ] ; then
+			echo "GCC compilation failed"
+			exit
+		else
+			rm $inter
+			echo "Compilation completed"
+		fi
+	fi
+fi

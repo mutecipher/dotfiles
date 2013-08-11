@@ -1,0 +1,16 @@
+#!/bin/bash
+
+echo "...[ updating distros ]"
+sudo apt-get -qq update 
+
+echo "...[ upgrading software ]"
+sudo apt-get upgrade 
+
+echo "...[ upgrading distro software ]"
+sudo apt-get dist-upgrade 
+
+echo "...[ autocleaning ]"
+sudo apt-get autoclean 
+
+echo "...[ autoremoving ]"
+sudo apt-get autoremove
