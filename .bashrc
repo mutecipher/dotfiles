@@ -77,9 +77,24 @@ function server() {
   xdg-open "http://localhost:${port}/" && python -m SimpleHTTPServer "$port"
 }
 
+# Function to jump between directories
+export MARKPATH=$HOME/.marks
+function jump {
+  cd -P $MARKPATH/$1 2>/dev/null || echo "No such mark: $1"
+}
+function mark {
+  mkdir -p $MARKPATH; ln -s $(pwd) $MARKPATH/$1
+}
+function unmark {
+  rm -i $MARKPATH/$1
+}
+function marks {
+  ls -l $MARKPATH | sed 's/  / /g' | cut -d' ' -f9- | sed 's/ -/\t-/g' && echo
+}
+
 # MY ADDED PATHS
 export ANDROIDPATH=$HOME/programming/resources/android-sdk-linux
-export GOPATH=$HOME/programming/go
+export GOPATH=$HOME/Documents/Development/Go
 export GOBIN=$GOPATH/bin
 export APPENGINE=$HOME/programming/resources/go_appengine
 
