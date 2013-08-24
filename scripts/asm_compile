@@ -2,8 +2,6 @@
 
 numArg=$#
 if [ $numArg != 2 ] ; then
-	echo "You've entered either too many or too little arguments, expected 2"
-	echo "You supplied $numArg"
 	echo "Usage: asm_compile <input.asm> <output_name>"
 	exit
 else
