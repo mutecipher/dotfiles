@@ -33,7 +33,7 @@ set showmode " always show current mode
 set modeline
 set spl=en " set spellcheck lang
 set cursorline " cursor highlighting
-set colorcolumn=80
+set colorcolumn=79
 
 
 " ==========
