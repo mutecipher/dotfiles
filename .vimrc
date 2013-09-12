@@ -9,8 +9,8 @@ set shell=xterm " default shell
 set autochdir " auto change to directory of current file
 set swf " create swap files
 set bk " backup files
-set backupdir=~/tmp " set a central area for backup files
-set dir=~/tmp " swap file directory
+set backupdir=~/.tmp " set a central area for backup files
+set dir=~/.tmp " swap file directory
 "set ofu=syntaxcomplete#Complete
 filetype plugin indent on " set by filetype and indent
 colorscheme desert " set color scheme
