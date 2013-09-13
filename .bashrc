@@ -74,16 +74,17 @@ PS1="$\[\033[01;32m\]\$(__git_ps1)\[\033[00m\] "
 # Starts an HTTP server from a directory
 function server() {
   local port="${1:-8000}"
-  xdg-open "http://localhost:${port}/" && python -m SimpleHTTPServer "$port"
+  open "http://localhost:${port}/" && python -m SimpleHTTPServer "$port"
 }
 
 # MY ADDED PATHS
-#export ANDROIDPATH=$HOME/programming/resources/android-sdk-linux
+export ANDROIDPATH=$HOME/Developement/.android-sdk-macosx
 #export GOPATH=$HOME/Documents/Development/Go
 #export GOBIN=$GOPATH/bin
 #export APPENGINE=$HOME/programming/resources/go_appengine
 
 # PATH
+#export PATH=$PATH:$ANDROIDPATH/tools:$ANDROIDPATH/platform-tools
 #export PATH=$PATH:$APPENGINE:$GOBIN:$ANDROIDPATH/tools:$ANDROIDPATH/platform-tools
 
 # Append current git branch in prompt

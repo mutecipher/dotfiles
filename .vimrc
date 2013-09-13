@@ -3,7 +3,7 @@
 " ==========
 
 set nocp " don't behave in vi compatible mode
-set hidden " hides buffers rather than discarding them
+set listchars=tab:>-,eol:-
 set lpl " load plugins on startup
 set shell=xterm " default shell
 set autochdir " auto change to directory of current file
