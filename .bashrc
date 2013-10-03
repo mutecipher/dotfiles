@@ -78,9 +78,9 @@ function server() {
 }
 
 # MY ADDED PATHS
-export ANDROIDPATH=$HOME/Developement/.android-sdk-macosx
-#export GOPATH=$HOME/Documents/Development/Go
-#export GOBIN=$GOPATH/bin
+#export ANDROIDPATH=$HOME/Developement/.android-sdk-macosx
+export GOPATH=$HOME/Documents/Development/Go
+export GOBIN=$GOPATH/bin
 #export APPENGINE=$HOME/programming/resources/go_appengine
 
 # PATH

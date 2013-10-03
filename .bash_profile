@@ -23,5 +23,3 @@ fi
 
 export CLICOLOR=1
 export LSCOLORS=GxFxCxDxBxegedabagaced
-
-export PATH=$PATH:$ANDROIDPATH/tools:$ANDROIDPATH/platform-tools

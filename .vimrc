@@ -5,7 +5,7 @@
 set nocp " don't behave in vi compatible mode
 set listchars=tab:>-,eol:-
 set lpl " load plugins on startup
-set shell=xterm " default shell
+set shell=bash " default shell
 set autochdir " auto change to directory of current file
 set swf " create swap files
 set bk " backup files
@@ -17,6 +17,8 @@ colorscheme desert " set color scheme
 set background=dark " set background type
 syntax enable " highlight syntax
 set scrolloff=10
+set splitbelow " new window goes below
+set splitright " new window goes right
 "set wildmode=list:longest
 "set wildmenu
 "set wildignore=*.o,*.obj,*~
@@ -34,6 +36,8 @@ set modeline
 set spl=en " set spellcheck lang
 set cursorline " cursor highlighting
 set colorcolumn=79
+set lcs=tab:›\ ,trail:·,eol:¬,nbsp:_
+
 
 
 " ==========
