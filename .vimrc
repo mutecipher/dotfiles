@@ -30,12 +30,13 @@ set lazyredraw
 " ==========
 
 set ruler " turn on ruler to show location of cursor
-set number " show line numbers
+set relativenumber
+" set number " show line numbers
 set showmode " always show current mode
 set modeline
 set spl=en " set spellcheck lang
 set cursorline " cursor highlighting
-set colorcolumn=79
+set colorcolumn=81
 set lcs=tab:›\ ,trail:·,eol:¬,nbsp:_
 
 
@@ -60,7 +61,6 @@ highlight ColorColumn ctermbg=233
 "set foldlevel=2
 "set foldmethod=manual
 "set foldminlines=0
-set relativenumber
 
 
 " ==========
