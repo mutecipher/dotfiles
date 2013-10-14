@@ -3,7 +3,8 @@
 " ==========
 
 set nocp " don't behave in vi compatible mode
-set listchars=tab:>-,eol:-
+set listchars=tab:>~,nbsp:_,trail:.,eol:-
+set list
 set lpl " load plugins on startup
 set shell=bash " default shell
 set autochdir " auto change to directory of current file
@@ -16,7 +17,7 @@ filetype plugin indent on " set by filetype and indent
 colorscheme desert " set color scheme
 set background=dark " set background type
 syntax enable " highlight syntax
-set scrolloff=10
+set scrolloff=15
 set splitbelow " new window goes below
 set splitright " new window goes right
 "set wildmode=list:longest
