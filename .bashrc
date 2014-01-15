@@ -69,13 +69,14 @@ fi
 
 # Set my custom PS1
 export GIT_PS1_SHOWDIRTYSTATE=1
-PS1="$\[\033[01;32m\]\$(__git_ps1)\[\033[00m\] "
+PS1="\e[92m\$(__git_ps1)\e[0m$ "
+#PS1="\e[0m[\e[92m\u\e[0m:\e[94m\W\e[0m]\$ "
 
 # Starts an HTTP server from a directory
-function server() {
-  local port="${1:-8000}"
-  open "http://localhost:${port}/" && python -m SimpleHTTPServer "$port"
-}
+#function server() {
+  #local port="${1:-8000}"
+  #open "http://localhost:${port}/" && python -m SimpleHTTPServer "$port"
+#}
 
 # MY ADDED PATHS
 #export ANDROIDPATH=$HOME/Developement/.android-sdk-macosx
