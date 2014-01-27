@@ -1,0 +1,6 @@
+#!/bin/bash
+
+file=$1
+pass=$2
+
+openssl des3 -salt -pass pass:$pass -out $file.new -in $file
