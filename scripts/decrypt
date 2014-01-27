@@ -1,6 +1,11 @@
 #!/bin/bash
 
-file=$1
-pass=$2
+if [ "$#" -ne 2 ]; then
+  echo "Illegal number of parameters"
+  echo "usage: encrypt <filename> <password>"
+else
+  file=$1
+  pass=$2
 
-openssl des3 -d -pass pass:$pass -in $1 | less
+  openssl des3 -d -pass pass:$pass -in $1 | less
+fi
