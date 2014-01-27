@@ -96,6 +96,7 @@ fi
 # History Settings #############################################################
 ## Ignore duplicates
 HISTCONTROL=ignoreboth
+HISTIGNORE="encrypt*:decrypt*"
 
 ## Append to history file, don't overwrite
 shopt -s histappend
