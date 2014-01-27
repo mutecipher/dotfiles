@@ -1,4 +1,6 @@
 #!/bin/bash
+# This script encrypts an inputted file using the salted DES3 using the 
+# password passed in.
 
 if [ "$#" -ne 2 ]; then
   echo "Illegal number of parameters"

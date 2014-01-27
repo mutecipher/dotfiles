@@ -1,4 +1,6 @@
 #!/bin/bash
+# This script decrypts an inputted file using the
+# password passed in.
 
 if [ "$#" -ne 2 ]; then
   echo "Illegal number of parameters"
