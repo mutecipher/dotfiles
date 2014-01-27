@@ -1,6 +1,6 @@
 #!/bin/bash
 # This script decrypts an inputted file using the
-# password passed in.to an output file 
+# password passed into an output file 
 
 if [ "$#" -ne 3 ]; then
   echo "Illegal number of parameters"
