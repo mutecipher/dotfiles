@@ -1,0 +1,20 @@
+[user]
+  name = Cory Hutchison
+  email = chutc124@gmail.com
+[core]
+  editor = vim
+[color]
+  ui = true
+[color "branch"]
+  current = green reverse
+  local = green
+  remote = yellow
+[color "diff"]
+  meta = yellow bold
+  frag = magenta bold
+  old = red bold
+  new = green bold
+[color "status"]
+  added = green
+  changed = red
+  untracked = yellow
