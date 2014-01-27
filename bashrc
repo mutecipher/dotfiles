@@ -5,6 +5,8 @@
 # Shell variables ##############################################################
 export PAGER=less
 export EDITOR=vim
+export CLICOLOR=1
+export LSCOLORS=GxFxCxDxBxegedabagaced
 export PATH=$PATH:$HOME/.bin
 export GOPATH=$HOME/Documents/Development/Go
 export GOBIN=$HOME/bin
