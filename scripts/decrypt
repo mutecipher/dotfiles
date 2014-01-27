@@ -3,4 +3,4 @@
 file=$1
 pass=$2
 
-openssl des3 -d -pass pass:$pass -in $1 -out decrypted_file
+openssl des3 -d -pass pass:$pass -in $1 | less
