@@ -4,7 +4,7 @@
 
 if [ "$#" -ne 2 ]; then
   echo "Illegal number of parameters"
-  echo "usage: encrypt <filename> <password>"
+  echo "usage: decrypt <filename> <password>"
 else
   file=$1
   pass=$2

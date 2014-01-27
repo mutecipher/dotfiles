@@ -1,0 +1,14 @@
+#!/bin/bash
+# This script decrypts an inputted file using the
+# password passed in.to an output file 
+
+if [ "$#" -ne 2 ]; then
+  echo "Illegal number of parameters"
+  echo "usage: decrypt2file <input> <output> <password>"
+else
+  in=$1
+  out=$2
+  pass=$3
+
+  openssl des3 -d -pass pass:$pass -in $in -out $out | less
+fi
