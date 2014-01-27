@@ -3,7 +3,7 @@
 " ==========
 
 set nocp " don't behave in vi compatible mode
-set listchars=tab:>~,nbsp:_,trail:.,eol:-
+set listchars=tab:>-,nbsp:_,trail:.,eol:-
 set list
 set lpl " load plugins on startup
 set shell=bash " default shell
