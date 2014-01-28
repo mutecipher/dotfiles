@@ -128,6 +128,7 @@ vnoremap > >gv
 
 
 " == functions =================================================================
+" cursorline only in active window
 augroup CursorLine
   au!
   au VimEnter,WinEnter,BufWinEnter * setlocal cursorline
@@ -135,9 +136,7 @@ augroup CursorLine
 augroup END
 
 
-" ==============================================================================
-" stuff that's not being used right now
-" ==============================================================================
+" == not currently in use ======================================================
 " text selection movement (single lines)
 "nnoremap <c-Up> ddkP
 "nnoremap <c-Down> ddp
