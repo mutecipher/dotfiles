@@ -43,22 +43,24 @@ set cursorline " cursor highlighting
 set colorcolumn=81 " draw column to mark 81 characters
 set list " display unprintable characters
 set lcs=tab:›\ ,trail:·,eol:¬,nbsp:_ " values for whitespace
-" set modeline
-" set number " show line numbers
+"set modeline
+"set number " show line numbers
 
 
 " == color settings ============================================================
 colorscheme desert " set color scheme
 set background=dark " set background type
 
-hi ColorColumn ctermbg=232
-hi CursorLine cterm=NONE ctermbg=233
+" change some colorscheme settings
+hi ColorColumn ctermbg=233
+hi CursorLine cterm=NONE ctermbg=234
 hi SignColumn ctermbg=233
-hi LineNr ctermbg=232 ctermfg=239
+hi LineNr ctermbg=233 ctermfg=240
 
 hi Comment ctermbg=233
 hi Folded ctermfg=15
 hi FoldColumn ctermbg=11
+hi Search ctermbg=10 ctermfg=238
 
 hi Pmenu ctermbg=233 ctermfg=239
 hi PmenuSbar ctermbg=233
@@ -75,13 +77,14 @@ set tabstop=2 " number of spaces a tab counts for
 set autoindent " self explanitory
 set shiftwidth=2 " number of spaces to use for autoindent
 set smartindent " self explanitory
-"set wrap " wrap text to next line 
-"set wrapmargin=80 " wrap line after X chars
 set showmatch " show matching braces
 set mat=2 " length of time to show matching braces
 set encoding=utf8 " encoding in utf8
 set lbr " enable linebreak
 set tw=500 " break on 500 characters
+set completeopt=longest,menuone " make omnicomplete menu nice
+"set wrap " wrap text
+"set wrapmargin=80 " wrap after 80 chars
 
 
 " == search settings ===========================================================
@@ -91,36 +94,14 @@ set incsearch " increment search with each char entered
 set hlsearch " highlight search results
 
 
-" == misc functions/configs ====================================================
-" better navigation of omnicomplete
-set omnifunc=syntaxcomplete#Complete
-set completeopt=longest,menuone
-"function! OmniPopup(action)
-  "if pumvisible()
-    "if a:action == 'j'
-      "return "\<C-N>"
-    "elseif a:action == 'k'
-      "return "\<C-P>"
-    "endif
-  ""endif
-  "return a:action
-"endfunction
-
-"inoremap <silent><C-J> <C-R>=OmniPopup('j')<CR>
-"inoremap <silent><C-K> <C-R>=OmniPopul('k')<CR>
-
-" text selection movement (single lines)
-nnoremap <c-Up> ddkP
-nnoremap <c-Down> ddp
-" text selection movement (multiple lines)
-vmap <c-Up> xkP`[V`]
-vmap <c-Down> xp`[V`]
-
+" == alternate key mappings ====================================================
 " removing keymappings for arrow keys
 map <Left> <Nop>
 map <Right> <Nop>
 map <Up> <Nop>
 map <Down> <Nop>
+
+" make j and k work how they should
 nnoremap j gj
 nnoremap k gk
 
@@ -146,11 +127,7 @@ vnoremap < <gv
 vnoremap > >gv
 
 
-" ==============================================================================
-" cursorline highlighting
-" ==============================================================================
-
-
+" == functions =================================================================
 augroup CursorLine
   au!
   au VimEnter,WinEnter,BufWinEnter * setlocal cursorline
@@ -159,14 +136,15 @@ augroup END
 
 
 " ==============================================================================
-" automatically reload vimrc when its saved
-" ==============================================================================
-
-
-
-" ==============================================================================
 " stuff that's not being used right now
 " ==============================================================================
+" text selection movement (single lines)
+"nnoremap <c-Up> ddkP
+"nnoremap <c-Down> ddp
+" text selection movement (multiple lines)
+"vmap <c-Up> xkP`[V`]
+"vmap <c-Down> xp`[V`]
+
 
 " hard to type things
 "imap >> →
@@ -175,6 +153,7 @@ augroup END
 "imap VV ↓
 "imap aa λ
 
+" hacky autocomplete for braces
 " inoremap '' ''<Left>
 " inoremap "" ""<Left>
 " inoremap () ()<Left>
