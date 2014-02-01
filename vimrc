@@ -23,8 +23,8 @@ set swf " create swap files
 set bk " backup files
 set backupdir=~/.tmp " set a central area for backup files
 set dir=~/.tmp " swap file directory
-set wildmode=list:longest
 set wildmenu
+set wildmode=list:longest
 set wildignore=*.o,*.obj,*~
 
 set noerrorbells
