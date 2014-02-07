@@ -8,8 +8,8 @@ export EDITOR=vim
 export CLICOLOR=1
 export LSCOLORS=GxFxCxDxBxegedabagaced
 export PATH=$PATH:$HOME/.bin
-export GOPATH=$HOME/Documents/Development/Go
-export GOBIN=$HOME/bin
+#export GOPATH=$HOME/Documents/Development/Go
+#export GOBIN=$HOME/bin
 #export ANDROIDPATH=$HOME/Developement/.android-sdk-macosx
 #export APPENGINE=$HOME/programming/resources/go_appengine
 
@@ -73,9 +73,10 @@ function git-branch-name {
 
 ### Check if repo is clean/dirty
 function git-dirty {
-  if [[ $(git status 2>/dev/null | tail -n1) = "nothing to commit, working directory clean" ]]; then echo "$undgrn"
-  else
+  if [[ $(git status 2>/dev/null | tail -n1) != "nothing to commit, working directory clean" ]]; then
     echo "$undred*"
+  else
+    echo "$undgrn"
   fi
 }
 
