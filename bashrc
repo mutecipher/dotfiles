@@ -73,7 +73,7 @@ function git-branch-name {
 
 ### Check if repo is clean/dirty
 function git-dirty {
-  if [[ $(git status 2>/dev/null | tail -n1) != "nothing to commit, working directory clean" ]]; then 
+  if [[ $(git status 2>/dev/null | tail -n1) != "nothing to commit, working directory clean" ]]; then
     echo "$undred*"
   else
     echo "$undgrn"
