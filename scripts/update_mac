@@ -1,0 +1,7 @@
+#!/bin/bash
+
+echo "...[ updating homebrew ]"
+brew update
+
+echo "...[ upgrading homebrew ]"
+brew upgrade
