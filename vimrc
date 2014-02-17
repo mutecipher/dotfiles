@@ -30,7 +30,19 @@ set wildignore=*.o,*.obj,*~
 set noerrorbells
 set novisualbell
 
-set statusline=%F%m%r%h%w\ [FORMAT=%{&ff}]\ [TYPE=%Y]\ [ASCII=\%03.3b]\ [HEX=\%02.2B]\ [POS=%04l,%04v][%p%%]\ [LEN=%L]
+
+" == statusline settings =======================================================
+set statusline=                                                   " clear buffer
+set statusline+=[%n]\                                             " buffer number
+set statusline+=%F\                                               " path
+set statusline+=%h%m%r%w                                          " flags
+set statusline+=[%{strlen(&ft)?&ft:'none'},                       " filetype
+set statusline+=%{strlen(&fenc)?&fenc:&enc},                      " encoding
+set statusline+=%{&fileformat}]                                   " format
+set statusline+=%=                                                " align right
+set statusline+=%{synIDattr(synID(line('.'),col('.'),1),'name')}\ " highlight
+set statusline+=%b,0x%-8B\                                        " current char
+set statusline+=%-14.(%l/%L,%c%V%)\ %<%P                          " offset
 
 
 " == buffer settings ===========================================================
@@ -151,6 +163,7 @@ augroup END
 " text selection movement (single lines)
 "nnoremap <c-Up> ddkP
 "nnoremap <c-Down> ddp
+
 " text selection movement (multiple lines)
 "vmap <c-Up> xkP`[V`]
 "vmap <c-Down> xp`[V`]
@@ -164,18 +177,18 @@ augroup END
 "imap aa λ
 
 " hacky autocomplete for braces
-" inoremap '' ''<Left>
-" inoremap "" ""<Left>
-" inoremap () ()<Left>
-" inoremap <> <><Left>
-" inoremap {} {}<Left>
-" inoremap [] []<Left>
-" inoremap () ()<Left>
+"inoremap '' ''<Left>
+"inoremap "" ""<Left>
+"inoremap () ()<Left>
+"inoremap <> <><Left>
+"inoremap {} {}<Left>
+"inoremap [] []<Left>
+"inoremap () ()<Left>
 
-" inoremap ' ''<Right>
-" inoremap " ""<Right>
-" inoremap ( ()<Right>
-" inoremap < <><Right>
-" inoremap { {}<Right>
-" inoremap [ []<Right>
-" inoremap ( ()<Right>
+"inoremap ' ''<Right>
+"inoremap " ""<Right>
+"inoremap ( ()<Right>
+"inoremap < <><Right>
+"inoremap { {}<Right>
+"inoremap [ []<Right>
+"inoremap ( ()<Right>
