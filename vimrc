@@ -30,6 +30,8 @@ set wildignore=*.o,*.obj,*~
 set noerrorbells
 set novisualbell
 
+set statusline=%F%m%r%h%w\ [FORMAT=%{&ff}]\ [TYPE=%Y]\ [ASCII=\%03.3b]\ [HEX=\%02.2B]\ [POS=%04l,%04v][%p%%]\ [LEN=%L]
+
 
 " == buffer settings ===========================================================
 set lazyredraw " only redraw when necessary
@@ -46,6 +48,9 @@ set lcs=tab:›\ ,trail:·,eol:¬,nbsp:_ " values for whitespace
 "set modeline
 "set number " show line numbers
 
+" resize vsplits on window resize
+au VimResized * exe "normal! \<C-w>="
+
 
 " == color settings ============================================================
 colorscheme desert " set color scheme
@@ -56,6 +61,8 @@ hi ColorColumn ctermbg=233
 hi CursorLine cterm=NONE ctermbg=234
 hi SignColumn ctermbg=233
 hi LineNr ctermbg=233 ctermfg=240
+
+hi StatusLine ctermfg=234 ctermbg=15
 
 hi Comment ctermbg=233
 hi Folded ctermfg=15
@@ -121,6 +128,10 @@ endif
 map <c-t> <esc>:tabnew<CR>
 map <c-Right> <esc>:tabNext<CR>
 map <c-Left> <esc>:tabprevious<CR>
+
+" use arrow keys to change buffers
+noremap <Left> :bp<CR>
+noremap <Right> :bn<CR>
 
 " reselect visual block after indent
 vnoremap < <gv
