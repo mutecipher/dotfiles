@@ -51,14 +51,15 @@ set scrolloff=15 " scroll offset
 set splitbelow " new window goes below
 set splitright " new window goes right
 set relativenumber " line numbers relative to cursor position
+"set number " show line numbers
 set showmode " always show current mode
 set spl=en " set spellcheck lang
 set cursorline " cursor highlighting
 set colorcolumn=81 " draw column to mark 81 characters
 set list " display unprintable characters
 set lcs=tab:›\ ,trail:·,eol:¬,nbsp:_ " values for whitespace
+set nuw=6
 "set modeline
-"set number " show line numbers
 
 " resize vsplits on window resize
 au VimResized * exe "normal! \<C-w>="
