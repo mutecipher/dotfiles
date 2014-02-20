@@ -4,17 +4,28 @@
 [core]
   editor = vim
 [color]
-  ui = true
+  ui = auto
 [color "branch"]
   current = green reverse
   local = green
   remote = yellow
 [color "diff"]
-  meta = yellow bold
-  frag = magenta bold
-  old = red bold
-  new = green bold
+  meta = yellow reverse
+  frag = magenta reverse
+  old = red reverse
+  new = green reverse
 [color "status"]
   added = green
-  changed = red
-  untracked = yellow
+  changed = yellow
+  untracked = red
+[push]
+  default = simple
+[alias]
+  st = status
+  ci = commit
+  br = branch
+  co = checkout
+  df = diff
+  lg = log -p
+  lol = log --graph --decorate --pretty=oneline --abbrev-commit
+  ls = ls-files
