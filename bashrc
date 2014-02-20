@@ -8,10 +8,6 @@ export EDITOR=vim
 export CLICOLOR=1
 export LSCOLORS=GxFxCxDxBxegedabagaced
 export PATH=$PATH:$HOME/.bin
-#export GOPATH=$HOME/Documents/Development/Go
-#export GOBIN=$HOME/bin
-#export ANDROIDPATH=$HOME/Developement/.android-sdk-macosx
-#export APPENGINE=$HOME/programming/resources/go_appengine
 
 # Color variables ##############################################################
 ## Regular
