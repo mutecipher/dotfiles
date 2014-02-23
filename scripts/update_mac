@@ -3,5 +3,5 @@
 echo "...[ updating homebrew ]"
 brew update
 
-echo "...[ upgrading homebrew ]"
+echo "...[ upgrading brews ]"
 brew upgrade
