@@ -2,12 +2,15 @@
 # This script decrypts an inputted file using the
 # password passed in.
 
-if [ "$#" -ne 2 ]; then
+if [ "$#" -ne 1 ]; then
   echo "Illegal number of parameters"
-  echo "usage: decrypt <filename> <password>"
+  echo "usage: decrypt <filename>"
 else
   file=$1
-  pass=$2
 
-  openssl des3 -d -pass pass:$pass -in $1 | less
+  echo -n Password:
+  read -s password
+  echo
+
+  openssl des3 -d -pass pass:$password -in $1 | less
 fi
