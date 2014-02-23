@@ -2,15 +2,20 @@
 # This script encrypts an inputted file using the salted DES3 using the 
 # password passed in.
 
+# Check for correct inputs
 if [ "$#" -ne 2 ]; then
   echo "Illegal number of parameters"
   echo "usage: encrypt <in> <out>"
 else
+  # Assign variables
   in=$1
   out=$2
 
-  echo -n Password:
+  # Read password
+  echo -n "Password: "
   read -s password
   echo
+
+  # Encrypt
   openssl des3 -salt -pass pass:$password -out $out -in $in
 fi
