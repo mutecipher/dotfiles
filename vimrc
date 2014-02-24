@@ -58,7 +58,7 @@ set cursorline " cursor highlighting
 set colorcolumn=81 " draw column to mark 81 characters
 set list " display unprintable characters
 set lcs=tab:›\ ,trail:·,eol:¬,nbsp:_ " values for whitespace
-set nuw=6
+set nuw=3
 "set modeline
 
 " resize vsplits on window resize
