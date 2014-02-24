@@ -1,20 +1,38 @@
 #!/bin/bash
-# This script decrypts an inputted file using the
-# password passed in.
+
+# This file takes an encrypted file as input, accepts the password, and decrypts
+# either to file or less
 
 # Check for correct inputs
 if [ "$#" -ne 1 ]; then
-  echo "[!!] Illegal number of parameters"
+  printf "[\e[1;31m!!\e[0m] Illegal number of parameters\n"
   echo "usage: decrypt <filename>"
 else
-  # Assign variables
-  file=$1
-
   # Read password
   echo -n "Password: "
   read -s password
   echo
 
-  # Decrypt
-  openssl des3 -d -pass pass:$password -in $1 | less
+  # Read output filename
+  echo -n "Would you like to output to a file [y/n]? "
+  read response
+
+  case $response in
+    [yY])
+      # Get filename
+      echo -n "Filename: "
+      read filename
+
+      # Decrypt to file
+      openssl des3 -d -pass pass:$password -in $1 -out $filename
+      ;;
+    [nN])
+      # Decrypt to less
+      openssl des3 -d -pass pass:$password -in $1 | less
+      ;;
+    *)
+      # Invalid option
+      echo "Invalid option."
+      ;;
+  esac
 fi

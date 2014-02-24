@@ -3,13 +3,13 @@
 # password passed in.
 
 # Check for correct inputs
-if [ "$#" -ne 2 ]; then
-  echo "[!!] Illegal number of parameters"
-  echo "usage: encrypt <in> <out>"
+if [ "$#" -ne 1 ]; then
+  printf "[\e[1;31m!!\e[0m] Illegal number of parameters\n"
+  echo "usage: encrypt <filename>"
 else
-  # Assign variables
-  in=$1
-  out=$2
+  # Get encrypted filename
+  echo -n "Output file: "
+  read out
 
   # Read password
   echo -n "Password: "
@@ -17,5 +17,5 @@ else
   echo
 
   # Encrypt
-  openssl des3 -salt -pass pass:$password -out $out -in $in
+  openssl des3 -salt -pass pass:$password -out $out -in $1
 fi

@@ -1,7 +1,8 @@
 #!/bin/bash
 
-echo "...[ updating homebrew ]"
+printf "[ \e[32;4mupdating homebrew\e[0m ] "
 brew update
 
-echo "...[ upgrading brews ]"
+printf "[ \e[32;4mupgrading brews\e[0m ] "
 brew upgrade
+echo
