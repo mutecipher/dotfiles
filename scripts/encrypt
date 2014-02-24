@@ -4,7 +4,7 @@
 
 # Check for correct inputs
 if [ "$#" -ne 1 ]; then
-  printf "[\e[1;31m!!\e[0m] Illegal number of parameters\n"
+  printf "[\e[1;31;5m!!\e[0m] Illegal number of parameters\n"
   echo "usage: encrypt <filename>"
 else
   # Get encrypted filename
