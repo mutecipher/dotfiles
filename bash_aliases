@@ -2,14 +2,16 @@
 # Cory's .bash_aliases
 ################################################################################
 
-alias rm="rm -rfi"
-alias mv="mv -i"
-alias cp="cp -i"
+alias rm="rm -rfiv"
+alias mv="mv -vi"
+alias cp="cp -ivR"
 alias mkdir="mkdir -pv"
 alias df="df -h"
 alias du="du -h"
-alias c="clear"
 alias ls="ls -hFG"
+alias ll="ls -hFGl"
+alias la="ls -hFGa"
+alias lal="ls -hFGal"
 alias grep="grep --color=auto"
 alias jobs="jobs -l"
 alias header="curl -I"
