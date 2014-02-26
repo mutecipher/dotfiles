@@ -60,6 +60,9 @@ case $- in
       *) return;;
 esac
 
+# Set Autocomplete Case Sensitivity ############################################
+bind 'set completion-ignore-case on'
+
 # Set PS1 ######################################################################
 ## Functions
 ### Parse git branch

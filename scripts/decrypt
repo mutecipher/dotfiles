@@ -24,7 +24,7 @@ else
       read filename
 
       # Decrypt to file
-      openssl des3 -d -pass pass:$password -in $1 -out $filename
+      openssl des3 -d -pass pass:$password -in $1 -out "$filename".plain
       ;;
     [nN])
       # Decrypt to less

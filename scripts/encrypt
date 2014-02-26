@@ -17,5 +17,5 @@ else
   echo
 
   # Encrypt
-  openssl des3 -salt -pass pass:$password -out $out -in $1
+  openssl des3 -salt -pass pass:$password -out "$out".cipher -in $1
 fi
