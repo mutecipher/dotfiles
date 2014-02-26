@@ -1,7 +1,10 @@
 #!/bin/bash
 
+echo -n "Password: "
+read -s pass
+
 printf "[ \e[4;32mupdating\e[0m ]\n"
-sudo apt-get -qq update
+echo $pass | sudo -S apt-get -qq update
 wait
 printf "[ \e[4;32mupgrading\e[0m ]\n"
 sudo apt-get upgrade
