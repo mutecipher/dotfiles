@@ -1,7 +1,10 @@
 #!/bin/bash
 
-printf "[ \e[4;32mupdating homebrew\e[0m ]\n"
-brew update &
+printf "[ \e[4;32mupdating homebrew\e[0m ] "
+echo
+brew update
 wait
-printf "[ \e[4;32mupgrading brews\e[0m ]\n"
-brew upgrade &
+printf "[ \e[4;32mupgrading brews\e[0m ] "
+echo
+brew upgrade
+wait
