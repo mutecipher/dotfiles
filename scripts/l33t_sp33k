@@ -2,7 +2,7 @@
 
 # Convert words to l33t sp33k
 if [[ "$#" -ne 2 ]]; then
-  echo "[!!] Illegal number of parameters"
+  printf "[\e[1;31;5m!!\e[0m] Illegal number of parameters\n"
   echo "usage: l33t_sp33k <in> <out>"
 else
   less $1 | tr T 7 | tr iI ! | tr aA @ | tr oO 0 | tr eE 3 | tr bB 8 | tr gG 9 | tr sS 5 > $2
