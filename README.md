@@ -1,5 +1,5 @@
 ##cjhutchi's dotfiles
 
-# TO-DO:
+to-do:
 * Add a makefile to automatically symlink files to ~
 
