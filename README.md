@@ -1,5 +1,5 @@
-#Cory's Dotfiles
+##cjhutchi's dotfiles
 
-## TO-DO:
-* Make an install script
-* Clean up/configure vimrc
+# TO-DO:
+* Add a makefile to automatically symlink files to ~
+
