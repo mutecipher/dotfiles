@@ -5,6 +5,7 @@
 
 " == system settings ===========================================================
 au BufWritePost .vimrc so ~/.vimrc              " auto reload .vimrc when edited
+au BufWritePre * :%s/\s\+$//            " remove all trailing whitespace on save
 
 set nocp                                    " don't behave in vi compatible mode
 set history=50                                        " keep 50 lines in history
@@ -102,7 +103,7 @@ set autoindent                                                " self explanitory
 set shiftwidth=2                        " number of spaces to use for autoindent
 set smartindent                                               " self explanitory
 set showmatch                                             " show matching braces
-set mat=2                               " length of time to show matching braces
+set mat=1                               " length of time to show matching braces
 set encoding=utf8                                             " encoding in utf8
 set lbr                                                       " enable linebreak
 set tw=500                                             " break on 500 characters
