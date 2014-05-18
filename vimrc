@@ -5,7 +5,7 @@
 
 " == system settings ===========================================================
 au BufWritePost .vimrc so ~/.vimrc              " auto reload .vimrc when edited
-au BufWritePre * :%s/\s\+$//            " remove all trailing whitespace on save
+"au BufWritePre * :%s/\s\+$//            " remove all trailing whitespace on save
 
 set nocp                                    " don't behave in vi compatible mode
 set history=50                                        " keep 50 lines in history
@@ -36,7 +36,7 @@ set novisualbell
 " == statusline settings =======================================================
 set statusline=                                                   " clear buffer
 set statusline+=[%n]\                                            " buffer number
-set statusline+=%F\                                                       " path
+set statusline+=%f\                                                       " path
 set statusline+=%h%m%r%w                                                 " flags
 set statusline+=[%{strlen(&ft)?&ft:'none'},                           " filetype
 set statusline+=%{strlen(&fenc)?&fenc:&enc},                          " encoding
@@ -58,7 +58,8 @@ set relativenumber                    " line numbers relative to cursor position
 set showmode                                          " always show current mode
 set spl=en                                                 " set spellcheck lang
 set cursorline                                             " cursor highlighting
-set colorcolumn=81                           " draw column to mark 81 characters
+let &colorcolumn="81,".join(range(82,199),",")
+"set colorcolumn=81                          " draw column to mark 81 characters
 set list                                        " display unprintable characters
 set lcs=tab:›\ ,trail:·,eol:¬,nbsp:_                     " values for whitespace
 set nuw=3
