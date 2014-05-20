@@ -5,7 +5,7 @@
 
 " == system settings ===========================================================
 au BufWritePost .vimrc so ~/.vimrc              " auto reload .vimrc when edited
-"au BufWritePre * :%s/\s\+$//            " remove all trailing whitespace on save
+"au BufWritePre * :%s/\s\+$//           " remove all trailing whitespace on save
 
 set nocp                                    " don't behave in vi compatible mode
 set history=50                                        " keep 50 lines in history
@@ -170,7 +170,7 @@ augroup END
 " ==============================================================================
 
 
-" == not currently in use ======================================================
+" == not in use ================================================================
 " text selection movement (single lines)
 "nnoremap <c-Up> ddkP
 "nnoremap <c-Down> ddp
