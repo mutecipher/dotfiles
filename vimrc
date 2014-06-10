@@ -63,8 +63,7 @@ let &colorcolumn="81,".join(range(82,199),",")
 set list                                        " display unprintable characters
 set lcs=tab:›\ ,trail:·,eol:¬,nbsp:_                     " values for whitespace
 set nuw=3
-"set modeline
-
+"set modeline 
                                                " resize vsplits on window resize
 au VimResized * exe "normal! \<C-w>="
 " ==============================================================================

@@ -65,6 +65,21 @@ esac
 # Set Autocomplete Case Sensitivity ############################################
 bind 'set completion-ignore-case on'
 
+## HOMEBREW
+if [ -f /usr/local/Library/Contributions/brew_bash_completion.sh ] ; then
+  . /usr/local/Library/Contributions/brew_bash_completion.sh
+fi
+
+## ADB
+if [ -f /usr/local/etc/bash_completion.d/adb-completion.bash ] ; then
+  . /usr/local/etc/bash_completion.d/adb-completion.bash
+fi
+
+## ANDROID
+if [ -f /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash ] ; then
+  . /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash
+fi
+
 # Set PS1 ######################################################################
 ## Functions
 ### Parse git branch
@@ -91,7 +106,7 @@ function git-branch-prompt {
 if [ $(id -u) -eq 0 ]; then
   export PS1="\$(git-branch-prompt)[$txtred\e[5m!!$txtrst] $txtred#$txtrst "
 else
-  export PS1="\$(git-branch-prompt)$ "
+  export PS1="\$(git-branch-prompt)> "
   export SUDO_PS1="$txtred#$txtrst [$txtred\e[5m!!$txtrst] "
 fi
 
