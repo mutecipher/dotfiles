@@ -106,8 +106,8 @@ function git-branch-prompt {
 if [ $(id -u) -eq 0 ]; then
   export PS1="\$(git-branch-prompt)[$txtred\e[5m!!$txtrst] $txtred#$txtrst "
 else
-  export PS1="\$(git-branch-prompt)> "
-  export SUDO_PS1="$txtred#$txtrst [$txtred\e[5m!!$txtrst] "
+  export PS1="\$(git-branch-prompt)$ "
+  export SUDO_PS1="\$(git-branch-prompt)$txtred#$txtrst [$txtred\e[5m!!$txtrst] "
 fi
 
 # History Settings #############################################################
