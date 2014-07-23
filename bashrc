@@ -7,9 +7,10 @@ export PAGER=less
 export EDITOR=vim
 export CLICOLOR=1
 export LSCOLORS=GxFxCxDxBxegedabagaced
-export PATH=$PATH:/usr/local/sbin:$HOME/.bin
-export DEV=$HOME/Documents/Coding
-export GOPATH=$DEV/Misc/Go
+export DEV=$HOME/Documents/Code
+export GOPATH=$DEV/Go
+export GOBIN=$GOPATH/bin
+export PATH=$PATH:/usr/local/sbin:$HOME/.bin:$GOBIN
 
 # Color variables ##############################################################
 ## Regular
