@@ -3,6 +3,9 @@
 message=$1
 for (( i=0; i<${#message}; i++ ))
 do
+  printf "\e[?25l"
   printf "${message:$i:1}"
   sleep 0.1
 done
+echo
+printf "\e[?25h"
