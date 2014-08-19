@@ -51,6 +51,9 @@ bakcyn='\e[46m' # Cyan
 bakwht='\e[47m' # White
 ## Reset
 txtrst='\e[0m'    # Text Reset
+## Cursor
+crsoff='\e[?25l'
+crson='\e[?25h'
 
 # Attach .bash_aliases #########################################################
 if [ -f ~/.bash_aliases ]; then
