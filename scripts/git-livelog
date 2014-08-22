@@ -19,7 +19,7 @@ do
     # print out the git log (all purrdy like)
     git --no-pager log $1 --graph --all \
     --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr)%Creset' \
-    --abbrev-commit --date=relative
+    --abbrev-commit --date=relative | head -35
     sleep 1 # wait for a second
 
     read -t 1 -n 1 key # read for user input
