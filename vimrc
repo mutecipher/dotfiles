@@ -3,10 +3,7 @@
 " ==============================================================================
 
 
-" == system settings ===========================================================
-au BufWritePost .vimrc so ~/.vimrc              " auto reload .vimrc when edited
-"au BufWritePre * :%s/\s\+$//           " remove all trailing whitespace on save
-
+" == SYSTEM SETTINGS ===========================================================
 set nocp                                    " don't behave in vi compatible mode
 set history=50                                        " keep 50 lines in history
 set ruler                             " turn on ruler to show location of cursor
@@ -33,7 +30,7 @@ set novisualbell
 
 " ==============================================================================
 
-" == statusline settings =======================================================
+" == STATUSLINE SETTINGS =======================================================
 set statusline=                                                   " clear buffer
 set statusline+=[%n]\                                            " buffer number
 set statusline+=%f\                                                       " path
@@ -48,7 +45,7 @@ set statusline+=%-14.(%l/%L,%c%V%)\ %<%P                                " offset
 " ==============================================================================
 
 
-" == buffer settings ===========================================================
+" == BUFFER SETTINGS ===========================================================
 set lazyredraw                                      " only redraw when necessary
 set scrolloff=15                                                 " scroll offset
 set splitbelow                                           " new window goes below
@@ -58,18 +55,16 @@ set relativenumber                    " line numbers relative to cursor position
 set showmode                                          " always show current mode
 set spl=en                                                 " set spellcheck lang
 set cursorline                                             " cursor highlighting
-let &colorcolumn="81,".join(range(82,199),",")
+let &colorcolumn="81,".join(range(82,999),",")
 "set colorcolumn=81                          " draw column to mark 81 characters
 set list                                        " display unprintable characters
 set lcs=tab:›\ ,trail:·,eol:¬,nbsp:_                     " values for whitespace
 set nuw=3
-"set modeline 
-                                               " resize vsplits on window resize
-au VimResized * exe "normal! \<C-w>="
+"set modeline
 " ==============================================================================
 
 
-" == color settings ============================================================
+" == COLOR SETTINGS ============================================================
 colorscheme desert                                            " set color scheme
 set background=dark                                        " set background type
 
@@ -93,7 +88,7 @@ hi PmenuSel ctermbg=22 ctermfg=11
 " ==============================================================================
 
 
-" == text area settings ========================================================
+" == TEXT AREA SETTINGS ========================================================
 set textwidth=80                                           " set max line length
 set expandtab                                       " use spaces rather than tab
 set smarttab                                                 " make tabs smarter
@@ -113,7 +108,7 @@ set completeopt=longest,menuone                    " make omnicomplete menu nice
 " ==============================================================================
 
 
-" == search settings ===========================================================
+" == SEARCH SETTINGS ===========================================================
 set ignorecase                                    " ignore word case when search
 set smartcase                                          " when searching be smart
 set incsearch                          " increment search with each char entered
@@ -121,12 +116,20 @@ set hlsearch                                          " highlight search results
 " ==============================================================================
 
 
-" == alternate key mappings ====================================================
+" == ALTERNATE KEY MAPPINGS ====================================================
                                            " removing keymappings for arrow keys
-map <Left> <Nop>
-map <Right> <Nop>
-map <Up> <Nop>
-map <Down> <Nop>
+vnoremap <left> <nop>
+vnoremap <right> <nop>
+vnoremap <up> <nop>
+vnoremap <down> <nop>
+nnoremap <left> <nop>
+nnoremap <right> <nop>
+nnoremap <up> <nop>
+nnoremap <down> <nop>
+inoremap <left> <nop>
+inoremap <right> <nop>
+inoremap <up> <nop>
+inoremap <down> <nop>
 
                                              " make j and k work how they should
 nnoremap j gj
@@ -140,18 +143,18 @@ nnoremap <c-l> <c-w>l
 
                                                         " faster window resizing
 if bufwinnr(1)
-  map + <c-W>+
-  map - <c-W>-
+  map + <c-w>+
+  map _ <c-w>-
 endif
 
                                                      " make changing tabs easier
-map <c-t> <esc>:tabnew<CR>
-map <c-Right> <esc>:tabNext<CR>
-map <c-Left> <esc>:tabprevious<CR>
+map <c-t> <esc>:tabnew<cr>
+map <c-right> <esc>:tabn<cr>
+map <c-left> <esc>:tabp<cr>
 
                                               " use arrow keys to change buffers
-noremap <Left> :bp<CR>
-noremap <Right> :bn<CR>
+nnoremap <left> <esc>:bp<cr>
+nnoremap <right> <esc>:bn<cr>
 
                                             " reselect visual block after indent
 vnoremap < <gv
@@ -159,17 +162,32 @@ vnoremap > >gv
 " ==============================================================================
 
 
-" == functions =================================================================
+" == FUNCTIONS =================================================================
+function MyFunction()
+  if "foo" ==# "Foo"
+    return 1
+  else
+    return 0
+endfunction
+" ==============================================================================
+
+" == AUTOCOMMANDS ==============================================================
+au BufWritePost .vimrc so ~/.vimrc              " auto reload .vimrc when edited
+"au BufWritePre * :%s/\s\+$//           " remove all trailing whitespace on save
+
+                                       " equally resize vsplits on window resize
+au VimResized * exe "normal! \<C-w>="
+
                                               " cursorline only in active window
-augroup CursorLine
-  au!
-  au VimEnter,WinEnter,BufWinEnter * setlocal cursorline
-  au WinLeave * setlocal nocursorline
-augroup END
+"augroup CursorLine
+" au!
+" au VimEnter,WinEnter,BufWinEnter * setlocal cursorline
+" au WinLeave * setlocal nocursorline
+"augroup END
 " ==============================================================================
 
 
-" == not in use ================================================================
+" == NOT IN USE ================================================================
 " text selection movement (single lines)
 "nnoremap <c-Up> ddkP
 "nnoremap <c-Down> ddp
