@@ -4,10 +4,10 @@
 
 ### Screenshots:
 
-![alt text](https://github.com/cjhutchi/dotfiles/blob/master/screenshot.png "Clean repo")
+![alt text](https://github.com/cjhutchi/dotfiles/blob/master/clean.png "Clean repo")
 
 
-![alt text](https://github.com/cjhutchi/dotfiles/blob/master/screenshot1.png "Dirty repo")
+![alt text](https://github.com/cjhutchi/dotfiles/blob/master/dirty.png "Dirty repo")
 
 ####To-Do:
 * Write a makefile to automatically config a system once installed
