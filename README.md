@@ -3,6 +3,8 @@
 ## A collection of my config files for nix based OSes.
 
 ![alt text](https://github.com/cjhutchi/dotfiles/blob/master/screenshot.png "Clean repo")
+
+
 ![alt text](https://github.com/cjhutchi/dotfiles/blob/master/screenshot1.png "Dirty repo")
 
 To-Do:
