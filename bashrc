@@ -79,6 +79,11 @@ if [ -f /usr/local/etc/bash_completion.d/adb-completion.bash ] ; then
   . /usr/local/etc/bash_completion.d/adb-completion.bash
 fi
 
+## GIT 
+if [ -f /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.bash ] ; then
+  . /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.bash
+fi
+
 ## ANDROID
 if [ -f /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash ] ; then
   . /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash
