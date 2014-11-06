@@ -27,7 +27,6 @@ set wildignore=*.o,*.obj,*~
 
 set noerrorbells
 set novisualbell
-
 " ==============================================================================
 
 " == STATUSLINE SETTINGS =======================================================
@@ -163,12 +162,6 @@ vnoremap > >gv
 
 
 " == FUNCTIONS =================================================================
-function MyFunction()
-  if "foo" ==# "Foo"
-    return 1
-  else
-    return 0
-endfunction
 " ==============================================================================
 
 " == AUTOCOMMANDS ==============================================================
@@ -179,11 +172,11 @@ au BufWritePost .vimrc so ~/.vimrc              " auto reload .vimrc when edited
 au VimResized * exe "normal! \<C-w>="
 
                                               " cursorline only in active window
-"augroup CursorLine
-" au!
-" au VimEnter,WinEnter,BufWinEnter * setlocal cursorline
-" au WinLeave * setlocal nocursorline
-"augroup END
+augroup CursorLine
+ au!
+ au VimEnter,WinEnter,BufWinEnter * setlocal cursorline
+ au WinLeave * setlocal nocursorline
+augroup END
 " ==============================================================================
 
 

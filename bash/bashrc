@@ -69,24 +69,29 @@ esac
 # Set Autocomplete Case Sensitivity ############################################
 bind 'set completion-ignore-case on'
 
-## HOMEBREW
-if [ -f /usr/local/Library/Contributions/brew_bash_completion.sh ] ; then
-  . /usr/local/Library/Contributions/brew_bash_completion.sh
-fi
-
 ## ADB
 if [ -f /usr/local/etc/bash_completion.d/adb-completion.bash ] ; then
   . /usr/local/etc/bash_completion.d/adb-completion.bash
 fi
 
-## GIT 
+## ANDROID
+if [ -f /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash ] ; then
+  . /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash
+fi
+
+## GIT
 if [ -f /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.bash ] ; then
   . /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.bash
 fi
 
-## ANDROID
-if [ -f /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash ] ; then
-  . /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash
+## GO
+if [ -f /usr/local/Cellar/go/1.3.3/etc/bash_completion.d/go-completion.bash ] ; then
+  . /usr/local/Cellar/go/1.3.3/etc/bash_completion.d/go-completion.bash
+fi
+
+## HOMEBREW
+if [ -f /usr/local/Library/Contributions/brew_bash_completion.sh ] ; then
+  . /usr/local/Library/Contributions/brew_bash_completion.sh
 fi
 
 # Set PS1 ######################################################################
