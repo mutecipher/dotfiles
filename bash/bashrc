@@ -84,11 +84,6 @@ if [ -f /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.ba
   . /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.bash
 fi
 
-## GO
-if [ -f /usr/local/Cellar/go/1.3.3/etc/bash_completion.d/go-completion.bash ] ; then
-  . /usr/local/Cellar/go/1.3.3/etc/bash_completion.d/go-completion.bash
-fi
-
 ## HOMEBREW
 if [ -f /usr/local/Library/Contributions/brew_bash_completion.sh ] ; then
   . /usr/local/Library/Contributions/brew_bash_completion.sh
