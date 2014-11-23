@@ -89,6 +89,11 @@ if [ -f /usr/local/Library/Contributions/brew_bash_completion.sh ] ; then
   . /usr/local/Library/Contributions/brew_bash_completion.sh
 fi
 
+## NPM
+if [ -f /usr/local/etc/bash_completion.d/npm ] ; then
+  . /usr/local/etc/bash_completion.d/npm
+fi
+
 # Set PS1 ######################################################################
 ## Functions
 ### Parse git branch
