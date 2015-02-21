@@ -10,4 +10,4 @@
 
 ####To-Do:
 - [ ] Write a makefile to automatically config a system once installed
-- [ ] Clean-up and new functions to `bashrc`
+- [ ] Clean-up and add new functions to `bashrc`
