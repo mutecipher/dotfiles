@@ -67,22 +67,23 @@ colorscheme desert                                            " set color scheme
 set background=dark                                        " set background type
 
                                               " change some colorscheme settings
-hi ColorColumn ctermbg=233
+hi ColorColumn ctermbg=0
 hi CursorLine cterm=NONE ctermbg=234
-hi SignColumn ctermbg=233
-hi LineNr ctermbg=233 ctermfg=240
+"hi SignColumn ctermbg=233
+hi LineNr ctermfg=241
 
-hi StatusLine ctermfg=234 ctermbg=15
+hi StatusLine ctermfg=117 ctermbg=234
 
-hi Comment ctermbg=233
-hi Folded ctermfg=15
-hi FoldColumn ctermbg=11
-hi Search ctermbg=10 ctermfg=238
+"hi Comment ctermbg=233
+hi TODO ctermfg=155 ctermbg=233
+"hi Folded ctermfg=15
+"hi FoldColumn ctermbg=11
+hi Search ctermbg=228 ctermfg=241
 
-hi Pmenu ctermbg=233 ctermfg=239
-hi PmenuSbar ctermbg=233
-hi PmenuThumb ctermbg=233
-hi PmenuSel ctermbg=22 ctermfg=11
+hi Pmenu ctermbg=234 ctermfg=155
+"hi PmenuSbar ctermbg=233
+"hi PmenuThumb ctermbg=233
+"hi PmenuSel ctermbg=22 ctermfg=11
 " ==============================================================================
 
 
