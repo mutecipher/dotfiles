@@ -91,7 +91,7 @@ hi Pmenu ctermbg=234 ctermfg=155
 set textwidth=80                                           " set max line length
 set expandtab                                       " use spaces rather than tab
 set smarttab                                                 " make tabs smarter
-set laststatus=4                                      " get all the status lines
+set laststatus=2                                      " get all the status lines
 set tabstop=4                                " number of spaces a tab counts for
 set autoindent                                                " self explanitory
 set shiftwidth=4                        " number of spaces to use for autoindent
