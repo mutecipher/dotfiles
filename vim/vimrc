@@ -5,18 +5,12 @@
 
 " == SYSTEM SETTINGS ===========================================================
 set nocp                                    " don't behave in vi compatible mode
-set history=50                                        " keep 50 lines in history
-set ruler                             " turn on ruler to show location of cursor
 set autoread                                     " autoread when file is changed
-
 syntax on                                           " enable syntax highlighting
 filet on                                             " enable filetype detection
 filet indent on                                " enable per filetype indentation
 filet plugin on                             " enable per filetype plugin loading
 set lpl                                                " load plugins on startup
-
-set shell=bash                                               " set default shell
-set autochdir                         " auto change to directory of current file
 set swf                                                      " create swap files
 set bk                                                            " backup files
 set backupdir=~/.tmp                       " set a central area for backup files
@@ -24,9 +18,6 @@ set dir=~/.tmp                                             " swap file directory
 set wildmenu
 set wildmode=list:longest
 set wildignore=*.o,*.obj,*~
-
-set noerrorbells
-set novisualbell
 " ==============================================================================
 
 " == STATUSLINE SETTINGS =======================================================
@@ -39,51 +30,24 @@ set statusline+=%{strlen(&fenc)?&fenc:&enc},                          " encoding
 set statusline+=%{&fileformat}]                                         " format
 set statusline+=%=                                                 " align right
 set statusline+=%{synIDattr(synID(line('.'),col('.'),1),'name')}\    " highlight
-set statusline+=%b,0x%-8B\                                        " current char
-set statusline+=%-14.(%l/%L,%c%V%)\ %<%P                                " offset
+set statusline+=%<%P
 " ==============================================================================
 
 
 " == BUFFER SETTINGS ===========================================================
-set lazyredraw                                      " only redraw when necessary
 set scrolloff=15                                                 " scroll offset
 set splitbelow                                           " new window goes below
 set splitright                                           " new window goes right
-"set number                                                  " show line numbers
-set relativenumber                    " line numbers relative to cursor position
+set number                                                   " show line numbers
 set showmode                                          " always show current mode
-set spl=en                                                 " set spellcheck lang
 set cursorline                                             " cursor highlighting
-let &colorcolumn="81,".join(range(82,999),",")
-"set colorcolumn=81                          " draw column to mark 81 characters
-"set list                                       " display unprintable characters
-set nuw=3
-"set modeline
+set colorcolumn=80                          " draw column to mark 81 characters
 " ==============================================================================
 
 
 " == COLOR SETTINGS ============================================================
-colorscheme desert                                            " set color scheme
-set background=dark                                        " set background type
-
-                                              " change some colorscheme settings
-hi ColorColumn ctermbg=0
-hi CursorLine cterm=NONE ctermbg=234
-"hi SignColumn ctermbg=233
-hi LineNr ctermfg=241
-
-hi StatusLine ctermfg=117 ctermbg=234
-
-"hi Comment ctermbg=233
-hi TODO ctermfg=155 ctermbg=233
-"hi Folded ctermfg=15
-"hi FoldColumn ctermbg=11
-hi Search ctermbg=228 ctermfg=241
-
-hi Pmenu ctermbg=234 ctermfg=155
-"hi PmenuSbar ctermbg=233
-"hi PmenuThumb ctermbg=233
-"hi PmenuSel ctermbg=22 ctermfg=11
+colorscheme atom-dark-256
+set background=dark
 " ==============================================================================
 
 
@@ -97,13 +61,7 @@ set autoindent                                                " self explanitory
 set shiftwidth=4                        " number of spaces to use for autoindent
 set smartindent                                               " self explanitory
 set showmatch                                             " show matching braces
-set mat=1                               " length of time to show matching braces
-set encoding=utf8                                             " encoding in utf8
-set lbr                                                       " enable linebreak
-set tw=500                                             " break on 500 characters
-set completeopt=longest,menuone                    " make omnicomplete menu nice
-"set wrap                                                            " wrap text
-"set wrapmargin=80                                         " wrap after 80 chars
+set encoding=utf-8                                            " encoding in utf8
 " ==============================================================================
 
 
@@ -112,105 +70,4 @@ set ignorecase                                    " ignore word case when search
 set smartcase                                          " when searching be smart
 set incsearch                          " increment search with each char entered
 set hlsearch                                          " highlight search results
-" ==============================================================================
-
-
-" == ALTERNATE KEY MAPPINGS ====================================================
-                                           " removing keymappings for arrow keys
-vnoremap <left> <nop>
-vnoremap <right> <nop>
-vnoremap <up> <nop>
-vnoremap <down> <nop>
-nnoremap <left> <nop>
-nnoremap <right> <nop>
-nnoremap <up> <nop>
-nnoremap <down> <nop>
-inoremap <left> <nop>
-inoremap <right> <nop>
-inoremap <up> <nop>
-inoremap <down> <nop>
-
-                                             " make j and k work how they should
-nnoremap j gj
-nnoremap k gk
-
-                                                  " make changing windows easier
-nnoremap <c-j> <c-w>j
-nnoremap <c-k> <c-w>k
-nnoremap <c-h> <c-w>h
-nnoremap <c-l> <c-w>l
-
-                                                        " faster window resizing
-if bufwinnr(1)
-  map + <c-w>+
-  map _ <c-w>-
-endif
-
-                                                     " make changing tabs easier
-map <c-t> <esc>:tabnew<cr>
-map <c-right> <esc>:tabn<cr>
-map <c-left> <esc>:tabp<cr>
-
-                                              " use arrow keys to change buffers
-nnoremap <left> <esc>:bp<cr>
-nnoremap <right> <esc>:bn<cr>
-
-                                            " reselect visual block after indent
-vnoremap < <gv
-vnoremap > >gv
-" ==============================================================================
-
-
-" == FUNCTIONS =================================================================
-" ==============================================================================
-
-" == AUTOCOMMANDS ==============================================================
-au BufWritePost .vimrc so ~/.vimrc              " auto reload .vimrc when edited
-"au BufWritePre * :%s/\s\+$//           " remove all trailing whitespace on save
-
-                                       " equally resize vsplits on window resize
-au VimResized * exe "normal! \<C-w>="
-
-                                              " cursorline only in active window
-augroup CursorLine
- au!
- au VimEnter,WinEnter,BufWinEnter * setlocal cursorline
- au WinLeave * setlocal nocursorline
-augroup END
-" ==============================================================================
-
-
-" == NOT IN USE ================================================================
-" text selection movement (single lines)
-"nnoremap <c-Up> ddkP
-"nnoremap <c-Down> ddp
-
-" text selection movement (multiple lines)
-"vmap <c-Up> xkP`[V`]
-"vmap <c-Down> xp`[V`]
-
-
-" hard to type things
-"imap >> →
-"imap << ←
-"imap ^^ ↑
-"imap VV ↓
-"imap aa λ
-
-" hacky autocomplete for braces
-"inoremap '' ''<Left>
-"inoremap "" ""<Left>
-"inoremap () ()<Left>
-"inoremap <> <><Left>
-"inoremap {} {}<Left>
-"inoremap [] []<Left>
-"inoremap () ()<Left>
-
-"inoremap ' ''<Right>
-"inoremap " ""<Right>
-"inoremap ( ()<Right>
-"inoremap < <><Right>
-"inoremap { {}<Right>
-"inoremap [ []<Right>
-"inoremap ( ()<Right>
 " ==============================================================================
