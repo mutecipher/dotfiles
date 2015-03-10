@@ -38,12 +38,11 @@ set splitright                                           " new window goes right
 set number                                                   " show line numbers
 set showmode                                          " always show current mode
 set cursorline                                             " cursor highlighting
-set colorcolumn=80                          " draw column to mark 81 characters
 " ==============================================================================
 
 
 " == COLOR SETTINGS ============================================================
-colorscheme atom-dark-256
+colorscheme smyck
 set background=dark
 " ==============================================================================
 
