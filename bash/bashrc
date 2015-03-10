@@ -1,8 +1,6 @@
-################################################################################
-# Cory's .bashrc
-################################################################################
+# .bashrc
 
-# Shell variables ##############################################################
+# Shell variables 
 export PAGER=less
 export EDITOR=vim
 export CLICOLOR=1
@@ -12,7 +10,91 @@ export GOPATH=$DEV/Go
 export GOBIN=$GOPATH/bin
 export PATH=$PATH:/usr/local/sbin:$HOME/.bin:$GOBIN
 
-# Color variables ##############################################################
+# Attach .bash_aliases 
+if [ -f ~/.bash_aliases ]; then
+    . ~/.bash_aliases
+fi
+
+# Interactive mode check 
+case $- in
+    *i*) ;;
+      *) return;;
+esac
+
+# Set Autocomplete Case Sensitivity 
+bind 'set completion-ignore-case on'
+
+## ADB
+if [ -f /usr/local/etc/bash_completion.d/adb-completion.bash ] ; then
+  . /usr/local/etc/bash_completion.d/adb-completion.bash
+fi
+
+## ANDROID
+if [ -f /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash ] ; then
+  . /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash
+fi
+
+## GIT
+if [ -f /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.bash ] ; then
+  . /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.bash
+fi
+
+## HOMEBREW
+if [ -f /usr/local/Library/Contributions/brew_bash_completion.sh ] ; then
+  . /usr/local/Library/Contributions/brew_bash_completion.sh
+fi
+
+## NPM
+if [ -f /usr/local/etc/bash_completion.d/npm ] ; then
+  . /usr/local/etc/bash_completion.d/npm
+fi
+
+# Set PS1 
+## Functions
+### Parse git branch
+function git-branch-name {
+  git symbolic-ref HEAD 2>/dev/null | cut -d"/" -f 3
+}
+
+### Check if repo is clean/dirty
+function git-dirty {
+  if [[ $(git status 2>/dev/null | tail -n1) != "nothing to commit, working directory clean" ]]; then
+    echo "$undred*"
+  else
+    echo "$undgrn"
+  fi
+}
+
+### If in a repo, print to PS1
+function git-branch-prompt {
+  local branch=`git-branch-name`
+  if [ $branch ]; then printf "[$(git-dirty)%s$txtrst] " $branch; fi
+}
+
+## If root print red, else normal
+if [ $(id -u) -eq 0 ]; then
+  export PS1="\$(git-branch-prompt)[$txtred\e[5m!!$txtrst] $txtred#$txtrst "
+else
+  export PS1="\$(git-branch-prompt)$ "
+  export SUDO_PS1="\$(git-branch-prompt)$txtred#$txtrst [$txtred\e[5m!!$txtrst] "
+fi
+
+# History Settings 
+## Ignore duplicates
+HISTCONTROL=ignoreboth
+HISTIGNORE="ls:pwd"
+
+## Append to history file, don't overwrite
+shopt -s histappend
+
+## Set max number of history lines, and filesize
+HISTSIZE=1000
+HISTFILESIZE=2000
+
+# Check window size after each command 
+shopt -s checkwinsize
+
+# Color variables 
 ## Regular
 txtblk='\e[0;30m' # Black
 txtred='\e[0;31m' # Red
@@ -54,87 +136,3 @@ txtrst='\e[0m'    # Text Reset
 ## Cursor
 crsoff='\e[?25l'
 crson='\e[?25h'
-
-# Attach .bash_aliases #########################################################
-if [ -f ~/.bash_aliases ]; then
-    . ~/.bash_aliases
-fi
-
-# Interactive mode check #######################################################
-case $- in
-    *i*) ;;
-      *) return;;
-esac
-
-# Set Autocomplete Case Sensitivity ############################################
-bind 'set completion-ignore-case on'
-
-## ADB
-if [ -f /usr/local/etc/bash_completion.d/adb-completion.bash ] ; then
-  . /usr/local/etc/bash_completion.d/adb-completion.bash
-fi
-
-## ANDROID
-if [ -f /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash ] ; then
-  . /Library/Caches/Homebrew/android-sdk--completion-22.6.2.bash
-fi
-
-## GIT
-if [ -f /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.bash ] ; then
-  . /Library/Developer/CommandLineTools/usr/share/git-core/git-completion.bash
-fi
-
-## HOMEBREW
-if [ -f /usr/local/Library/Contributions/brew_bash_completion.sh ] ; then
-  . /usr/local/Library/Contributions/brew_bash_completion.sh
-fi
-
-## NPM
-if [ -f /usr/local/etc/bash_completion.d/npm ] ; then
-  . /usr/local/etc/bash_completion.d/npm
-fi
-
-# Set PS1 ######################################################################
-## Functions
-### Parse git branch
-function git-branch-name {
-  git symbolic-ref HEAD 2>/dev/null | cut -d"/" -f 3
-}
-
-### Check if repo is clean/dirty
-function git-dirty {
-  if [[ $(git status 2>/dev/null | tail -n1) != "nothing to commit, working directory clean" ]]; then
-    echo "$undred*"
-  else
-    echo "$undgrn"
-  fi
-}
-
-### If in a repo, print to PS1
-function git-branch-prompt {
-  local branch=`git-branch-name`
-  if [ $branch ]; then printf "[$(git-dirty)%s$txtrst] " $branch; fi
-}
-
-## If root print red, else normal
-if [ $(id -u) -eq 0 ]; then
-  export PS1="\$(git-branch-prompt)[$txtred\e[5m!!$txtrst] $txtred#$txtrst "
-else
-  export PS1="\$(git-branch-prompt)$ "
-  export SUDO_PS1="\$(git-branch-prompt)$txtred#$txtrst [$txtred\e[5m!!$txtrst] "
-fi
-
-# History Settings #############################################################
-## Ignore duplicates
-HISTCONTROL=ignoreboth
-HISTIGNORE="ls:pwd"
-
-## Append to history file, don't overwrite
-shopt -s histappend
-
-## Set max number of history lines, and filesize
-HISTSIZE=1000
-HISTFILESIZE=2000
-
-# Check window size after each command #########################################
-shopt -s checkwinsize

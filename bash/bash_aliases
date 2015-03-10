@@ -1,6 +1,4 @@
-################################################################################
-# Cory's .bash_aliases
-################################################################################
+# .bash_aliases
 
 alias rm="rm -rfiv"
 alias mv="mv -vi"
@@ -21,4 +19,3 @@ alias tree="tree -hC"
 alias ip="curl icanhazip.com"
 alias server="python -m SimpleHTTPServer"
 alias sqlite3="sqlite3 -echo -column -header"
-#alias history="history | tail -25"
