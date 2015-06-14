@@ -15,4 +15,5 @@ do FG=${FGs// /}
   done;
   echo;
 done;
+echo
 exit 1;
