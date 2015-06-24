@@ -27,7 +27,7 @@ set statusline+=%{strlen(&fenc)?&fenc:&enc},                          " encoding
 set statusline+=%{&fileformat}]                                         " format
 set statusline+=%=                                                 " align right
 set statusline+=%{synIDattr(synID(line('.'),col('.'),1),'name')}\    " highlight
-set statusline+=%<%P
+set statusline+=%<%P                                    "percentage through file
 " ==============================================================================
 
 
