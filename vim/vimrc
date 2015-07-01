@@ -10,8 +10,8 @@ filet plugin on                             " enable per filetype plugin loading
 set lpl                                                " load plugins on startup
 set swf                                                      " create swap files
 set bk                                                            " backup files
-set backupdir=~/tmp                       " set a central area for backup files
-set dir=~/tmp                                             " swap file directory
+set backupdir=/tmp                         " set a central area for backup files
+set dir=/tmp                                               " swap file directory
 set wildmenu
 set wildmode=list:longest
 set wildignore=*.o,*.obj,*~

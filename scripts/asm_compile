@@ -1,7 +1,7 @@
 #!/bin/bash
 
 numArg=$#
-if [ $numArg != 2 ] ; then
+if [ "$numArg" != 2 ] ; then
   echo "Usage: asm_compile <input.asm> <output_name>"
   exit
 else
@@ -9,20 +9,20 @@ else
   input=$1
   output=$2
   inter=asm0000.o
-  nasm -f elf -o $inter $input
+  nasm -f elf -o "$inter" "$input"
   ret=$?
   if [ $ret != 0 ] ; then
     echo "NASM compilation failed"
     exit
   else
     echo "Compiling using GCC for final output"
-    gcc -o $output $inter
+    gcc -o "$output" "$inter"
     ret=$?
     if [ $ret != 0 ] ; then
       echo "GCC compilation failed"
       exit
     else
-      rm $inter
+      rm "$inter"
       echo "Compilation completed"
     fi
   fi
