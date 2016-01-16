@@ -68,14 +68,14 @@ function git-dirty {
 ### If in a repo, print to PS1
 function git-branch-prompt {
   local branch=`git-branch-name`
-  if [ $branch ]; then printf "[$(git-dirty)%s$txtrst] " $branch; fi
+  if [ $branch ]; then printf "[$(git-dirty)%s$txtrst]" $branch; fi
 }
 
 ## If root print red, else normal
 if [ $(id -u) -eq 0 ]; then
   export PS1="\$(git-branch-prompt)[$txtred\e[5m!!$txtrst] $txtred#$txtrst "
 else
-  export PS1="\$(git-branch-prompt)$ "
+  export PS1="\$(git-branch-prompt) \W $ "
   export SUDO_PS1="\$(git-branch-prompt)$txtred#$txtrst [$txtred\e[5m!!$txtrst] "
 fi
 
