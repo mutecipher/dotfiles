@@ -59,7 +59,7 @@ function git-branch-name {
 ### Check if repo is clean/dirty
 function git-dirty {
   if [[ $(git status 2>/dev/null | tail -n1) != "nothing to commit, working directory clean" ]]; then
-    echo "$undred*"
+    echo "$undred"
   else
     echo "$undgrn"
   fi
@@ -68,15 +68,15 @@ function git-dirty {
 ### If in a repo, print to PS1
 function git-branch-prompt {
   local branch=`git-branch-name`
-  if [ $branch ]; then printf "[$(git-dirty)%s$txtrst]" $branch; fi
+  if [ $branch ]; then printf "[$(git-dirty)%s$txtrst] " $branch; fi
 }
 
 ## If root print red, else normal
 if [ $(id -u) -eq 0 ]; then
-  export PS1="\$(git-branch-prompt)[$txtred\e[5m!!$txtrst] $txtred#$txtrst "
+  export PS1="\$(git-branch-prompt)[$txtred!!$txtrst] $txtred#$txtrst "
 else
-  export PS1="\$(git-branch-prompt) \W $ "
-  export SUDO_PS1="\$(git-branch-prompt)$txtred#$txtrst [$txtred\e[5m!!$txtrst] "
+  export PS1="\$(git-branch-prompt)$ "
+  export SUDO_PS1="\$(git-branch-prompt)$txtred#$txtrst [$txtred!!$txtrst] "
 fi
 
 # History Settings 
