@@ -7,6 +7,8 @@
 * *OSX Terminal Themes* contains themes I like to carry around with me (they
   were not created by me)
 
+------------------------
+
 Screenshots:
 
 ![alt text](https://github.com/cjhutchi/dotfiles/blob/master/screenshots/clean.png "Clean repo")
