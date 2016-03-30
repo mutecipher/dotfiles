@@ -4,7 +4,8 @@
 export PAGER=less
 export EDITOR=vim
 export CLICOLOR=1
-export LSCOLORS=exfxcxdxbxegedabagacad
+export LSCOLORS=ExFxBxDxCxegedabagacad
+#export LSCOLORS=exfxcxdxbxegedabagacad
 export DEV=$HOME/Documents/Code
 export GOPATH=$DEV/Go
 export GOBIN=$GOPATH/bin
