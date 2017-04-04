@@ -1,6 +1,6 @@
 [user]
   name = Cory Hutchison
-	email = mutecipher@gmail.com
+	email = mutecipher.dev@gmail.com
 [core]
   editor = vim
 	autocrlf = input
