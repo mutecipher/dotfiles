@@ -6,7 +6,7 @@ export EDITOR=vim
 export CLICOLOR=1
 export LSCOLORS=ExFxBxDxCxegedabagacad
 #export LSCOLORS=exfxcxdxbxegedabagacad
-export DEV=$HOME/Documents/Code
+export DEV=$HOME/Workspaces
 export GOPATH=$DEV/Go
 export GOBIN=$GOPATH/bin
 export PLATFORMTOOLS=$HOME/Library/Android/sdk/platform-tools
@@ -56,21 +56,21 @@ function git-branch-name {
 
 ### Check if repo is clean/dirty
 function git-dirty {
-  if [[ $(git status 2>/dev/null | tail -n1) != "nothing to commit, working directory clean" ]]; then
-    echo "$undred"
+  if [[ $(git status 2>/dev/null | tail -n1) == "nothing to commit, working directory clean" ]]; then
+    echo "$bldgrn"
   else
-    echo "$undgrn"
+    echo "$bldred"
   fi
 }
 
 ### If in a repo, print to PS1
 function git-branch-prompt {
   local branch=`git-branch-name`
-  if [ $branch ]; then printf "[$(git-dirty)%s$txtrst] " $branch; fi
+  if [ $branch ]; then printf "git:($(git-dirty)%s$txtpur) " $branch; fi
 }
 
 ## Configure prompt
-export PS1="\$(git-branch-prompt)> "
+export PS1="[$txtblu\W$txtrst] $txtpur\$(git-branch-prompt)$txtrst$ "
 
 # History Settings 
 ## Ignore duplicates

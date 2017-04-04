@@ -1,69 +1,82 @@
-" Cory's .vimrc
+execute pathogen#infect()
 
-" == SYSTEM SETTINGS ===========================================================
-set nocp                                    " don't behave in vi compatible mode
-set autoread                                     " autoread when file is changed
-syntax on                                           " enable syntax highlighting
-filet on                                             " enable filetype detection
-filet indent on                                " enable per filetype indentation
-filet plugin on                             " enable per filetype plugin loading
-set lpl                                                " load plugins on startup
-set swf                                                      " create swap files
-set bk                                                            " backup files
-set backupdir=/tmp                         " set a central area for backup files
-set dir=/tmp                                               " swap file directory
-set wildmenu
-set wildmode=list:longest
-set wildignore=*.o,*.obj,*~
-" ==============================================================================
+set nocompatible              " be iMproved, required
+filetype off                  " required
 
-" == STATUSLINE SETTINGS =======================================================
-set statusline=                                                   " clear buffer
-set statusline+=[%n]\                                            " buffer number
-set statusline+=%f\                                                       " path
-set statusline+=%h%m%r%w                                                 " flags
-set statusline+=[%{strlen(&ft)?&ft:'none'},                           " filetype
-set statusline+=%{strlen(&fenc)?&fenc:&enc},                          " encoding
-set statusline+=%{&fileformat}]                                         " format
-set statusline+=%=                                                 " align right
-set statusline+=%{synIDattr(synID(line('.'),col('.'),1),'name')}\    " highlight
-set statusline+=%<%P                                    "percentage through file
-" ==============================================================================
+"set the runtime path to include Vundle and initialize
+set rtp+=~/.vim/bundle/Vundle.vim
+call vundle#begin()
+" alternatively, pass a path where Vundle should install plugins
+"call vundle#begin('~/some/path/here')
 
+" let Vundle manage Vundle, required
+Plugin 'VundleVim/Vundle.vim'
 
-" == BUFFER SETTINGS ===========================================================
-set scrolloff=15                                                 " scroll offset
-set splitbelow                                           " new window goes below
-set splitright                                           " new window goes right
-set number                                                   " show line numbers
-set showmode                                          " always show current mode
-set cursorline                                             " cursor highlighting
-" ==============================================================================
+" The following are examples of different formats supported.
+" Keep Plugin commands between vundle#begin/end.
+" Plugins
+Plugin 'airblade/vim-gitgutter'
+Plugin 'ap/vim-buftabline'
+Plugin 'ap/vim-css-color'
+Plugin 'bronson/vim-trailing-whitespace'
+Plugin 'elzr/vim-json'
+Plugin 'ervandew/supertab'
+Plugin 'fatih/vim-go'
+Plugin 'jiangmiao/auto-pairs'
+Plugin 'Go-Syntax'
+Plugin 'godlygeek/tabular'
+Plugin 'mattn/gist-vim'
+Plugin 'roman/golden-ratio'
+Plugin 'scrooloose/nerdtree'
+Plugin 'shougo/neocomplete.vim'
+Plugin 'tpope/vim-fugitive'
+Plugin 'tpope/vim-surround'
+Plugin 'tpope/vim-git'
+Plugin 'wincent/command-t'
 
+" Themes
+Plugin 'Blevs/vim-dzo'
+Plugin 'geoffharcourt/one-dark.vim'
+Plugin 'gosukiwi/vim-atom-dark'
+Plugin 'kamwitsta/mythos'
+Plugin 'KeitaNakamura/neodark.vim'
+Plugin 'kristijanhusak/vim-hybrid-material'
+Plugin 'maxst/flatcolor'
+Plugin 'mkarmona/materialbox'
+Plugin 'romainl/apprentice'
+Plugin 'tyrannicaltoucan/vim-quantum'
 
-" == COLOR SETTINGS ============================================================
-colorscheme smyck
+" All of your Plugins must be added before the following line
+call vundle#end()            " required
+filetype plugin indent on    " required
+" To ignore plugin indent changes, instead use:
+"filetype plugin on
+"
+" Brief help
+" :PluginList       - lists configured plugins
+" :PluginInstall    - installs plugins; append `!` to update or just :PluginUpdate
+" :PluginSearch foo - searches for foo; append `!` to refresh local cache
+" :PluginClean      - confirms removal of unused plugins; append `!` to auto-approve removal
+"
+" see :h vundle for more details or wiki for FAQ
+" Put your non-Plugin stuff after this line
+
+" PERSONAL ADDITIONS
+syntax on
+colorscheme atom-dark-256
+
 set background=dark
-" ==============================================================================
+set number
+set smarttab
+set tabstop=4
+set shiftwidth=4
+set smartindent
 
+let g:go_highlight_functions = 1
+let g:go_highlight_methods = 1
+let g:go_highlight_fields = 1
+let g:go_highlight_types = 1
+let g:go_highlight_operators = 1
+let g:go_highlight_build_constraints = 1
 
-" == TEXT AREA SETTINGS ========================================================
-set textwidth=80                                           " set max line length
-set expandtab                                       " use spaces rather than tab
-set smarttab                                                 " make tabs smarter
-set laststatus=2                                      " get all the status lines
-set tabstop=4                                " number of spaces a tab counts for
-set autoindent                                                " self explanitory
-set shiftwidth=4                        " number of spaces to use for autoindent
-set smartindent                                               " self explanitory
-set showmatch                                             " show matching braces
-set encoding=utf-8                                            " encoding in utf8
-" ==============================================================================
-
-
-" == SEARCH SETTINGS ===========================================================
-set ignorecase                                    " ignore word case when search
-set smartcase                                          " when searching be smart
-set incsearch                          " increment search with each char entered
-set hlsearch                                          " highlight search results
-" ==============================================================================
+let g:go_fmt_command = "goimports"
