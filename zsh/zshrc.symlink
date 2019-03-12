@@ -2,7 +2,7 @@
 # export PATH=$HOME/bin:/usr/local/bin:$PATH
 
 # Path to your oh-my-zsh installation.
-export ZSH=/Users/cjhutchi/.oh-my-zsh
+export ZSH=/Users/$USERNAME/.oh-my-zsh
 
 # Set name of the theme to load. Optionally, if you set this to "random"
 # it'll load a random theme each time that oh-my-zsh is loaded.
@@ -113,11 +113,13 @@ function reset_launchpad() {
 }
 
 # Additional Exports
-export GOPATH=/Users/cjhutchi/go
+export GOPATH=/Users/$USERNAME/go
 export PATH=$PATH:$GOPATH/bin
 export EDITOR=nvim
-export EJSON_KEYDIR=/Users/cjhutchi/.config/ejson
+export EJSON_KEYDIR=/Users/$USERNAME/.config/ejson
 
-# Load rbenv automatically by appending
-# the following to ~/.zshrc:
-eval "$(rbenv init -)"
+if test -e rbenv; then
+  # Load rbenv automatically by appending
+  # the following to ~/.zshrc:
+  eval "$(rbenv init -)"
+fi
