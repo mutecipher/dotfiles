@@ -1,0 +1,97 @@
+export DOTFILES=$HOME/code/dotfiles
+export ZSH=$DOTFILES/zsh/oh-my-zsh
+
+# zsh keeps its themes at oh-my-zsh-root-path/themes.
+# We keep our override file at oh-my-zsh-root/../themes/
+ZSH_THEME="../../themes/patrick"
+
+plugins=(
+  vi-mode
+  autojump
+  brew
+  brew-cask
+  bundler
+  gem
+  npm
+  git
+  go
+  heroku
+  mix
+  rails
+  ruby
+  tmuxinator
+  history-substring-search
+  scripts-to-rule-them-all
+  vagrant
+)
+
+# Set our Base16 shell
+BASE16_SHELL="$DOTFILES/colors/base16-shell/base16-ocean.dark.sh"
+[[ -s $BASE16_SHELL ]] && . $BASE16_SHELL
+
+# Load local configurations ie API keys etc
+test -e "${HOME}/.localrc" && source "${HOME}/.localrc"
+
+alias vim=nvim
+export EDITOR=nvim
+
+# autojump - used by ohmyzsh.
+# TODO: osx specific
+[[ -s $(brew --prefix)/etc/profile.d/autojump.sh ]] && . $(brew --prefix)/etc/profile.d/autojump.sh
+
+# Load our ~/.dotfiles/bin folder into the path
+export PATH=$PATH:$DOTFILES/bin
+
+# Add local bin folders to our path
+export PATH="bin:$PATH"
+export PATH="/usr/local/sbin:$PATH"
+
+# Set Go Paths
+export GOPATH=$HOME/src/go
+export GOSRC=$GOPATH/src/github.com
+export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
+export PATH=$PATH:~/Library/Python/3.6/bin
+
+source $ZSH/oh-my-zsh.sh
+
+#configure vi-mode and prompt. Matches patrick.theme's reticle declaration
+MODE_INDICATOR=" "
+#removes delay between switching between modes
+KEYTIMEOUT=5
+# make the prompt arrow turn blue in vi mode.
+function zle-line-init zle-keymap-select {
+  case $KEYMAP in
+    vicmd) MODE="blue";;
+    viins|main) MODE="green";;
+  esac
+
+  #overriding a bunch of shit from the theme here
+  local ret_status="%(?:%{$fg_bold[$MODE]%}➜ :%{$fg_bold[red]%}➜ )"
+  PROMPT='${ret_status} %{$fg[cyan]%}%c%{$reset_color%} $(git_prompt_info)'
+  zle reset-prompt
+}
+
+zle -N zle-line-init
+zle -N zle-keymap-select
+
+bindkey -v
+bindkey "^[[A" history-beginning-search-backward
+bindkey "^[[B" history-beginning-search-forward
+
+# set default ruby version and ruby management
+export DEFAULT_RUBY="2.5.0"
+source '/usr/local/opt/chruby/share/chruby/chruby.sh'
+source '/usr/local/opt/chruby/share/chruby/auto.sh'
+chruby $DEFAULT_RUBY
+
+#shopify specific
+export TDD=0
+export PRY=1
+source /opt/dev/dev.sh
+
+#osx specific
+alias rebuild_spotlight="sudo mdutil -E /"
+alias pg-start="launchctl load ~/Library/LaunchAgents/homebrew.mxcl.postgresql.plist"
+alias pg-stop="launchctl unload ~/Library/LaunchAgents/homebrew.mxcl.postgresql.plist"
+
+test -e "${HOME}/.iterm2_shell_integration.zsh" && source "${HOME}/.iterm2_shell_integration.zsh"

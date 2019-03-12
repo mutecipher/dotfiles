@@ -1,0 +1,28 @@
+[user]
+  name = Cory Hutchison
+  email = <enter email>
+  username = cjhutchi
+
+[credential]
+  helper = osxkeychain
+
+[push]
+  default = current
+
+[diff]
+  tool = vimdiff
+  compactionHeuristic = true
+
+[difftool]
+  prompt = false
+
+[filter "lfs"]
+  clean = git lfs clean -- %f
+  smudge = git lfs smudge -- %f
+  process = git lfs filter-process
+  required = true
+
+# [commit]
+#   gpgsign = true
+
+# vim:ft=gitconfig set ts=2 sw=2 tw=0 et

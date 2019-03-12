@@ -1,0 +1,79 @@
+# Default terminal stuff...
+set -g default-terminal "tmux-256color"
+set -ga terminal-overrides 'tmux-256color:Tc,xterm*:sitm=\E[3m'
+set -as terminal-overrides ',xterm*:sitm=\E[3m'
+
+# Setting the prefix from C-b to C-f
+set -g prefix C-f
+
+# Free the original Ctrl-b prefix keybinding
+unbind C-b
+
+#setting the delay between prefix and command
+set -s escape-time 1
+
+# Ensure that we can send Ctrl-A to other apps
+bind C-f send-prefix
+
+# Set the base index for windows to 1 instead of 0
+set -g base-index 1
+
+# Set the base index for panes to 1 instead of 0
+setw -g pane-base-index 1
+
+# Mouse support
+set-option -g mouse on
+
+# Copy and paste
+# setw -g mode-keys vi          # Vim keybindings in copy mode
+set -g default-command "reattach-to-user-namespace -l zsh"
+# set-option -g status-position bottom
+
+# Reload the file with Prefix r
+bind r source-file ~/.tmux.conf \; display "Reloaded Tmux!"
+
+###########################
+# Status bar
+###########################
+
+# set refresh interval for status bar
+set -g status-interval 30
+
+# center the status bar
+set -g status-justify left
+
+# show session in left status bar
+set -g status-left-length 40
+set -g status-left '#[fg=green]#S#[fg=blue] #[fg=colour07]| #[default]'
+
+# show date and time in right status bar
+set -g status-right '#[fg=colour04] %a %b %d #[fg=colour04]%H:%M'
+
+# color status bar
+set -g status-bg black
+set -g status-fg white
+
+set -g pane-border-bg default
+set -g pane-border-fg colour237
+
+set -g pane-active-border-bg default
+set -g pane-active-border-fg colour04
+
+setw -g window-status-current-fg colour04        # Foreground of active window
+setw -g window-status-current-bg colour237    # Background of active window
+setw -g window-status-current-attr bold       # Font styling of active window
+setw -g window-status-current-format ' #I#[fg=colour250] #[fg=white]#W '
+
+setw -g window-status-fg colour250             # Foreground of inactive windows
+setw -g window-status-bg black                # Background of inactive windows
+setw -g window-status-attr none               # Font styling of inactive windows
+setw -g window-status-format ' #I#[fg=colour237] #[fg=colour250]#W '
+
+# List of plugins
+set -g @plugin 'tmux-plugins/tpm'
+# set -g @plugin 'tmux-plugins/tmux-pain-control'
+set -g @plugin 'tmux-plugins/tmux-sensible'
+set -g @plugin 'tmux-plugins/tmux-yank'
+
+# Initialize TMUX plugin manager (keep this line at the very bottom of tmux.conf)
+run '~/.tmux/plugins/tpm/tpm'

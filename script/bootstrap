@@ -1,0 +1,14 @@
+#!/bin/sh
+#
+# Run all installers and symlink dotfiles
+
+set -e
+
+echo "Bootstrapping"
+
+script/platform
+script/symlinks
+script/generic
+
+# shellcheck source=/dev/null
+source "$HOME/.zshrc"
