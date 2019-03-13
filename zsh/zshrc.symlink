@@ -73,10 +73,18 @@ source $ZSH/oh-my-zsh.sh
 
 # User configuration
 
+# Go environment variables
 export GOPATH=$HOME/go
-export PATH=$PATH:$GOPATH/bin
+export GOBIN=$GOPATH/bin
+
+# Set default editor
 export EDITOR=nvim
+
+# Set default directory for ejson gem
 export EJSON_KEYDIR=$HOME/.config/ejson
+
+# Add additional executable paths
+export PATH=$HOME/.dotfiles/bin:$GOBIN:$PATH
 
 # export MANPATH="/usr/local/man:$MANPATH"
 
