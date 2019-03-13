@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if test $PLATFORM === "osx"; then
+if test "$PLATFORM" = "osx"; then
   result=`/usr/local/bin/brew --prefix neovim`
   if test -e "$result" ; then
     echo "neovim already installed"
@@ -14,7 +14,7 @@ if test $PLATFORM === "osx"; then
 
     nvim +PluginInstall +qall
   fi
-elif test "$PLATFORM" === "linux"; then
+elif test "$PLATFORM" = "linux"; then
   exit 1;
 else
   exit 1;

@@ -5,13 +5,13 @@ set -e
 # Run all dotfiles installers.
 
 # set the platform var for export to installer scripts
-export platform="unknown"
+export PLATFORM="unknown"
 if [[ "$(uname)" == "Darwin" ]]; then
-   platform="osx"
+   PLATFORM="osx"
 elif [[ "$(expr substr $(uname -s) 1 5)" == "Linux" ]]; then
-   platform="linux"
+   PLATFORM="linux"
 elif [[ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ]]; then
-   platform="windows"
+   PLATFORM="windows"
 fi
 
 echo "Running installers for $platform"
