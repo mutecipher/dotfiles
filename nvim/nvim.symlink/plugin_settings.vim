@@ -37,7 +37,16 @@ let g:vundle_default_git_proto = 'git'
 
 " }}}1
 " org.vim {{{1
+
 let g:org#debug = 1
+
+" }}}1
+" ctrl-p {{{1
+
+let g:ctrlp_working_path_mode = 'ra'
+let g:ctrlp_root_markers = ['Gemfile', 'dev.yml']
+let g:ctrlp_switch_buffer = 'et'
+
 " }}}1
 
 " vim:ft=vim:fdm=marker:fdl=0

@@ -5,7 +5,6 @@
 set autoread
 set scrolloff=4 sidescrolloff=10 " scrolling offsets
 set foldenable " enable folding
-" set foldmethod=marker
 set foldlevelstart=10 " open most folds by default
 set foldnestmax=10 " 10 nested folds max
 set nowrap " don't line wrap
@@ -39,7 +38,6 @@ set incsearch " increment and search is typed
 set hlsearch " highlight search results
 set ignorecase smartcase " case insensitive search
 set splitright splitbelow " split windows like other apps
-" set wildmode=list:longest,full " tab-complete for commands
 
 " }}}1
 
