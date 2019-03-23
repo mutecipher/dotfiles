@@ -21,7 +21,7 @@ let g:NERDTreeWinPos = "right"
 " }}}1
 " rspec {{{1
 
-let g:rspec_command = "!bundle exec rspec {spec}"
+let g:rspec_command = "tmux split-window bundle exec rspec {spec}"
 
 " }}}1
 " gitgutter {{{1
