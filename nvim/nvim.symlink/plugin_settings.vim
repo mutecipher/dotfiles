@@ -31,11 +31,6 @@ highlight GitGutterChange ctermfg=3
 highlight GitGutterDelete ctermfg=1
 
 " }}}1
-" vundle {{{1
-
-let g:vundle_default_git_proto = 'git'
-
-" }}}1
 " org.vim {{{1
 
 let g:org#debug = 1
