@@ -64,7 +64,6 @@ plugins=(
   rails
   rbenv
   ruby
-  ssh-agent
   xcode
   zsh_reload
 )
@@ -126,3 +125,5 @@ function reset_launchpad() {
 if test -e rbenv; then
   eval "$(rbenv init -)"
 fi
+
+[ -f /opt/dev/dev.sh ] && source /opt/dev/dev.sh
