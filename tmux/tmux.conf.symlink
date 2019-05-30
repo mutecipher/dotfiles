@@ -53,20 +53,14 @@ set -g status-right '#[fg=colour04] %a %b %d #[fg=colour04]%H:%M'
 set -g status-bg black
 set -g status-fg white
 
-set -g pane-border-bg default
-set -g pane-border-fg colour237
+set -g pane-border-style fg=colour237,bg=default
 
-set -g pane-active-border-bg default
-set -g pane-active-border-fg colour04
+set -g pane-active-border-style fg=colour04,bg=default
 
-setw -g window-status-current-fg colour04        # Foreground of active window
-setw -g window-status-current-bg colour237    # Background of active window
-setw -g window-status-current-attr bold       # Font styling of active window
+setw -g window-status-current-style fg=colour04,bg=colour237,bold
 setw -g window-status-current-format ' #I#[fg=colour250] #[fg=white]#W '
 
-setw -g window-status-fg colour250             # Foreground of inactive windows
-setw -g window-status-bg black                # Background of inactive windows
-setw -g window-status-attr none               # Font styling of inactive windows
+setw -g window-status-style fg=colour250,bg=black
 setw -g window-status-format ' #I#[fg=colour237] #[fg=colour250]#W '
 
 # List of plugins
