@@ -1,0 +1,4 @@
+[client]
+user = root
+host = parsnip.myshopify.io
+pager = less -n -i -S -F -X
