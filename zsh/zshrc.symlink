@@ -82,8 +82,11 @@ export EDITOR=nvim
 # Set default directory for ejson gem
 export EJSON_KEYDIR=$HOME/.config/ejson
 
+# Set Homebrew bin
+export HOMEBREW_BIN=/usr/local/sbin
+
 # Add additional executable paths
-export PATH=$HOME/.dotfiles/bin:$GOBIN:$PATH
+export PATH=$HOME/.dotfiles/bin:$HOMEBREW_BIN:$GOBIN:$PATH
 
 # export MANPATH="/usr/local/man:$MANPATH"
 
@@ -118,6 +121,11 @@ alias mux=tmuxinator
 # Resets LaunchPad layout and restarts the Dock
 function reset_launchpad() {
   defaults write com.apple.dock ResetLaunchPad -bool true; killall Dock
+}
+
+# Resets Dock layout and restarts the Dock
+function reset_dock() {
+  defaults delete com.apple.dock; killall Dock
 }
 
 # Load rbenv automatically by appending

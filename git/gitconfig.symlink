@@ -22,7 +22,7 @@
   process = git lfs filter-process
   required = true
 
-# [commit]
-#   gpgsign = true
+[commit]
+  gpgsign = true
 
-# vim:ft=gitconfig set ts=2 sw=2 tw=0 et
+# vim:ft=gitconfig ts=2 sw=2 tw=0 et
