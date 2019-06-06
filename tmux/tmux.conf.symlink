@@ -1,5 +1,5 @@
 # Default terminal stuff...
-set -g default-terminal "screen-256color"
+set -g default-terminal "xterm-256color"
 set -ga terminal-overrides 'tmux-256color:Tc,xterm*:sitm=\E[3m'
 set -as terminal-overrides ',xterm*:sitm=\E[3m'
 
@@ -52,6 +52,9 @@ set -g status-right '#[fg=colour04] %a %b %d #[fg=colour04]%H:%M'
 # color status bar
 set -g status-bg black
 set -g status-fg white
+
+set -g message-style fg=colour250,bg=colour237
+set -g message-command-style fg=colour237,bg=default
 
 set -g pane-border-style fg=colour237,bg=default
 
