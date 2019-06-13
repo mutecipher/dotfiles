@@ -12,6 +12,7 @@
 [diff]
   tool = vimdiff
   compactionHeuristic = true
+  algorithm = patience
 
 [difftool]
   prompt = false
