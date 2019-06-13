@@ -24,6 +24,7 @@ Plug 'terryma/vim-multiple-cursors' " multi-cursor support
 Plug 'godlygeek/tabular' " clean text up
 Plug 'christoomey/vim-tmux-navigator' " make navigating VIM in tmux easier
 Plug 'majutsushi/tagbar' " view ctags of current file
+Plug 'neoclide/coc.nvim', {'tag': '*', 'do': './install.sh'} " language server
 
 Plug 'cjhutchi/org.vim'
 
