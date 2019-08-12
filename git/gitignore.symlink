@@ -15,5 +15,6 @@ ehthumbs.db
 /.bundle/
 /.vagrant/
 *.tmux
+.shadowenv.d
 curl-format.txt
 projections.json
