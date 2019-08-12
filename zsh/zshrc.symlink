@@ -128,10 +128,14 @@ function reset_dock() {
   defaults delete com.apple.dock; killall Dock
 }
 
-# Load rbenv automatically by appending
-# the following to ~/.zshrc:
-if test -e rbenv; then
+# Include rbenv hook if it is present
+if test -e /usr/local/bin/rbenv; then
   eval "$(rbenv init -)"
+fi
+
+# Include shadowenv hook if it is present
+if test -e /usr/local/bin/shadowenv; then
+  eval "$(shadowenv init zsh)"
 fi
 
 [ -f /opt/dev/dev.sh ] && source /opt/dev/dev.sh
