@@ -29,4 +29,7 @@
 [core]
   excludesfile = ~/.gitignore
 
+[url "ssh://git@github.com/"]
+  insteadOf = https://github.com/
+
 # vim:ft=gitconfig ts=2 sw=2 tw=0 et
