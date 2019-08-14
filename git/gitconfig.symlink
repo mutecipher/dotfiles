@@ -1,8 +1,8 @@
 [user]
   name = Cory Hutchison
-  email = <enter email>
+  email = # enter email
   username = cjhutchi
-  signingkey = <public key fingerprint>
+  signingkey = # public key fingerprint
 
 [credential]
   helper = osxkeychain
