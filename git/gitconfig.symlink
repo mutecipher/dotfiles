@@ -2,6 +2,7 @@
   name = Cory Hutchison
   email = <enter email>
   username = cjhutchi
+  signingkey = <public key fingerprint>
 
 [credential]
   helper = osxkeychain
