@@ -59,6 +59,11 @@ footer() {
   echo -e "                    ${BLUE}macOS${RESET} ${mac_version}"
 }
 
+install_git() {
+  __heading "Installing ${BLUE}git${RESET}..."
+  xcode-select --install
+}
+
 clone_dotfiles() {
   if ! command_exists git; then
     __error_message "${BLUE}git${RESET}  not installed..."
@@ -125,11 +130,22 @@ check_if_should_run() {
   fi
 }
 
+check_and_install_prerequisites() {
+  __heading "Checking for pre-requisites..."
+  if command_exists git; then
+    __success_message "${BLUE}git${RESET} installed"
+  else
+    __error_message "${BLUE}git${RESET} not installed"
+    install_git
+  fi
+}
+
 main() {
   setup_color
   setup_env
 
   check_if_should_run
+  check_and_install_prerequisites
 
   __heading "Cloning dotfiles repo..."
   clone_dotfiles
