@@ -52,17 +52,17 @@ ZSH_THEME="robbyrussell"
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(
-  dotenv
+  chruby
   docker
   docker-compose
   encode64
-  git-auto-fetch
   git
+  git-auto-fetch
   golang
   gpg-agent
   kubectl
   ruby
-  rbenv
+  ssh-agent
   xcode
   zsh_reload
 )
@@ -127,9 +127,10 @@ function reset_dock() {
   defaults delete com.apple.dock; killall Dock
 }
 
-# Include rbenv hook if it is present
-if test -e /usr/local/bin/rbenv; then
-  eval "$(rbenv init -)"
+# Include chruby hooks if present
+if test -e /usr/local/opt/chruby/share/chruby/chruby.sh; then
+  source /usr/local/opt/chruby/share/chruby/chruby.sh
+  source /usr/local/opt/chruby/share/chruby/auto.sh
 fi
 
 # Include shadowenv hook if it is present
