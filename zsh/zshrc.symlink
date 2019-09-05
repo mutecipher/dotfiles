@@ -62,7 +62,6 @@ plugins=(
   gpg-agent
   kubectl
   ruby
-  ssh-agent
   xcode
   zsh_reload
 )
@@ -74,6 +73,9 @@ source $ZSH/oh-my-zsh.sh
 # Go environment variables
 export GOPATH=$HOME/go
 export GOBIN=$GOPATH/bin
+
+# Node version management
+export NVM_DIR="$HOME/.nvm"
 
 # Set default editor
 export EDITOR=nvim
@@ -138,4 +140,9 @@ if test -e /usr/local/bin/shadowenv; then
   eval "$(shadowenv init zsh)"
 fi
 
+# Include dev if it is present
 [ -f /opt/dev/dev.sh ] && source /opt/dev/dev.sh
+
+# Include nvm if it is present
+[ -s "/usr/local/opt/nvm/nvm.sh" ] && . "/usr/local/opt/nvm/nvm.sh"
+[ -s "/usr/local/opt/nvm/etc/bash_completion" ] && . "/usr/local/opt/nvm/etc/bash_completion"
