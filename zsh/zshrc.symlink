@@ -73,6 +73,7 @@ source $ZSH/oh-my-zsh.sh
 # Go environment variables
 export GOPATH=$HOME/go
 export GOBIN=$GOPATH/bin
+export GOPROXY="direct"
 
 # Node version management
 export NVM_DIR="$HOME/.nvm"
