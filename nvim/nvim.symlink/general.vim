@@ -12,6 +12,7 @@ set expandtab tabstop=2 softtabstop=2 shiftwidth=2 " defaults
 set autoindent " autoindent
 set number numberwidth=2 " show line numbers
 set colorcolumn=121
+set mouse=a
 
 " }}}1
 " file locations {{{1
