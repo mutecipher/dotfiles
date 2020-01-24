@@ -28,6 +28,9 @@ Plug 'neoclide/coc.nvim', {'branch': 'release'} " language server
 
 Plug 'cjhutchi/org.vim'
 
+Plug 'Shopify/vim-devilish'
+Plug 'Shopify/shadowenv.vim'
+
 " }}}1
 " languages {{{1
 
