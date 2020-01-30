@@ -55,6 +55,7 @@ plugins=(
   chruby
   docker
   docker-compose
+  dotenv
   encode64
   git
   git-auto-fetch
@@ -62,6 +63,7 @@ plugins=(
   gpg-agent
   kubectl
   ruby
+  themes
   xcode
   zsh_reload
 )
