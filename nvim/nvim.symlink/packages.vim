@@ -6,15 +6,20 @@ call plug#begin('~/.config/nvim/plugged')
 
 Plug 'junegunn/vim-plug'
 
-Plug 'kien/ctrlp.vim' " fuzzy file finder
-Plug 'junegunn/goyo.vim' " zen mode
-Plug 'scrooloose/nerdtree' " folder explorer
-Plug 'airblade/vim-gitgutter' " git gutter
 Plug 'tpope/vim-commentary' "comment block support
 Plug 'tpope/vim-dispatch' " async support
 Plug 'tpope/vim-fugitive' " git support
 Plug 'tpope/vim-rhubarb' " github support
 Plug 'tpope/vim-surround' " improved quote/brace support
+Plug 'tpope/vim-ragtag' " html, tag helpers
+Plug 'tpope/vim-eunuch' " unix helpers
+Plug 'tpope/vim-dadbod' " database helpers
+
+
+Plug 'kien/ctrlp.vim' " fuzzy file finder
+Plug 'junegunn/goyo.vim' " zen mode
+Plug 'scrooloose/nerdtree' " folder explorer
+Plug 'airblade/vim-gitgutter' " git gutter
 Plug 'ekalinin/Dockerfile.vim' " dockerfile support
 Plug 'sheerun/vim-polyglot' " improved syntax highlighting
 Plug 'vim-airline/vim-airline' " sick bottom bar
@@ -59,6 +64,11 @@ Plug 'jparise/vim-graphql'
 " latex {{{2
 
 Plug 'lervag/vimtex'
+
+" }}}2
+" {{{2 json
+
+Plug 'tpope/vim-jdaddy'
 
 " }}}2
 
