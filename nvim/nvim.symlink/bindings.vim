@@ -7,7 +7,7 @@ noremap   <Leader>l :call RunLastSpec()<CR>
 noremap   <Leader>a :call RunAllSpecs()<CR>
 noremap   <Leader>z :Goyo<CR>
 
-nnoremap  <Leader>ev  :80vs ~/.config/nvim/<CR>
+nnoremap  <Leader>ev  :NERDTree ~/.config/nvim/<CR>
 nnoremap  <Leader>re  :source ~/.config/nvim/init.vim<CR>
 
 " vim:ft=vim:fdm=marker:fdl=0

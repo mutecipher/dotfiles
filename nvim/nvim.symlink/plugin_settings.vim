@@ -10,8 +10,9 @@ let g:airline_theme='dark_minimal'
 " }}}1
 " goyo {{{1
 
-let g:goyo_width = '90%'
-let g:goyo_height = '90%'
+let g:goyo_width = '95%'
+let g:goyo_height = '95%'
+let g:goyo_linenr = 1
 
 " }}}1
 " nerdtree {{{1

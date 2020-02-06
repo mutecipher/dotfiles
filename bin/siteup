@@ -12,8 +12,6 @@
 # You will need a DIGITAL_OCEAN_TOKEN set as an environement variable.
 #
 
-require 'rubygems'
-
 ['droplet_kit'].each do |gem|
   begin
     require gem
