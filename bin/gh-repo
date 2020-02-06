@@ -12,7 +12,7 @@
 #  # Get an repo ID
 #  gh_repo 18347036
 
-set -e
+set -ueo pipefail
 
 request_api_url="https://api.github.com"
 
@@ -23,4 +23,4 @@ else
   request_api_url="$request_api_url/repos/$1"
 fi
 
-curl -H "Authorization: token $GITHUB_TOKEN" "$request_api_url?$2"
+curl -H "Authorization: token $GITHUB_TOKEN" "$request_api_url"

@@ -1,0 +1,31 @@
+#!/bin/sh
+
+#
+# Retrieves your current GitHub status
+#
+# usage: gh-status
+#
+set -e
+
+api_url="https://api.github.com/graphql"
+
+if [ -n "$1" ]; then
+  query="{ \"query\": \"query { user(login: \"$1\") { login status { emoji message } } }\" }"
+  echo $query
+else
+  query="{ \"query\": \"query { viewer { login status { emoji message } } }\" }"
+fi
+
+curl \
+  -s \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: bearer $GITHUB_TOKEN" \
+  -d "$query" \
+  $api_url | \
+  ruby -e 'require "json"
+    result = JSON.parse(gets)
+    # username = result["data"]["viewer"]["login"]
+    status_emoji = result["data"]["viewer"]["status"]["emoji"]
+    status_message = result["data"]["viewer"]["status"]["message"]
+    puts "#{ status_emoji } #{ status_message }"'

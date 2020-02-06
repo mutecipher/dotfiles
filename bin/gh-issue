@@ -13,7 +13,7 @@
 #  # Get an issue by repo ID
 #  gh-issue 18347036 1
 
-set -e
+set -ueo pipefail
 
 request_api_url="https://api.github.com"
 
@@ -24,4 +24,5 @@ else
   request_api_url="$request_api_url/repos/$1/issues/$2"
 fi
 
-curl -H "Authorization: token $GITHUB_TOKEN" "$request_api_url?$3"
+curl -H "Authorization: token $GITHUB_TOKEN" "$request_api_url"
+

@@ -12,10 +12,9 @@
 #  # Get an user by id
 #  gh_user 564113
 
-set -e
+set -ueo pipefail
 
 request_api_url="https://api.github.com"
-jq_args="."
 
 
 if [[ $1 =~ ^-?[0-9]+$ ]]
@@ -25,5 +24,4 @@ else
   request_api_url="$request_api_url/users/$1"
 fi
 
-if [ "$2" != "" ]; then jq_args="$2"; fi
-curl -H "Authorization: token $GITHUB_TOKEN" "$request_api_url?$2" | jq $jq_args
+curl -H "Authorization: token $GITHUB_TOKEN" "$request_api_url"

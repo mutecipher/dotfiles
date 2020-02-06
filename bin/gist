@@ -1,0 +1,24 @@
+#!/bin/sh
+
+# Upload a file as a GitHub Gist.
+#
+# Usage: gist [filename]
+#
+# Examples:
+#
+#   # Upload a README file
+#   gist README
+
+set -ueo pipefail
+
+gist_url="https://api.github.com/gists"
+
+filename=$1
+
+payload="{\"files\": {\"$filename\": {\"content\": \"`cat $filename`\"}}}"
+
+curl -X POST \
+  -H "Authorization: token $GITHUB_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "$payload" \
+  "$gist_url"
