@@ -48,5 +48,10 @@ let g:ctrlp_switch_buffer = 'et'
 let g:ctrlp_use_caching = 0
 
 " }}}1
+" rust {{{1
+
+let g:rustfmt_autosave = 1
+
+" }}}1
 
 " vim:ft=vim:fdm=marker:fdl=0

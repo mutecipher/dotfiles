@@ -66,6 +66,7 @@ plugins=(
   themes
   xcode
   zsh_reload
+  zsh-syntax-highlighting
 )
 
 source $ZSH/oh-my-zsh.sh
@@ -80,6 +81,12 @@ export GOPROXY="direct"
 # Node version management
 export NVM_DIR="$HOME/.nvm"
 
+# Rust environment
+export RUSTBIN=$HOME/.cargo/bin
+
+# Personal scripts
+export DOTBIN=$HOME/.dotfiles/bin
+
 # Set default editor
 export EDITOR=nvim
 
@@ -90,7 +97,7 @@ export EJSON_KEYDIR=$HOME/.config/ejson
 export HOMEBREW_BIN=/usr/local/sbin
 
 # Add additional executable paths
-export PATH=$HOME/.dotfiles/bin:$HOMEBREW_BIN:$GOBIN:$PATH
+export PATH=$DOTBIN:$RUSTBIN:$HOMEBREW_BIN:$GOBIN:$PATH
 
 # export MANPATH="/usr/local/man:$MANPATH"
 

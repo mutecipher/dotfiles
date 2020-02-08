@@ -71,6 +71,11 @@ Plug 'lervag/vimtex'
 Plug 'tpope/vim-jdaddy'
 
 " }}}2
+" {{{2 rust
+
+Plug 'rust-lang/rust.vim'
+
+" }}}2
 
 " }}}1
 
