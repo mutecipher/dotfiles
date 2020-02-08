@@ -1,5 +1,0 @@
-{
-  "coc.preferences.formatOnType": true,
-  "coc.preferences.formatOnSaveFiletypes": ["go", "typescript", "json", "jsonc"],
-  "codeLens.enable": true
-}

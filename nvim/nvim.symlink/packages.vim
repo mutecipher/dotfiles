@@ -1,5 +1,12 @@
 " packages.vim - Plugins and packages to be installed
 
+" if plug.vim is not installed, install it.
+if empty(glob('$HOME/.config/nvim/autoload/plug.vim'))
+  silent !curl -fLo $HOME/.config/nvim/autoload/plug.vim --create-dirs
+        \ https://raw.githubusercontent.com/junegunn/wim-plug/master/plug.vim
+  autocmd VimEnter * PlugInstall --sync | source $HOME/.zshrc
+endif
+
 call plug#begin('~/.config/nvim/plugged')
 
 " general {{{1
@@ -29,7 +36,10 @@ Plug 'terryma/vim-multiple-cursors' " multi-cursor support
 Plug 'godlygeek/tabular' " clean text up
 Plug 'christoomey/vim-tmux-navigator' " make navigating VIM in tmux easier
 Plug 'majutsushi/tagbar' " view ctags of current file
-Plug 'neoclide/coc.nvim', {'branch': 'release'} " language server
+Plug 'autozimu/LanguageClient-neovim', { 'branch': 'next', 'do': 'bash install.sh', } " language server
+Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' } " better autocomplete
+Plug 'fszymanski/deoplete-emoji'
+Plug 'ncm2/float-preview.nvim'
 
 Plug 'cjhutchi/org.vim'
 

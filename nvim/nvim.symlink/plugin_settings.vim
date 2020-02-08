@@ -53,5 +53,25 @@ let g:ctrlp_use_caching = 0
 let g:rustfmt_autosave = 1
 
 " }}}1
+" language client {{{1
+
+set completefunc=LanguageClient#complete
+let g:LanguageClient_serverCommands = {
+    \ 'rust': ['rustup', 'run', 'stable', 'rls'],
+    \ 'ruby': ['solargraph', 'stdio'],
+    \ }
+
+" }}}1
+" deoplete {{{1
+
+let g:deoplete#enable_at_startup = 1
+
+" }}}1
+" float-preview {{{1
+
+set completeopt-=preview
+let g:float_preview#docked = 1
+
+" }}}1
 
 " vim:ft=vim:fdm=marker:fdl=0

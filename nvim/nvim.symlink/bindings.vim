@@ -10,4 +10,10 @@ noremap   <Leader>z :Goyo<CR>
 nnoremap  <Leader>ev  :NERDTree ~/.config/nvim/<CR>
 nnoremap  <Leader>re  :source ~/.config/nvim/init.vim<CR>
 
+nnoremap <F5> :call LanguageClient_contextMenu()<CR>
+" Or map each action separately
+nnoremap <silent> K :call LanguageClient#textDocument_hover()<CR>
+nnoremap <silent> gd :call LanguageClient#textDocument_definition()<CR>
+nnoremap <silent> <F1> :call LanguageClient#textDocument_rename()<CR>
+
 " vim:ft=vim:fdm=marker:fdl=0
