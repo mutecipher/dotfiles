@@ -10,7 +10,7 @@ set foldnestmax=10 " 10 nested folds max
 set nowrap " don't line wrap
 set expandtab tabstop=2 softtabstop=2 shiftwidth=2 " defaults
 set autoindent " autoindent
-set number numberwidth=2 " show line numbers
+set number relativenumber numberwidth=2 " show line numbers
 set colorcolumn=121
 set mouse=a
 
