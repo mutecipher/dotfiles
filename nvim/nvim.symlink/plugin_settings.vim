@@ -70,7 +70,7 @@ let g:deoplete#enable_at_startup = 1
 " float-preview {{{1
 
 set completeopt-=preview
-let g:float_preview#docked = 1
+let g:float_preview#docked = 0
 
 " }}}1
 
