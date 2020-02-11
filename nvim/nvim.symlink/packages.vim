@@ -76,12 +76,12 @@ Plug 'jparise/vim-graphql'
 Plug 'lervag/vimtex'
 
 " }}}2
-" {{{2 json
+" json {{{2
 
 Plug 'tpope/vim-jdaddy'
 
 " }}}2
-" {{{2 rust
+" rust {{{2
 
 Plug 'rust-lang/rust.vim'
 

@@ -13,6 +13,11 @@ set -ueo pipefail
 
 gist_url="https://api.github.com/gists"
 
+if [ $# -lt 1 ]; then
+  echo "usage: gist [filename]"
+  exit 1
+fi
+
 filename=$1
 
 payload="{\"files\": {\"$filename\": {\"content\": \"`cat $filename`\"}}}"

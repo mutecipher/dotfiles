@@ -63,6 +63,7 @@ plugins=(
   gpg-agent
   kubectl
   ruby
+  rust
   themes
   xcode
   zsh_reload
