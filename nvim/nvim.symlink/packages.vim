@@ -43,7 +43,7 @@ Plug 'ncm2/float-preview.nvim'
 
 Plug 'cjhutchi/org.vim'
 
-Plug 'Shopify/vim-devilish'
+" Plug 'Shopify/vim-devilish'
 Plug 'Shopify/shadowenv.vim'
 
 " }}}1
