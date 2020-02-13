@@ -22,7 +22,6 @@ Plug 'tpope/vim-ragtag' " html, tag helpers
 Plug 'tpope/vim-eunuch' " unix helpers
 Plug 'tpope/vim-dadbod' " database helpers
 
-
 Plug 'kien/ctrlp.vim' " fuzzy file finder
 Plug 'junegunn/goyo.vim' " zen mode
 Plug 'scrooloose/nerdtree' " folder explorer
@@ -61,6 +60,7 @@ Plug 'tpope/vim-rails' " rails support
 Plug 'tpope/vim-bundler' " bundler support
 Plug 'tpope/vim-endwise' " smartly add end
 Plug 'thoughtbot/vim-rspec' " rspec support
+Plug 'ngmy/vim-rubocop' " rubocop support
 
 " }}}2
 " web {{{2
