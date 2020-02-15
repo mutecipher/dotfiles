@@ -47,7 +47,7 @@ set -g status-left-length 40
 set -g status-left '#[fg=green]#S#[fg=blue] #[fg=colour07]| #[default]'
 
 # show date and time in right status bar
-set -g status-right '#[fg=colour04] %a %b %d #[fg=colour04]%H:%M'
+set -g status-right '#{prefix_highlight} #[fg=colour04] %a %b %d #[fg=colour04]%H:%M'
 
 # color status bar
 set -g status-bg black
@@ -71,6 +71,11 @@ set -g @plugin 'tmux-plugins/tpm'
 set -g @plugin 'tmux-plugins/tmux-pain-control'
 set -g @plugin 'tmux-plugins/tmux-sensible'
 set -g @plugin 'tmux-plugins/tmux-yank'
+set -g @plugin 'tmux-plugins/tmux-resurrect'
+set -g @plugin 'tmux-plugins/tmux-continuum'
+set -g @plugin 'tmux-plugins/tmux-prefix-highlight'
+
+set -g @continuum-restore 'on'
 
 # Initialize TMUX plugin manager (keep this line at the very bottom of tmux.conf)
 run '~/.tmux/plugins/tpm/tpm'
