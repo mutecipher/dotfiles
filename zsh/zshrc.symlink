@@ -65,6 +65,7 @@ plugins=(
   kubectl
   ruby
   rust
+  safe-paste
   themes
   xcode
   zsh_reload
