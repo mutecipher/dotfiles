@@ -37,12 +37,13 @@ Plug 'christoomey/vim-tmux-navigator' " make navigating VIM in tmux easier
 Plug 'majutsushi/tagbar' " view ctags of current file
 Plug 'autozimu/LanguageClient-neovim', { 'branch': 'next', 'do': 'bash install.sh', } " language server
 Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' } " better autocomplete
+Plug 'Shougo/deoppet.nvim', { 'do': ':UpdateRemotePlugins' }
 Plug 'fszymanski/deoplete-emoji'
 Plug 'ncm2/float-preview.nvim'
 
 Plug 'cjhutchi/org.vim'
 
-" Plug 'Shopify/vim-devilish'
+Plug 'Shopify/vim-devilish'
 Plug 'Shopify/shadowenv.vim'
 
 " }}}1

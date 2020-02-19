@@ -9,9 +9,6 @@ set -g prefix C-f
 # Free the original Ctrl-b prefix keybinding
 unbind C-b
 
-#setting the delay between prefix and command
-set -s escape-time 0.01
-
 # Ensure that we can send Ctrl-A to other apps
 bind C-f send-prefix
 
