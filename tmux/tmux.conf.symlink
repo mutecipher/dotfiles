@@ -6,6 +6,9 @@ set -g prefix C-f
 unbind C-b
 bind C-f send-prefix
 
+set -g repeat-time 250
+set -g escape-time 250
+
 set -g base-index 1
 setw -g pane-base-index 1
 

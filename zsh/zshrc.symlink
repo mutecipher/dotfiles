@@ -160,7 +160,3 @@ fi
 [ -s "/usr/local/opt/nvm/nvm.sh" ] && . "/usr/local/opt/nvm/nvm.sh"
 [ -s "/usr/local/opt/nvm/etc/bash_completion" ] && . "/usr/local/opt/nvm/etc/bash_completion"
 
-# Include starship if it is present
-if test -e /usr/local/bin/starship; then
-  eval "$(starship init zsh)"
-fi

@@ -9,7 +9,7 @@
 #   # Upload a README file
 #   gist README
 
-set -ueo pipefail
+set -e
 
 gist_url="https://api.github.com/gists"
 
