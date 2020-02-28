@@ -11,7 +11,8 @@ nnoremap <Leader>ev :NERDTree ~/.config/nvim/<CR>
 nnoremap <Leader>re :source ~/.config/nvim/init.vim<CR>
 
 nnoremap <Leader>w :bd!<CR>
-nnoremap <Leader>W :bufdo bd!<CR>
+nnoremap <Leader>W :bufdo! bd<CR>
+nnoremap <Leader>f :only<CR>
 
 nnoremap <F5> :call LanguageClient_contextMenu()<CR>
 " Or map each action separately
