@@ -63,6 +63,7 @@ plugins=(
   golang
   gpg-agent
   kubectl
+  rails
   ruby
   rust
   safe-paste
