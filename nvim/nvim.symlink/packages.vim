@@ -27,7 +27,6 @@ Plug 'junegunn/goyo.vim' " zen mode
 Plug 'scrooloose/nerdtree' " folder explorer
 Plug 'airblade/vim-gitgutter' " git gutter
 Plug 'ekalinin/Dockerfile.vim' " dockerfile support
-Plug 'sheerun/vim-polyglot' " improved syntax highlighting
 Plug 'vim-airline/vim-airline' " sick bottom bar
 Plug 'vim-airline/vim-airline-themes' " sick bottom bar themes
 Plug 'djoshea/vim-autoread' " read updates from file system
@@ -48,7 +47,7 @@ Plug 'cjhutchi/org.vim'
 
 " go {{{2
 
-Plug 'fatih/vim-go' " the only necessary go plugin
+Plug 'fatih/vim-go', {'do': ':GoUpdateBinaries'} " the only necessary go plugin
 
 " }}}2
 " ruby {{{2
@@ -82,6 +81,11 @@ Plug 'tpope/vim-jdaddy'
 " rust {{{2
 
 Plug 'rust-lang/rust.vim'
+
+" }}}2
+" syntax highlighting {{{2
+
+Plug 'sheerun/vim-polyglot' " improved syntax highlighting
 
 " }}}2
 

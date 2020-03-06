@@ -58,6 +58,7 @@ set completefunc=LanguageClient#complete
 let g:LanguageClient_serverCommands = {
     \ 'rust': ['rustup', 'run', 'stable', 'rls'],
     \ 'ruby': ['solargraph', 'stdio'],
+    \ 'go': ['gopls'],
     \ }
 
 " }}}1
@@ -70,6 +71,11 @@ let g:deoplete#enable_at_startup = 1
 
 set completeopt-=preview
 let g:float_preview#docked = 0
+
+" }}}1
+" vim-go {{{1
+
+let g:go_test_show_name = 1
 
 " }}}1
 
