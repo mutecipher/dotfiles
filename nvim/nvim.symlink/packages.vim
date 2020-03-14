@@ -68,11 +68,6 @@ Plug 'tpope/vim-markdown'
 Plug 'jparise/vim-graphql'
 
 " }}}2
-" latex {{{2
-
-Plug 'lervag/vimtex'
-
-" }}}2
 " json {{{2
 
 Plug 'tpope/vim-jdaddy'
