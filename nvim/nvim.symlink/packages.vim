@@ -51,7 +51,7 @@ Plug 'cjhutchi/org.vim'
 
 " go {{{2
 
-Plug 'fatih/vim-go', {'do': ':GoUpdateBinaries'} " the only necessary go plugin
+Plug 'fatih/vim-go', {'do': ':GoInstallBinaries'} " the only necessary go plugin
 
 " }}}2
 " ruby {{{2
