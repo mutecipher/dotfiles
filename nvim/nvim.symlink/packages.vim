@@ -22,7 +22,9 @@ Plug 'tpope/vim-ragtag' " html, tag helpers
 Plug 'tpope/vim-eunuch' " unix helpers
 Plug 'tpope/vim-dadbod' " database helpers
 
-Plug 'kien/ctrlp.vim' " fuzzy file finder
+" Plug 'kien/ctrlp.vim' " fuzzy file finder
+Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
+Plug 'junegunn/fzf.vim'
 Plug 'junegunn/goyo.vim' " zen mode
 Plug 'scrooloose/nerdtree' " folder explorer
 Plug 'airblade/vim-gitgutter' " git gutter
@@ -39,6 +41,8 @@ Plug 'Shougo/deoplete.nvim', { 'do': ':UpdateRemotePlugins' } " better autocompl
 Plug 'Shougo/deoppet.nvim', { 'do': ':UpdateRemotePlugins' }
 Plug 'fszymanski/deoplete-emoji'
 Plug 'ncm2/float-preview.nvim'
+Plug 'janko/vim-test' " test runner
+Plug 'Shopify/shadowenv.vim' " shadowenv support
 
 Plug 'cjhutchi/org.vim'
 

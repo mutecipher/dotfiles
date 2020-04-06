@@ -1,6 +1,7 @@
 " bindings.vim - Keybindings
 
 noremap <C-b>     :NERDTreeToggle<CR>
+noremap <C-p>     :Files<CR>
 noremap <Leader>t :call RunCurrentSpecFile()<CR>
 noremap <Leader>s :call RunNearestSpec()<CR>
 noremap <Leader>l :call RunLastSpec()<CR>

@@ -166,3 +166,7 @@ fi
 if test -e /usr/local/bin/starship; then
   eval "$(starship init zsh)"
 fi
+
+if test -e $(which gh); then
+  eval "$(gh completion -s zsh)"
+fi

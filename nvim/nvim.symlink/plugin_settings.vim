@@ -78,5 +78,11 @@ let g:float_preview#docked = 0
 let g:go_test_show_name = 1
 
 " }}}1
+" fzf.vim {{{1
+
+let g:fzf_buffers_jump = 1
+let g:fzf_tags_command = 'ripper-tags -R'
+
+" }}}1
 
 " vim:ft=vim:fdm=marker:fdl=0
