@@ -76,7 +76,7 @@ let g:fzf_tags_command = 'ripper-tags -R'
 " }}}1
 " vim-test {{{1
 
-let test#strategy = "dispatch"
+let test#strategy = "neovim"
 
 " }}}1
 
