@@ -37,16 +37,6 @@ highlight GitGutterDelete ctermfg=1
 let g:org#debug = 1
 
 " }}}1
-" ctrl-p {{{1
-
-let g:ctrlp_user_command = ['.git/', 'git --git-dir=%s/.git ls-files -oc --exclude-standard']
-let g:ctrlp_max_files = 0
-let g:ctrlp_working_path_mode = 'ra'
-let g:ctrlp_root_markers = ['Gemfile', 'dev.yml']
-let g:ctrlp_switch_buffer = 'et'
-let g:ctrlp_use_caching = 0
-
-" }}}1
 " rust {{{1
 
 let g:rustfmt_autosave = 1
@@ -57,7 +47,7 @@ let g:rustfmt_autosave = 1
 set completefunc=LanguageClient#complete
 let g:LanguageClient_serverCommands = {
     \ 'rust': ['rustup', 'run', 'stable', 'rls'],
-    \ 'ruby': ['solargraph', 'stdio'],
+    \ 'ruby': ['solargraph', 'socket'],
     \ 'go': ['gopls'],
     \ }
 
@@ -82,6 +72,11 @@ let g:go_test_show_name = 1
 
 let g:fzf_buffers_jump = 1
 let g:fzf_tags_command = 'ripper-tags -R'
+
+" }}}1
+" vim-test {{{1
+
+let test#strategy = "dispatch"
 
 " }}}1
 
