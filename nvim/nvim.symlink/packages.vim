@@ -22,7 +22,6 @@ Plug 'tpope/vim-ragtag' " html, tag helpers
 Plug 'tpope/vim-eunuch' " unix helpers
 Plug 'tpope/vim-dadbod' " database helpers
 
-" Plug 'kien/ctrlp.vim' " fuzzy file finder
 Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
 Plug 'junegunn/fzf.vim'
 Plug 'junegunn/goyo.vim' " zen mode
