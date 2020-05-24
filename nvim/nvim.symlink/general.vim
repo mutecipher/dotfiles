@@ -24,7 +24,7 @@ set directory=/tmp/ " for swap/tmp files
 
 let mapleader=","
 set nocompatible " requirement for many plugins
-colorscheme dim
+colorscheme gruvbox
 syntax on " enable syntax highlighting
 set t_Co=256 " allow xterm-256
 set background=dark

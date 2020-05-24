@@ -84,6 +84,7 @@ Plug 'rust-lang/rust.vim'
 " syntax highlighting {{{2
 
 Plug 'sheerun/vim-polyglot' " improved syntax highlighting
+Plug 'morhetz/gruvbox'
 
 " }}}2
 
