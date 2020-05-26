@@ -1,7 +1,7 @@
 " bindings.vim - Keybindings
 
 noremap <C-b>     :NERDTreeToggle<CR>
-noremap <C-p>     :GitFiles<CR>
+noremap <C-p>     :Files<CR>
 noremap <Leader>z :Goyo<CR>
 
 nnoremap <Leader>ev :NERDTree ~/.config/nvim/<CR>
