@@ -22,11 +22,7 @@ end
 require_rb_files_from(File.join(ENV['HOME'], '.pryrc.d'))
 
 # Style
-Pry.config.editor = 'vim'
-Pry.config.prompt = [
-  proc { '>> ' },
-  proc { '|  ' }
-]
+Pry.config.editor = 'nvim'
 
 # Grab the clipboard
 def pbcopy(str)
