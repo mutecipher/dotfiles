@@ -47,7 +47,7 @@ let g:rustfmt_autosave = 1
 set completefunc=LanguageClient#complete
 let g:LanguageClient_serverCommands = {
     \ 'rust': ['rustup', 'run', 'stable', 'rls'],
-    \ 'ruby': ['solargraph', 'socket'],
+    \ 'ruby': ['solargraph', 'stdio'],
     \ 'go': ['gopls'],
     \ }
 
