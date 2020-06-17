@@ -1,7 +1,7 @@
 [includeIf "gitdir:~/*/"]
   path = .gitconfig-personal
 
-[includeIf "gitdir:~/src/*/shopify/"]
+[includeIf "gitdir:~/src/*/Shopify/"]
   path = .gitconfig-work
 
 # vim:ft=gitconfig ts=2 sw=2 tw=0 et
