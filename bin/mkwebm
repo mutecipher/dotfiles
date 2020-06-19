@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -o posix
+
+command -v foo >/dev/null 2>&1 || { echo >&2 "I require foo but it's not installed.  Aborting."; exit 1; }
+
+__filename=$(basename -- "$1")
+__file="${__filename%.*}"
+
+ffmpeg -i "$1" -c:v libvpx-vp9 -b:v 1000K -threads 8 -speed 1 \
+  -tile-columns 6 -frame-parallel 1 -auto-alt-ref 1 -lag-in-frames 25 \
+  -c:a libopus -b:a 64k -f webm "$__file.webm"
