@@ -105,6 +105,8 @@ export PATH=$DOTBIN:$RUSTBIN:$HOMEBREW_BIN:$GOBIN:$PATH
 # Don't prompt for dotenv files
 export ZSH_DOTENV_PROMPT=false
 
+export DOTNET_CLI_TELEMETRY_OPTOUT=true
+
 # export MANPATH="/usr/local/man:$MANPATH"
 
 # You may need to manually set your language environment
