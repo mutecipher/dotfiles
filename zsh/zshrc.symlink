@@ -77,7 +77,7 @@ source $ZSH/oh-my-zsh.sh
 # User configuration
 
 # Go environment variables
-export GOPATH=$HOME/go
+export GOPATH=$HOME/.go
 export GOBIN=$GOPATH/bin
 export GOPROXY="direct"
 
@@ -154,7 +154,7 @@ if test -e /usr/local/opt/chruby/share/chruby/chruby.sh; then
 fi
 
 # Include shadowenv hook if it is present
-if test -e /usr/local/bin/shadowenv; then
+if test -e $(which shadowenv); then
   eval "$(shadowenv init zsh)"
 fi
 
@@ -166,10 +166,16 @@ fi
 [ -s "/usr/local/opt/nvm/etc/bash_completion" ] && . "/usr/local/opt/nvm/etc/bash_completion"
 
 # Include starship if it is present
-if test -e /usr/local/bin/starship; then
+if test -e $(which starship); then
   eval "$(starship init zsh)"
 fi
 
+# Include gh completion if it is present
 if test -e $(which gh); then
   eval "$(gh completion -s zsh)"
+fi
+
+# Include pyenv if it is present
+if test -e $(which pyenv); then
+  eval "$(pyenv init -)"
 fi
