@@ -5,7 +5,7 @@
 let g:airline#extensions#tabline#enabled = 1
 let g:airline#extensions#tabline#formatter = 'unique_tail'
 let g:airline_powerline_fonts = 1
-let g:airline_theme='dark_minimal'
+let g:airline_theme='gruvbox'
 
 " }}}1
 " goyo {{{1
@@ -47,7 +47,7 @@ let g:rustfmt_autosave = 1
 set completefunc=LanguageClient#complete
 let g:LanguageClient_serverCommands = {
     \ 'rust': ['rustup', 'run', 'stable', 'rls'],
-    \ 'ruby': ['solargraph', 'stdio'],
+    \ 'ruby': ['bundle', 'exec', 'srb', 'tc', '--lsp'],
     \ 'go': ['gopls'],
     \ }
 
