@@ -1,14 +1,21 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #
-# Run all installers and symlink dotfiles
+# Author: Cory Hutchison
+#
+# Wrapper that bootstraps the platform, symlinks config files to the home directory and does some general 
+# configuration.
 
 set -e
 
-echo "Bootstrapping"
+DIR="${BASH_SOURCE%/*}"
+if [[ ! -d "$DIR" ]] ; then DIR="$PWD" ; fi
+# shellcheck source=script/misc
+. "script/misc"
+
+__info "bootstrapping system..."
 
 script/platform
 script/symlinks
 script/generic
 
-# shellcheck source=/dev/null
-source "$HOME/.zshrc"
+footer

@@ -1,19 +1,14 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#
+# Author: Cory Hutchison
+#
+# Calls all the platform specific configuration scripts.
 
 set -e
 
-# Run all dotfiles installers.
+DIR="${BASH_SOURCE%/*}"
+if [[ ! -d "$DIR" ]] ; then DIR="$PWD" ; fi
+# shellcheck source=script/misc
+. "script/misc"
 
-# set the platform var for export to installer scripts
-export PLATFORM="unknown"
-if [[ "$(uname)" == "Darwin" ]]; then
-   PLATFORM="osx"
-elif [[ "$(expr substr $(uname -s) 1 5)" == "Linux" ]]; then
-   PLATFORM="linux"
-elif [[ "$(expr substr $(uname -s) 1 10)" == "MINGW32_NT" ]]; then
-   PLATFORM="windows"
-fi
-
-echo "Running installers for $platform"
-
-find . -name $platform.sh | while read installer ; do sh "${installer}" > /dev/null ; done
+find . -name "${platform}.sh" | while read -p -r installer ; do sh "${installer}" ; done

@@ -2,10 +2,10 @@
   name = Cory Hutchison
   email = cory_hutchison@icloud.com
   username = cjhutchi
-  signingkey = 32ABE5D29C8EE52D273ACB98705B2FEF0EF41082
+  signingkey = 8BD8CF9F644CBB55C6D74E774897239D0E29C193
 
-[credential]
-  helper = osxkeychain
+; [credential]
+;   helper = osxkeychain
 
 [push]
   default = current
