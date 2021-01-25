@@ -1,4 +1,5 @@
-" plugin_settings.vim - Plugin configurations and settings
+" plugin_config.vim - configuration and settings for different plugins
+" installed in Vim/NeoVim.
 
 " airline {{{1
 

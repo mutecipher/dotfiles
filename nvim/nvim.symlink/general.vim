@@ -1,4 +1,4 @@
-" general.vim - General settings and configurations
+" general.vim - general settings and configurations for Vim/NeoVim.
 
 " editor {{{1
 
