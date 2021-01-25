@@ -13,9 +13,21 @@ if [ ! -d "$DIR" ] ; then DIR="$PWD" ; fi
 
 __info "running zsh/config.sh"
 
+if test -e "$(which zsh)" ; then
+  __success_message "[SKIPPING] zsh installed"
+else
+  if test "$platform" == "Darwin" ; then
+    __warning_message "installing zsh..."
+    brew install zsh
+  elif test "$platform" == "Linux" ; then
+    __warning_message "installing zsh..."
+    sudo apt install zsh > /dev/null
+  fi
+fi
+
 if [[ "$SHELL" =~ /*zsh*/ ]]; then
   __warning_message "changing default shell to zsh"
-  chsh -s /bin/zsh
+  sudo chsh -s /bin/zsh
 else
   __success_message "[SKIPPING] zsh default shell"
 fi
