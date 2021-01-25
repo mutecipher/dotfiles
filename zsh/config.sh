@@ -36,10 +36,3 @@ if ! test -e $HOME/.oh-my-zsh; then
   __warning_message "installing oh-my-zsh..."
   sh -c "$(curl -fsSL https://raw.github.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 fi
-
-if test -e /usr/local/bin/starship ; then
-  __success_message "[SKIPPING] starship installed"
-else
-  __warning_message "installing starship..."
-  curl -fsSL https://starship.rs/install.sh | bash
-fi
