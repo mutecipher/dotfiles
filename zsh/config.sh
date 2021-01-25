@@ -21,7 +21,7 @@ else
     brew install zsh
   elif test "$platform" == "Linux" ; then
     __warning_message "installing zsh..."
-    sudo apt install zsh > /dev/null
+    sudo apt install -y zsh > /dev/null
   fi
 fi
 
