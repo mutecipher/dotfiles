@@ -154,9 +154,9 @@ if test -e /usr/local/opt/chruby/share/chruby/chruby.sh; then
 fi
 
 # Include shadowenv hook if it is present
-# if test -e $(which shadowenv); then
-#   eval "$(shadowenv init zsh)"
-# fi
+if test -e "$(which shadowenv)" ; then
+  eval "$(shadowenv init zsh)"
+fi
 
 # Include dev if it is present
 [ -f /opt/dev/dev.sh ] && source /opt/dev/dev.sh
@@ -166,16 +166,16 @@ fi
 [ -s "/usr/local/opt/nvm/etc/bash_completion" ] && . "/usr/local/opt/nvm/etc/bash_completion"
 
 # Include starship if it is present
-if test -e $(which starship); then
+if test -e "$(which starship)" ; then
   eval "$(starship init zsh)"
 fi
 
 # Include gh completion if it is present
-# if test -e $(which gh); then
-#   eval "$(gh completion -s zsh)"
-# fi
+if test -e "$(which gh)" ; then
+  eval "$(gh completion -s zsh)"
+fi
 
 # Include pyenv if it is present
-# if test -e $(which pyenv); then
-#   eval "$(pyenv init -)"
-# fi
+if test -e "$(which pyenv)" ; then
+  eval "$(pyenv init -)"
+fi
