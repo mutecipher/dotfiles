@@ -148,7 +148,7 @@ function reset_dock() {
 }
 
 # Include chruby hooks if present
-if test -e /usr/local/opt/chruby/share/chruby/chruby.sh; then
+if test -e "/usr/local/opt/chruby/share/chruby/chruby.sh" ; then
   source /usr/local/opt/chruby/share/chruby/chruby.sh
   source /usr/local/opt/chruby/share/chruby/auto.sh
 fi
