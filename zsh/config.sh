@@ -25,7 +25,7 @@ else
   fi
 fi
 
-if [[ "$SHELL" =~ /*zsh*/ ]]; then
+if [[ "$SHELL" =~ zsh$ ]]; then
   __warning_message "changing default shell to zsh"
   sudo chsh -s /bin/zsh
 else
