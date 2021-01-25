@@ -1,21 +1,20 @@
 # ~/.dotfiles
 
-These are the files I use for setting up my environment. They are copied heavily from @tarebyte and @patrickdonovan who 
-got them from someone else. I've since diverged enough to really warrant a fork. Some of this is specific to my job 
-at Shopify. Although the original is platform agnostic, currently this may lean a little towards OSX.
+System configuration files I've honed to get my machines to my liking. Much of the work is heavily borrowed from others
+that I've come across on GitHub and elsewhere (many thanks goes out to them). These files are primarily focused towards
+configuring macOS, however, recently I've made a major effort to automate Linux setup as well.
 
 ## Install
 
-3 Easy steps:
-
-```
+```sh
 git clone https://github.com/cjhutchi/dotfiles ~/.dotfiles
 cd ~/.dotfiles
-
 script/bootstrap
 ```
 
-And that's it! This will symlink any .symlink file into your home directory
+## Changelog
+
+* January 24, 2021 - First major update in a long while. Re-worked the bootstrap script to handle many Linux cases. Removed a bunch of more or less useless scripts from the bin as well.
 
 ## Thanks
 
