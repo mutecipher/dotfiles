@@ -26,7 +26,7 @@ elif test "$platform" == "Linux"; then
     __success_message "[SKIPPING] neovim installed"
   else
     __warning_message "installing neovim..."
-    sudo apt install -y neovim
+    sudo apt install -y neovim > /dev/null
   fi
 fi
 
@@ -37,5 +37,5 @@ else
   curl -s "$HOME/.config/nvim/autoload/plug.vim" --create-dirs \
     "https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim" > /dev/null
 
-  nvim +PluginInstall +qall >/dev/null
+  nvim +PluginInstall +qall > /dev/null
 fi

@@ -27,7 +27,7 @@ elif test "$PLATFORM" == "linux"; then
     __success_message "[SKIPPING] tmux installed"
   else
     __warning_message "installing tmux..."
-    sudo apt install -y tmux
+    sudo apt install -y tmux > /dev/null
   fi
 fi
 
