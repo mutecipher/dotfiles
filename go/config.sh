@@ -26,6 +26,6 @@ elif test "$platform" == "Linux" ; then
     __success_message "[SKIPPING] go installed"
   else
     __warning_message "installing go..."
-    sudo apt install -y neovim
+    sudo apt install -y golang > /dev/null
   fi
 fi
