@@ -19,6 +19,7 @@ endif
 
 " Plug 'Shopify/shadowenv.vim' " shadowenv support
 " Plug 'cjhutchi/org.vim'
+Plug 'cjhutchi/vim-sorbet', { 'branch': 'main' } " sorbet support
 Plug 'airblade/vim-gitgutter' " git gutter
 Plug 'christoomey/vim-tmux-navigator' " make navigating VIM in tmux easier
 Plug 'djoshea/vim-autoread' " read updates from file system
