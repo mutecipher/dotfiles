@@ -50,6 +50,8 @@ let g:LanguageClient_serverCommands = {
     \ 'rust': ['rustup', 'run', 'stable', 'rls'],
     \ 'ruby': ['bundle', 'exec', 'srb', 'tc', '--lsp'],
     \ 'go': ['gopls'],
+    \ 'c': ['/usr/local/Cellar/llvm/11.0.0_1/bin/clangd'],
+    \ 'python': ['python-language-server'],
     \ }
 
 " }}}1

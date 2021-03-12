@@ -23,6 +23,7 @@ nnoremap <F5> :call LanguageClient_contextMenu()<CR>
 nnoremap <silent> K :call LanguageClient#textDocument_hover()<CR>
 nnoremap <silent> gd :call LanguageClient#textDocument_definition()<CR>
 nnoremap <silent> <F1> :call LanguageClient#textDocument_rename()<CR>
+nnoremap <silent> <F8> :call LanguageClient#textDocument_codeAction()<CR>
 
 " }}}1
 " testing {{{1
