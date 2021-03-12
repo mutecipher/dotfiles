@@ -99,8 +99,12 @@ export EJSON_KEYDIR=$HOME/.config/ejson
 # Set Homebrew bin
 export HOMEBREW_BIN=/usr/local/sbin
 
+# Set pyenv root
+export PYENV_ROOT="$HOME/.pyenv"
+export PYENVBIN="$PYENV_ROOT/bin"
+
 # Add additional executable paths
-export PATH=$DOTBIN:$RUSTBIN:$HOMEBREW_BIN:$GOBIN:$PATH
+export PATH=$DOTBIN:$RUSTBIN:$HOMEBREW_BIN:$GOBIN:$PYENVBIN:$PATH
 
 # Don't prompt for dotenv files
 export ZSH_DOTENV_PROMPT=false
