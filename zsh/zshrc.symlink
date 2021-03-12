@@ -152,22 +152,20 @@ function reset_dock() {
 }
 
 # Include chruby hooks if present
-if test -e "/usr/local/opt/chruby/share/chruby/chruby.sh" ; then
-  source /usr/local/opt/chruby/share/chruby/chruby.sh
-  source /usr/local/opt/chruby/share/chruby/auto.sh
-fi
+[ -s "/usr/local/opt/chruby/share/chruby/chruby.sh" ] && source "/usr/local/opt/chruby/share/chruby/chruby.sh"
+[ -s "/usr/local/opt/chruby/share/chruby/auto.sh" ] && source "/usr/local/opt/chruby/share/chruby/auto.sh"
+
+# Include dev if it is present
+[ -s "/opt/dev/dev.sh" ] && source "/opt/dev/dev.sh"
+
+# Include nvm if it is present
+[ -s "/usr/local/opt/nvm/nvm.sh" ] && source "/usr/local/opt/nvm/nvm.sh"
+[ -s "/usr/local/opt/nvm/etc/bash_completion" ] && source "/usr/local/opt/nvm/etc/bash_completion"
 
 # Include shadowenv hook if it is present
 if test -e "$(which shadowenv)" ; then
   eval "$(shadowenv init zsh)"
 fi
-
-# Include dev if it is present
-[ -f /opt/dev/dev.sh ] && source /opt/dev/dev.sh
-
-# Include nvm if it is present
-[ -s "/usr/local/opt/nvm/nvm.sh" ] && . "/usr/local/opt/nvm/nvm.sh"
-[ -s "/usr/local/opt/nvm/etc/bash_completion" ] && . "/usr/local/opt/nvm/etc/bash_completion"
 
 # Include starship if it is present
 if test -e "$(which starship)" ; then
