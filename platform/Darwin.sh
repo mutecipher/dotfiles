@@ -98,3 +98,10 @@
 # 	killall "$app" > /dev/null 2>&1
 # done
 # echo "Done. Note that some of these changes require a logout/restart to take effect."
+
+# Install Homebrew
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install JetBrains Mono
+brew tap homebrew/cask-fonts
+brew install --cask font-jetbrains-mono
