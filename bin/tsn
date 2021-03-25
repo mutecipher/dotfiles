@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+kaomoji=(
+  "｡ﾟ(TヮT)ﾟ｡"
+  "(´｡• ω •｡\`)"
+  "<(￣ ﹌ ￣)>"
+  "(ノ°益°)ノ"
+  "٩(╬ʘ益ʘ╬)۶"
+  "(っ˘̩╭╮˘̩)っ"
+  "▓▒░(°◡°)░▒▓"
+  "ᕕ( ᐛ )ᕗ"
+  "ლ(ಠ_ಠ ლ)"
+  "/╲/\\╭[☉﹏☉]╮/\\╱\\"
+  "( ͡° ͜ʖ ͡°)"
+  "(▀̿Ĺ̯▀̿ ̿)"
+  "( ಠ ͜ʖಠ)"
+)
+length=${#kaomoji[@]}
+random_index=$(($RANDOM % $length))
+session_name="${kaomoji[$random_index]}"
+
+tmux rename-session "${session_name}"
