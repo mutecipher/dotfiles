@@ -1,4 +1,4 @@
-" plugins.vim - manage plugins via vim-plug. 
+" plugins.vim - manage plugins via vim-plug.
 
 " if plug.vim is not installed, install it.
 if empty(glob('$HOME/.config/nvim/autoload/plug.vim'))
