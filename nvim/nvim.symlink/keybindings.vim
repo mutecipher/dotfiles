@@ -8,6 +8,7 @@ noremap <Leader>z :Goyo<CR>
 
 nnoremap <Leader>ev :NERDTree ~/.config/nvim/<CR>
 nnoremap <Leader>re :source ~/.config/nvim/init.vim<CR>
+nnoremap <Leader>T :call system("tmux split-pane -v -p 25")<CR>
 
 " }}}1
 " window management {{{1
