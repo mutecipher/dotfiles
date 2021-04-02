@@ -1,0 +1,31 @@
+# Include chruby hooks if present
+[ -s "/usr/local/opt/chruby/share/chruby/chruby.sh" ] && source "/usr/local/opt/chruby/share/chruby/chruby.sh"
+[ -s "/usr/local/opt/chruby/share/chruby/auto.sh" ] && source "/usr/local/opt/chruby/share/chruby/auto.sh"
+[ -s "/opt/homebrew/opt/chruby/share/chruby/chruby.sh" ] && source "/opt/homebrew/opt/chruby/share/chruby/chruby.sh"
+[ -s "/opt/homebrew/opt/chruby/share/chruby/auto.sh" ] && source "/opt/homebrew/opt/chruby/share/chruby/auto.sh"
+
+# Include nvm if it is present
+[ -s "/usr/local/opt/nvm/nvm.sh" ] && source "/usr/local/opt/nvm/nvm.sh"
+[ -s "/usr/local/opt/nvm/etc/bash_completion" ] && source "/usr/local/opt/nvm/etc/bash_completion"
+[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && source "/opt/homebrew/opt/nvm/nvm.sh"
+[ -s "/opt/homebrew/opt/nvm/etc/bash_completion" ] && source "/opt/homebrew/opt/nvm/etc/bash_completion"
+
+# Include shadowenv hook if it is present
+if test -e "$(which shadowenv)" ; then
+  eval "$(shadowenv init zsh)"
+fi
+
+# Include starship if it is present
+if test -e "$(which starship)" ; then
+  eval "$(starship init zsh)"
+fi
+
+# Include gh completion if it is present
+if test -e "$(which gh)" ; then
+  eval "$(gh completion -s zsh)"
+fi
+
+# Include pyenv if it is present
+if test -e "$(which pyenv)" ; then
+  eval "$(pyenv init -)"
+fi
