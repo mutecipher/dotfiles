@@ -16,11 +16,6 @@ let g:goyo_height = '95%'
 let g:goyo_linenr = 1
 
 " }}}1
-" nerdtree {{{1
-
-let g:NERDTreeWinPos = "right"
-
-" }}}1
 " rspec {{{1
 
 let g:rspec_command = "tmux split-window bundle exec rspec {spec}"
@@ -47,11 +42,13 @@ let g:rustfmt_autosave = 1
 
 set completefunc=LanguageClient#complete
 let g:LanguageClient_serverCommands = {
+    \ 'c': ['/usr/local/Cellar/llvm/11.0.0_1/bin/clangd'],
+    \ 'go': ['gopls'],
+    \ 'javascript': ['tsserver'],
+    \ 'python': ['python-language-server'],
     \ 'rust': ['rustup', 'run', 'stable', 'rls'],
     \ 'ruby': ['bundle', 'exec', 'srb', 'tc', '--lsp'],
-    \ 'go': ['gopls'],
-    \ 'c': ['/usr/local/Cellar/llvm/11.0.0_1/bin/clangd'],
-    \ 'python': ['python-language-server'],
+    \ 'typescript': ['tsserver'],
     \ }
 
 " }}}1
