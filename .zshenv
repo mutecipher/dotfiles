@@ -1,26 +1,22 @@
-# Go environment variables
+source "$HOME/.cargo/env"
+[ -s "$(brew --prefix)/opt/chruby/share/chruby/chruby.sh" ] && source "$(brew --prefix)/opt/chruby/share/chruby/chruby.sh"
+[ -s "$(brew --prefix)/opt/chruby/share/chruby/auto.sh" ]   && source "$(brew --prefix)/opt/chruby/share/chruby/auto.sh"
+[ -s "$(brew --prefix)/opt/nvm/nvm.sh" ]                    && source "$(brew --prefix)/opt/nvm/nvm.sh"
+
+[ -e "$(which shadowenv)" ] && eval "$(shadowenv init zsh)"
+[ -e "$(which starship)" ]  && eval "$(starship init zsh)"
+[ -e "$(which gh)" ] && eval "$(gh completion -s zsh)"
+[ -e "$(which pyenv)" ] && eval "$(pyenv init - zsh)"
+
+export DOTNET_CLI_TELEMETRY_OPTOUT=true
+export DOTBIN=$HOME/.bin
+export EDITOR=nvim
 export GOPATH=$HOME/.go
 export GOBIN=$GOPATH/bin
 export GOPROXY="direct"
-
-# Node version management
 export NVM_DIR="$HOME/.nvm"
-
-# Rust environment
 export RUSTBIN=$HOME/.cargo/bin
-
-# Personal scripts
-export DOTBIN=$HOME/.bin
-
-# Set default editor
-export EDITOR=nvim
-
-# Set pyenv root
 export PYENV_ROOT="$HOME/.pyenv"
 export PYENVBIN="$PYENV_ROOT/bin"
-
-# Don't prompt for dotenv files
 export ZSH_DOTENV_PROMPT=false
 
-# Opt out of .NET telemetry
-export DOTNET_CLI_TELEMETRY_OPTOUT=true

@@ -4,10 +4,13 @@ set -e
 echo "running install-linux.sh"
 
 # Install default applications
-apps=(nvim tmux go)
+apps=(nvim tmux go zsh)
 sudo apt update
 sudo apt upgrade -y
 sudo apt install "$apps"
+
+# Install oh-my-zsh
+sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 
 # Make dev directories
 mkdir -p "$HOME/src/github.com/mutecipher"

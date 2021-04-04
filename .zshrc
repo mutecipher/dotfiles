@@ -10,9 +10,10 @@ plugins=(
   zsh_reload
 )
 source $ZSH/oh-my-zsh.sh
-export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$PYENVBIN:$PATH
 
 source .zshaliases
 source .zshenv
 source .zshhelpers
 source .zshhooks
+
+export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$PYENVBIN:$PATH
