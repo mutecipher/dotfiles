@@ -56,10 +56,10 @@ for x in "${DOTFILES[@]}"; do
     echo "Backing up $HOME/$x..."
     backup "$x"
 
-    printf "🔗 Linking $x to $HOME/$x"
+    echo "🔗 Linking $x to $HOME/$x"
     ln -s "$dotfiles_root/$x" "$x"
   else
-    printf "🔗 Linking $x to $HOME/$x"
+    echo "🔗 Linking $x to $HOME/$x"
     ln -s "$dotfiles_root/$x" "$x"
   fi
   popd
