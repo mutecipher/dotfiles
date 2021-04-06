@@ -18,13 +18,13 @@ esac
 [ -e "$(which pyenv)" ] && eval "$(pyenv init - zsh)"
 
 export DOTNET_CLI_TELEMETRY_OPTOUT=true
-export DOTBIN=$HOME/.bin
+export DOTBIN="$HOME/.bin"
 export EDITOR=nvim
-export GOPATH=$HOME/.go
-export GOBIN=$GOPATH/bin
+export GOPATH="$HOME/.go"
+export GOBIN="$GOPATH/bin"
 export GOPROXY="direct"
 export NVM_DIR="$HOME/.nvm"
-export RUSTBIN=$HOME/.cargo/bin
+export RUSTBIN="$HOME/.cargo/bin"
 export PYENV_ROOT="$HOME/.pyenv"
 export PYENVBIN="$PYENV_ROOT/bin"
 export ZSH_DOTENV_PROMPT=false
