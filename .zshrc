@@ -1,5 +1,5 @@
-export ZSH=$HOME/.oh-my-zsh
-ZSH_THEME="robbyrussell"
+export ZSH="$HOME/.oh-my-zsh"
+ZSH_THEME="crcandy"
 plugins=(
   colored-man-pages
   encode64
@@ -7,13 +7,13 @@ plugins=(
   git-auto-fetch
   gpg-agent
   safe-paste
+  themes
   zsh_reload
 )
-source $ZSH/oh-my-zsh.sh
+source "$ZSH/oh-my-zsh.sh"
 
-source .zshaliases
-source .zshenv
-source .zshhelpers
-source .zshhooks
+source "$HOME/.zshaliases"
+source "$HOME/.zshenv"
+source "$HOME/.zshhelpers"
 
 export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$PYENVBIN:$PATH

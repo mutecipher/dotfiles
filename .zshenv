@@ -1,7 +1,16 @@
 source "$HOME/.cargo/env"
-[ -s "$(brew --prefix)/opt/chruby/share/chruby/chruby.sh" ] && source "$(brew --prefix)/opt/chruby/share/chruby/chruby.sh"
-[ -s "$(brew --prefix)/opt/chruby/share/chruby/auto.sh" ]   && source "$(brew --prefix)/opt/chruby/share/chruby/auto.sh"
-[ -s "$(brew --prefix)/opt/nvm/nvm.sh" ]                    && source "$(brew --prefix)/opt/nvm/nvm.sh"
+case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
+  "darwin" )
+    [ -s "$(brew --prefix)/opt/chruby/share/chruby/chruby.sh" ] && source "$(brew --prefix)/opt/chruby/share/chruby/chruby.sh"
+    [ -s "$(brew --prefix)/opt/chruby/share/chruby/auto.sh" ]   && source "$(brew --prefix)/opt/chruby/share/chruby/auto.sh"
+    [ -s "$(brew --prefix)/opt/nvm/nvm.sh" ]                    && source "$(brew --prefix)/opt/nvm/nvm.sh"
+    ;;
+  "linux" )
+    [ -s "/usr/local/share/chruby/chruby.sh" ] && source "/usr/local/share/chruby/chruby.sh"
+    [ -s "/usr/local/share/chruby/auto.sh" ] && source "/usr/local/share/chruby/auto.sh"
+    [ -s "$HOME/.nvm/nvm.sh" ] && source "$HOME/.nvm/nvm.sh"
+    ;;
+esac
 
 [ -e "$(which shadowenv)" ] && eval "$(shadowenv init zsh)"
 [ -e "$(which starship)" ]  && eval "$(starship init zsh)"

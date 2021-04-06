@@ -13,7 +13,6 @@ DOTFILES=(
   .zshaliases
   .zshenv
   .zshhelpers
-  .zshhooks
   .zshrc
 )
 
@@ -30,6 +29,7 @@ CONFIG_DIRS=(
 )
 
 platform="$(uname -s | tr '[:upper:]' '[:lower:]')"
+dotfiles_root="$(pwd)"
 
 case "${platform}" in
   "darwin" )
@@ -44,37 +44,71 @@ case "${platform}" in
     echo "not macOS" ;;
 esac
 
+function backup() {
+  mv "$1" "$1.backup"
+}
+
 for x in "${DOTFILES[@]}"; do
-  if [[ -f "$HOME/$x" ]]; then
+  pushd "$HOME"
+  if [[ -f "$x" ]]; then
     echo "⚠️  $HOME/$x exists..."
+
+    echo "Backing up $HOME/$x..."
+    backup "$x"
+
+    printf "🔗 Linking $x to $HOME/$x"
+    ln -s "$dotfiles_root/$x" "$x"
   else
     printf "🔗 Linking $x to $HOME/$x"
-    # do something
-    printf " ✅"
-    echo
+    ln -s "$dotfiles_root/$x" "$x"
   fi
+  popd
 done
 
 for x in "${DIRS[@]}"; do
-  if [[ -d "$HOME/$x" ]]; then
+  pushd "$HOME"
+  if [[ -d "$x" ]]; then
     echo "⚠️  $HOME/$x exists..."
+
+    echo "Backing up $HOME/$x..."
+    backup "$x"
+
+    echo "🔗 Linking $x to $HOME/$x"
+    ln -s "$dotfiles_root/$x" "$x"
   else
     echo "🔗 Linking $x to $HOME/$x"
+    ln -s "$dotfiles_root/$x" "$x"
   fi
 done
 
 for x in "${CONFIG_FILES[@]}"; do
-  if [[ -f "$HOME/.config/$x" ]]; then
+  pushd "$HOME/.config"
+  if [[ -f "$x" ]]; then
     echo "⚠️  $HOME/.config/$x exists..."
+
+    echo "Backing up $HOME/.config/$x..."
+    backup "$x"
+
+    echo "🔗 Linking $x to $HOME/.config/$x"
+    ln -s "$dotfiles_root/config/$x" "$x"
   else
     echo "🔗 Linking $x to $HOME/.config/$x"
+    ln -s "$dotfiles_root/config/$x" "$x"
   fi
 done
 
 for x in "${CONFIG_DIRS[@]}"; do
-  if [[ -d "$HOME/.config/$x" ]]; then
+  pushd "$HOME/.config"
+  if [[ -d "$x" ]]; then
     echo "⚠️  $HOME/.config/$x exists..."
+
+    echo "Backing up $HOME/.config/$x..."
+    backup "$x"
+
+    echo "🔗 Linking $x to $HOME/.config/$x"
+    ln -s "$dotfiles_root/config/$x" "$x"
   else
     echo "🔗 Linking $x to $HOME/.config/$x"
+    ln -s "$dotfiles_root/config/$x" "$x"
   fi
 done
