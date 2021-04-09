@@ -1,0 +1,7 @@
+#!/bin/sh
+if [ -z "$1" ]; then 
+  echo 'Usage: gpgkey <email>'
+else
+  gpg --export --armour "$1" | pbcopy
+  echo '=> Public key copied to pasteboard.'
+fi
