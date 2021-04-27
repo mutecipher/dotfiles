@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+# Check whether $TMUX is set and quit if not
+current_window="$(tmux list-windows | grep active | awk -F':' '{ print $1 }')"
+tmux rename-window -t $current_window "$@"
