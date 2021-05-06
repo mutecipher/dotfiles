@@ -11,9 +11,9 @@ plugins=(
   zsh_reload
 )
 source "$ZSH/oh-my-zsh.sh"
+export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$PYENVBIN:$PATH
 
 source "$HOME/.zshaliases"
 source "$HOME/.zshenv"
 source "$HOME/.zshhelpers"
 
-export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$PYENVBIN:$PATH
