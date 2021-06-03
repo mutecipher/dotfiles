@@ -27,5 +27,5 @@ export NVM_DIR="$HOME/.nvm"
 export RUSTBIN="$HOME/.cargo/bin"
 export PYENV_ROOT="$HOME/.pyenv"
 export PYENVBIN="$PYENV_ROOT/bin"
+export PYENVSHIMS="$PYENV_ROOT/shims"
 export ZSH_DOTENV_PROMPT=false
-
