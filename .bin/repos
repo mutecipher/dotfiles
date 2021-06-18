@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+find $HOME/src/github.com -type d -depth 2 | awk -F'/' '{ print $6"/"$7 }'
