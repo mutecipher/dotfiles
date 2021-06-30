@@ -1,25 +1,18 @@
 #!/usr/bin/env bash
 set -e
 
-echo "running install-linux.sh"
+echo "[!] running scripts/install-macos.sh"
 
 # Install oh-my-zsh
-git clone https://github.com/ohmyzsh/ohmyzsh.git ~/.oh-my-zsh
+[ ! -d $HOME/.oh-my-zsh ] && git clone https://github.com/ohmyzsh/ohmyzsh.git $HOME/.oh-my-zsh
 
 # Install Homebrew
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 # Bootstrap with Brewfile
-brew bundle --file "$HOME/.dotfiles/Brewfile"
-
-# Make dev directories
-mkdir -p "$HOME/src/github.com/mutecipher"
+brew bundle --file Brewfile
 
 # Install Rust 🦀
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+curl https://sh.rustup.rs -sSf | sh -s -- -y
 
-# Install latest Node.js 
-nvm install --lts
-
-# Install Ruby 2.7.2
-ruby-install 2.7.2
+source $HOME/.zshrc

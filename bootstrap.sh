@@ -34,14 +34,14 @@ dotfiles_root="$(pwd)"
 case "${platform}" in
   "darwin" )
     echo "🥾 Bootstrapping macOS..."
-    # scripts/install-macos.sh
+    scripts/install-macos.sh
     ;;
   "linux" )
     echo "🥾 Bootstrapping Linux..."
-    # scripts/install-linux.sh
+    scripts/install-linux.sh
     ;;
   * )
-    echo "not macOS" ;;
+    echo "not supported" ;;
 esac
 
 function backup() {
@@ -112,3 +112,5 @@ for x in "${CONFIG_DIRS[@]}"; do
     ln -s "$dotfiles_root/config/$x" "$x"
   fi
 done
+
+source $HOME/.zshrc
