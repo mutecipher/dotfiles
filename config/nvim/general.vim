@@ -24,7 +24,7 @@ set directory=/tmp/ " for swap/tmp files
 
 let mapleader=","
 set nocompatible " requirement for many plugins
-colorscheme gruvbox
+colorscheme nord
 syntax on " enable syntax highlighting
 set t_Co=256 " allow xterm-256
 set background=dark
@@ -39,6 +39,9 @@ set incsearch " increment and search is typed
 set hlsearch " highlight search results
 set ignorecase smartcase " case insensitive search
 set splitright splitbelow " split windows like other apps
+set termguicolors
+let &t_8f = "\<Esc>[38;2;%lu;%lu;%lum"
+let &t_8b = "\<Esc>[48;2;%lu;%lu;%lum"
 
 " }}}1
 

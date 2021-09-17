@@ -17,6 +17,10 @@ if has('nvim')
   Plug 'autozimu/LanguageClient-neovim', { 'branch': 'next', 'do': 'bash install.sh', } " language server
 endif
 
+" themes
+Plug 'arcticicestudio/nord-vim'
+Plug 'morhetz/gruvbox'
+
 Plug 'airblade/vim-gitgutter' " git gutter
 Plug 'christoomey/vim-tmux-navigator' " make navigating VIM in tmux easier
 Plug 'djoshea/vim-autoread' " read updates from file system
@@ -32,7 +36,6 @@ Plug 'junegunn/fzf.vim'
 Plug 'junegunn/goyo.vim' " zen mode
 Plug 'junegunn/vim-plug'
 Plug 'majutsushi/tagbar' " view ctags of current file
-Plug 'morhetz/gruvbox'
 Plug 'ngmy/vim-rubocop' " rubocop support
 Plug 'othree/html5.vim'
 Plug 'rust-lang/rust.vim'
