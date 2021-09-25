@@ -1,9 +1,0 @@
-# Resets LaunchPad layout and restarts the Dock
-function reset_launchpad() {
-  defaults write com.apple.dock ResetLaunchPad -bool true; killall Dock
-}
-
-# Resets Dock layout and restarts the Dock
-function reset_dock() {
-  defaults delete com.apple.dock; killall Dock
-}
