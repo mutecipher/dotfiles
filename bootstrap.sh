@@ -10,9 +10,6 @@ DOTFILES=(
   .pryrc
   .rspec
   .tmux.conf
-  .zshaliases
-  .zshenv
-  .zshhelpers
   .zshrc
 )
 
@@ -28,21 +25,7 @@ CONFIG_DIRS=(
   nvim
 )
 
-platform="$(uname -s | tr '[:upper:]' '[:lower:]')"
 dotfiles_root="$(pwd)"
-
-case "${platform}" in
-  "darwin" )
-    echo "🥾 Bootstrapping macOS..."
-    scripts/install-macos.sh
-    ;;
-  "linux" )
-    echo "🥾 Bootstrapping Linux..."
-    scripts/install-linux.sh
-    ;;
-  * )
-    echo "not supported" ;;
-esac
 
 function backup() {
   mv "$1" "$1.backup"
@@ -113,4 +96,4 @@ for x in "${CONFIG_DIRS[@]}"; do
   fi
 done
 
-source $HOME/.zshrc
+source "$HOME/.zshrc"
