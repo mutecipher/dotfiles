@@ -2,38 +2,32 @@
 
 " navigation {{{1
 
-noremap <C-b>     :NERDTreeToggle<CR>
-noremap <C-p>     :Files<CR>
-noremap <Leader>z :Goyo<CR>
+" General
+nnoremap Y y$
 
-nnoremap <Leader>ev :NERDTree ~/.config/nvim/<CR>
-nnoremap <Leader>re :source ~/.config/nvim/init.vim<CR>
-nnoremap <Leader>T :call system("tmux split-pane -v -p 25")<CR>
+" Neovim helpers
+nnoremap <leader>ff <cmd>Telescope find_files<cr>
+nnoremap <leader>fg <cmd>Telescope live_grep<cr>
+nnoremap <leader>fb <cmd>Telescope buffers<cr>
+nnoremap <leader>fh <cmd>Telescope help_tags<cr>
+nnoremap <leader>cs <cmd>Telescope colorscheme<cr>
 
-" }}}1
-" window management {{{1
+" Git helpers
+nnoremap <leader>gb <cmd>Telescope git_branches<cr>
+nnoremap <leader>gc <cmd>Telescope git_commits<cr>
+nnoremap <leader>gs <cmd>Telescope git_status<cr>
 
-nnoremap <Leader>w :bd!<CR>
-nnoremap <Leader>W :bufdo! bd<CR>
-nnoremap <Leader>f :only<CR>
+" Quickfix
+nnoremap <leader>qf <cmd>Telescope quickfix<cr>
+
+" Tmux helpers
+nnoremap <Leader>sh <cmd>call system("tmux split-pane -v -p 25")<cr>
 
 " }}}1
 " language server {{{1
 
-nnoremap <F5> :call LanguageClient_contextMenu()<CR>
-nnoremap <silent> K :call LanguageClient#textDocument_hover()<CR>
-nnoremap <silent> gd :call LanguageClient#textDocument_definition()<CR>
-nnoremap <silent> <F1> :call LanguageClient#textDocument_rename()<CR>
-nnoremap <silent> <F8> :call LanguageClient#textDocument_codeAction()<CR>
-
-" }}}1
-" testing {{{1
-
-nmap <silent> <Leader>tn :TestNearest<CR>
-nmap <silent> <Leader>tf :TestFile<CR>
-nmap <silent> <Leader>ts :TestSuite<CR>
-nmap <silent> <Leader>tl :TestLast<CR>
-nmap <silent> <Leader>tg :TestVisit<CR>
+inoremap <expr> <tab>   pumvisible() ? "\<c-n>" : "\<tab>"
+inoremap <expr> <s-tab> pumvisible() ? "\<c-p>" : "\<s-tab>"
 
 " }}}1
 
