@@ -1,0 +1,5 @@
+" Always have `vim-plug` at the top as, obviously, all subsequent plugins rely
+" on it.
+source $HOME/.config/nvim/plugins/vim-plug.vim
+
+source $HOME/.config/nvim/plugins/lsp.lua
