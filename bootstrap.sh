@@ -2,19 +2,19 @@
 set -e
 
 DOTFILES=(
-  .gemrc
-  .gitconfig
-  .gitignore
-  .irbrc
-  .my.cnf
-  .pryrc
-  .rspec
-  .tmux.conf
-  .zshrc
+  gemrc
+  gitconfig
+  gitignore
+  irbrc
+  my.cnf
+  pryrc
+  rspec
+  tmux.conf
+  zshrc
 )
 
 DIRS=(
-  .bin
+  bin
 )
 
 CONFIG_FILES=(
@@ -32,40 +32,43 @@ function backup() {
 }
 
 for x in "${DOTFILES[@]}"; do
-  pushd "$HOME"
-  if [[ -f "$x" ]]; then
-    echo "⚠️  $HOME/$x exists..."
+  pushd "$HOME" >/dev/null
+  if [[ -f ".$x" ]]; then
+    echo "⚠️  $HOME/.$x exists..."
 
-    echo "Backing up $HOME/$x..."
-    backup "$x"
+    echo "Backing up $HOME/.$x..."
+    backup ".$x"
 
-    echo "🔗 Linking $x to $HOME/$x"
-    ln -s "$dotfiles_root/$x" "$x"
+    echo "🔗 Linking $x to $HOME/.$x"
+    ln -s "$dotfiles_root/$x" ".$x"
   else
-    echo "🔗 Linking $x to $HOME/$x"
-    ln -s "$dotfiles_root/$x" "$x"
+    echo "🔗 Linking $x to $HOME/.$x"
+    ln -s "$dotfiles_root/$x" ".$x"
   fi
-  popd
+  popd >/dev/null
+  echo
 done
 
 for x in "${DIRS[@]}"; do
-  pushd "$HOME"
-  if [[ -d "$x" ]]; then
-    echo "⚠️  $HOME/$x exists..."
+  pushd "$HOME" >/dev/null
+  if [[ -d ".$x" ]]; then
+    echo "⚠️  $HOME/.$x exists..."
 
-    echo "Backing up $HOME/$x..."
-    backup "$x"
+    echo "Backing up $HOME/.$x..."
+    backup ".$x"
 
-    echo "🔗 Linking $x to $HOME/$x"
-    ln -s "$dotfiles_root/$x" "$x"
+    echo "🔗 Linking $x to $HOME/.$x"
+    ln -s "$dotfiles_root/$x" ".$x"
   else
-    echo "🔗 Linking $x to $HOME/$x"
-    ln -s "$dotfiles_root/$x" "$x"
+    echo "🔗 Linking $x to $HOME/.$x"
+    ln -s "$dotfiles_root/$x" ".$x"
   fi
+  echo
+  popd >/dev/null
 done
 
 for x in "${CONFIG_FILES[@]}"; do
-  pushd "$HOME/.config"
+  pushd "$HOME/.config" >/dev/null
   if [[ -f "$x" ]]; then
     echo "⚠️  $HOME/.config/$x exists..."
 
@@ -78,6 +81,8 @@ for x in "${CONFIG_FILES[@]}"; do
     echo "🔗 Linking $x to $HOME/.config/$x"
     ln -s "$dotfiles_root/config/$x" "$x"
   fi
+  echo
+  popd >/dev/null
 done
 
 for x in "${CONFIG_DIRS[@]}"; do
@@ -94,6 +99,8 @@ for x in "${CONFIG_DIRS[@]}"; do
     echo "🔗 Linking $x to $HOME/.config/$x"
     ln -s "$dotfiles_root/config/$x" "$x"
   fi
+  echo
+  popd >/dev/null
 done
 
 source "$HOME/.zshrc"
