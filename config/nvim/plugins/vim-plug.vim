@@ -19,7 +19,6 @@ if has('nvim')
   Plug 'nvim-telescope/telescope-symbols.nvim'
   Plug 'nvim-treesitter/nvim-treesitter'
   Plug 'nvim-treesitter/playground'
-  Plug 'williamboman/nvim-lsp-installer'
 endif
 
 " }}}1
