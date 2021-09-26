@@ -1,22 +1,26 @@
-" plugins.vim - manage plugins via vim-plug.
+let nvim_data_dir = stdpath('data') . '/site'
+let vim_plug_uri = 'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
+let vim_plug_path = nvim_data_dir . '/autoload/plug.vim'
 
-" if empty(glob('$HOME/.config/nvim/autoload/plug.vim'))
-"   silent !curl -fLo $HOME/.config/nvim/autoload/plug.vim --create-dirs
-"         \ https://raw.githubusercontent.com/junegunn/wim-plug/master/plug.vim
-"   autocmd VimEnter * PlugInstall --sync | source $HOME/.zshrc
-" endif
+if empty(glob(vim_plug_path))
+  silent execute '!curl -fLo ' . vim_plug_path . ' --create-dirs ' . vim_plug_uri
+  autocmd VimEnter * PlugInstall --sync | source $HOME/.config/nvim/init.vim
+endif
 
-call plug#begin()
+call plug#begin(nvim_data_dir . '/plugged')
 " neovim specific {{{1
 
 if has('nvim')
-  Plug 'hrsh7th/nvim-cmp'
-  Plug 'nvim-lua/completion-nvim'
+  " LSP
   Plug 'neovim/nvim-lspconfig'
-  Plug 'norcalli/snippets.nvim'
+  Plug 'nvim-lua/completion-nvim'
+
+  " Telescope
   Plug 'nvim-lua/plenary.nvim'
   Plug 'nvim-telescope/telescope.nvim'
   Plug 'nvim-telescope/telescope-symbols.nvim'
+
+  " Treesitter
   Plug 'nvim-treesitter/nvim-treesitter'
   Plug 'nvim-treesitter/playground'
 endif
@@ -47,6 +51,10 @@ Plug 'puremourning/vimspector'
 " JSON
 Plug 'elzr/vim-json'
 
+" Rust
+Plug 'rust-lang/rust.vim'
+Plug 'cespare/vim-toml'
+
 " Plug 'christoomey/vim-tmux-navigator' " make navigating VIM in tmux easier
 " Plug 'djoshea/vim-autoread' " read updates from file system
 " Plug 'ekalinin/Dockerfile.vim' " dockerfile support
@@ -55,14 +63,9 @@ Plug 'elzr/vim-json'
 " Plug 'godlygeek/tabular' " clean text up
 " Plug 'janko/vim-test' " test runner
 " Plug 'jparise/vim-graphql'
-" Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
-" Plug 'junegunn/fzf.vim'
-" Plug 'junegunn/goyo.vim' " zen mode
-" Plug 'junegunn/vim-plug'
 " Plug 'majutsushi/tagbar' " view ctags of current file
 " Plug 'ngmy/vim-rubocop' " rubocop support
 " Plug 'othree/html5.vim'
-" Plug 'rust-lang/rust.vim'
 " Plug 'scrooloose/nerdtree' " folder explorer
 " Plug 'sheerun/vim-polyglot' " improved syntax highlighting
 " Plug 'terryma/vim-multiple-cursors' " multi-cursor support
@@ -80,5 +83,3 @@ Plug 'elzr/vim-json'
 
 " }}}1
 call plug#end()
-
-" vim:ft=vim:fdm=marker:fdl=0
