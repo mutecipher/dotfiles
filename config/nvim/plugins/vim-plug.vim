@@ -2,6 +2,7 @@ let nvim_data_dir = stdpath('data') . '/site'
 let vim_plug_uri = 'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
 let vim_plug_path = nvim_data_dir . '/autoload/plug.vim'
 
+" If vim-plug is not installed; install it, and the following plugins.
 if empty(glob(vim_plug_path))
   silent execute '!curl -fLo ' . vim_plug_path . ' --create-dirs ' . vim_plug_uri
   autocmd VimEnter * PlugInstall --sync | source $HOME/.config/nvim/init.vim
@@ -18,6 +19,7 @@ if has('nvim')
   " Telescope
   Plug 'nvim-lua/plenary.nvim'
   Plug 'nvim-telescope/telescope.nvim'
+  Plug 'nvim-telescope/telescope-fzy-native.nvim'
   Plug 'nvim-telescope/telescope-symbols.nvim'
 
   " Treesitter
@@ -41,9 +43,9 @@ Plug 'tpope/vim-rhubarb'
 Plug 'tpope/vim-commentary'
 
 " Ruby support
-Plug 'vim-ruby/vim-ruby' " ruby support
-Plug 'tpope/vim-rails' " rails support
-Plug 'thoughtbot/vim-rspec' " rspec support
+Plug 'vim-ruby/vim-ruby'
+Plug 'tpope/vim-rails'
+Plug 'thoughtbot/vim-rspec'
 
 " Debugger
 Plug 'puremourning/vimspector'
