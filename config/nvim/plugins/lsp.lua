@@ -13,7 +13,7 @@ local servers = {
 }
 
 for _, server in ipairs(servers) do
-  nvim_lsp[server].setup {
+  nvim_lsp[server].setup({
     on_attach = on_attach,
-  }
+  })
 end

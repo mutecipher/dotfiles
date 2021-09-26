@@ -1,7 +1,3 @@
-" keybindings.vim - custom keybindings.
-
-" navigation {{{1
-
 " General
 nnoremap Y y$
 
@@ -27,7 +23,3 @@ nnoremap <leader>qf <cmd>Telescope quickfix<cr>
 
 " Tmux helpers
 nnoremap <Leader>sh <cmd>call system("tmux split-pane -v -p 25")<cr>
-
-" }}}1
-
-" vim:ft=vim:fdm=marker:fdl=0

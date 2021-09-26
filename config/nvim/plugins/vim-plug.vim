@@ -1,16 +1,14 @@
-let nvim_data_dir = stdpath('data') . '/site'
+let nvim_data_dir = stdpath('data').'/site'
 let vim_plug_uri = 'https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim'
-let vim_plug_path = nvim_data_dir . '/autoload/plug.vim'
+let vim_plug_path = nvim_data_dir.'/autoload/plug.vim'
 
 " If vim-plug is not installed; install it, and the following plugins.
 if empty(glob(vim_plug_path))
-  silent execute '!curl -fLo ' . vim_plug_path . ' --create-dirs ' . vim_plug_uri
+  silent execute '!curl -fLo '.vim_plug_path.' --create-dirs '.vim_plug_uri
   autocmd VimEnter * PlugInstall --sync | source $HOME/.config/nvim/init.vim
 endif
 
-call plug#begin(nvim_data_dir . '/plugged')
-" neovim specific {{{1
-
+call plug#begin(nvim_data_dir.'/plugged')
 if has('nvim')
   " LSP
   Plug 'neovim/nvim-lspconfig'
@@ -57,6 +55,10 @@ Plug 'elzr/vim-json'
 Plug 'rust-lang/rust.vim'
 Plug 'cespare/vim-toml'
 
+" Airline Status bar
+Plug 'vim-airline/vim-airline'
+Plug 'vim-airline/vim-airline-themes'
+
 " Plug 'christoomey/vim-tmux-navigator' " make navigating VIM in tmux easier
 " Plug 'djoshea/vim-autoread' " read updates from file system
 " Plug 'ekalinin/Dockerfile.vim' " dockerfile support
@@ -80,8 +82,5 @@ Plug 'cespare/vim-toml'
 " Plug 'tpope/vim-markdown'
 " Plug 'tpope/vim-ragtag' " html, tag helpers
 " Plug 'tpope/vim-surround' " improved quote/brace support
-" Plug 'vim-airline/vim-airline' " sick bottom bar
-" Plug 'vim-airline/vim-airline-themes' " sick bottom bar themes
 
-" }}}1
 call plug#end()

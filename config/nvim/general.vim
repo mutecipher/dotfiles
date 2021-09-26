@@ -1,6 +1,4 @@
-" general.vim - general settings and configurations for Vim/Neovim.
-
-" general {{{1
+" general
 set nocompatible
 let mapleader="\<Space>"
 set directory=/tmp/
@@ -8,9 +6,7 @@ set autoread
 filetype indent plugin on
 set lazyredraw
 
-" }}}1
-" editor {{{1
-
+" editor
 set autoindent
 set colorcolumn=121
 set completeopt=menuone,noinsert,noselect
@@ -24,18 +20,12 @@ set nowrap
 set number relativenumber numberwidth=2
 set scrolloff=4 sidescrolloff=10
 
-" }}}1
-" misc {{{1
-
-set showcmd " show commands
-set showmatch " show matching parenthesis, etc.
+" misc
+set showcmd
+set showmatch
 set wildmenu
 set showmatch
-set incsearch " increment and search is typed
-set hlsearch " highlight search results
-set ignorecase smartcase " case insensitive search
-set splitright splitbelow " split windows like other apps
-
-" }}}1
-
-" vim:ft=vim:fdm=marker:fdl=0
+set incsearch
+set hlsearch
+set ignorecase smartcase
+set splitright splitbelow
