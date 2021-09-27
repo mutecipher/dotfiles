@@ -12,6 +12,7 @@ call plug#begin(nvim_data_dir.'/plugged')
 if has('nvim')
   " LSP
   Plug 'neovim/nvim-lspconfig'
+  Plug 'williamboman/nvim-lsp-installer'
   Plug 'nvim-lua/completion-nvim'
 
   " Telescope
@@ -37,13 +38,15 @@ Plug 'airblade/vim-gitgutter'
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-rhubarb'
 
+" Syntax highlighting improvements
+Plug 'sheerun/vim-polyglot'
+
 " Comment toggle
 Plug 'tpope/vim-commentary'
 
 " Ruby support
 Plug 'vim-ruby/vim-ruby'
 Plug 'tpope/vim-rails'
-Plug 'thoughtbot/vim-rspec'
 
 " Debugger
 Plug 'puremourning/vimspector'
