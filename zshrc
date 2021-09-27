@@ -72,6 +72,7 @@ ZSH_THEME="crcandy"
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(
+  chruby
   colored-man-pages
   encode64
   git
