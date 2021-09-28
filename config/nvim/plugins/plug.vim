@@ -9,25 +9,26 @@ if empty(glob(vim_plug_path))
 endif
 
 call plug#begin(nvim_data_dir.'/plugged')
-if has('nvim')
-  " LSP
-  Plug 'neovim/nvim-lspconfig'
-  Plug 'williamboman/nvim-lsp-installer'
-  Plug 'nvim-lua/completion-nvim'
 
-  " Telescope
-  Plug 'nvim-lua/plenary.nvim'
-  Plug 'nvim-telescope/telescope.nvim'
-  Plug 'nvim-telescope/telescope-fzy-native.nvim'
-  Plug 'nvim-telescope/telescope-symbols.nvim'
+" LSP
+Plug 'neovim/nvim-lspconfig'
+Plug 'williamboman/nvim-lsp-installer'
 
-  " Treesitter
-  Plug 'nvim-treesitter/nvim-treesitter'
-  Plug 'nvim-treesitter/playground'
-endif
+" Autocomplete
+Plug 'hrsh7th/nvim-cmp'
+Plug 'hrsh7th/vim-vsnip'
+Plug 'hrsh7th/vim-vsnip-integ'
+Plug 'hrsh7th/cmp-nvim-lsp'
 
-" }}}1
-" global {{{1
+" Telescope
+Plug 'nvim-lua/plenary.nvim'
+Plug 'nvim-telescope/telescope.nvim'
+Plug 'nvim-telescope/telescope-fzy-native.nvim'
+Plug 'nvim-telescope/telescope-symbols.nvim'
+
+" Treesitter
+Plug 'nvim-treesitter/nvim-treesitter'
+Plug 'nvim-treesitter/playground'
 
 " Themes
 Plug 'dracula/vim', { 'as': 'dracula' }
@@ -63,29 +64,5 @@ Plug 'cespare/vim-toml'
 " Airline Status bar
 Plug 'vim-airline/vim-airline'
 Plug 'vim-airline/vim-airline-themes'
-
-" Plug 'christoomey/vim-tmux-navigator' " make navigating VIM in tmux easier
-" Plug 'djoshea/vim-autoread' " read updates from file system
-" Plug 'ekalinin/Dockerfile.vim' " dockerfile support
-" Plug 'fatih/vim-go', {'do': ':GoInstallBinaries'} " the only necessary go plugin
-" Plug 'fszymanski/deoplete-emoji'
-" Plug 'godlygeek/tabular' " clean text up
-" Plug 'janko/vim-test' " test runner
-" Plug 'jparise/vim-graphql'
-" Plug 'majutsushi/tagbar' " view ctags of current file
-" Plug 'ngmy/vim-rubocop' " rubocop support
-" Plug 'othree/html5.vim'
-" Plug 'scrooloose/nerdtree' " folder explorer
-" Plug 'sheerun/vim-polyglot' " improved syntax highlighting
-" Plug 'terryma/vim-multiple-cursors' " multi-cursor support
-" Plug 'tpope/vim-bundler' " bundler support
-" Plug 'tpope/vim-dadbod' " database helpers
-" Plug 'tpope/vim-dispatch' " async support
-" Plug 'tpope/vim-endwise' " smartly add end
-" Plug 'tpope/vim-eunuch' " unix helpers
-" Plug 'tpope/vim-jdaddy'
-" Plug 'tpope/vim-markdown'
-" Plug 'tpope/vim-ragtag' " html, tag helpers
-" Plug 'tpope/vim-surround' " improved quote/brace support
 
 call plug#end()
