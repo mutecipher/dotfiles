@@ -30,8 +30,7 @@ endif
 " global {{{1
 
 " Themes
-Plug 'arcticicestudio/nord-vim'
-Plug 'morhetz/gruvbox'
+Plug 'dracula/vim', { 'as': 'dracula' }
 
 " Git/GitHub helpers
 Plug 'airblade/vim-gitgutter'
@@ -40,6 +39,9 @@ Plug 'tpope/vim-rhubarb'
 
 " Syntax highlighting improvements
 Plug 'sheerun/vim-polyglot'
+
+" Editorconfig
+Plug 'editorconfig/editorconfig-vim'
 
 " Comment toggle
 Plug 'tpope/vim-commentary'
