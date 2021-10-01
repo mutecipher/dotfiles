@@ -34,7 +34,7 @@ Plug 'nvim-treesitter/playground'
 Plug 'dracula/vim', { 'as': 'dracula' }
 
 " Git/GitHub helpers
-Plug 'airblade/vim-gitgutter'
+Plug 'lewis6991/gitsigns.nvim'
 Plug 'tpope/vim-fugitive'
 Plug 'tpope/vim-rhubarb'
 
