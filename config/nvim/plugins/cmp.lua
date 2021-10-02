@@ -33,9 +33,11 @@ cmp.setup({
     end,
   },
   sources = {
+    { name = 'buffer' },
+    { name = 'path' },
+    { name = 'nvim_lua' },
     { name = 'nvim_lsp' },
     { name = 'vsnip' },
-    { name = 'buffer' },
   }
 })
 
