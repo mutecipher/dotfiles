@@ -21,6 +21,7 @@ nnoremap <leader>gb <cmd>Telescope git_branches<cr>
 nnoremap <leader>gc <cmd>Telescope git_commits<cr>
 nnoremap <leader>gs <cmd>Telescope git_status<cr>
 nnoremap <leader>bl <cmd>Gitsigns blame_line<cr>
+nnoremap gB <cmd>Git blame<cr>
 
 " Tmux helpers
 nnoremap <leader>sh <cmd>call system("tmux split-pane -v -p 25")<cr>
