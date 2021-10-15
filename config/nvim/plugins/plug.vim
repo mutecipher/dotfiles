@@ -69,4 +69,6 @@ Plug 'cespare/vim-toml'
 Plug 'vim-airline/vim-airline'
 Plug 'vim-airline/vim-airline-themes'
 
+" Indentation guide
+Plug 'lukas-reineke/indent-blankline.nvim'
 call plug#end()
