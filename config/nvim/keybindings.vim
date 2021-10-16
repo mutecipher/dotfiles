@@ -26,3 +26,5 @@ nnoremap gB <cmd>Git blame<cr>
 " Tmux helpers
 nnoremap <leader>sh <cmd>call system("tmux split-pane -v -p 25")<cr>
 
+" Custom maps
+nnoremap <leader>fif <cmd>lua require('mutecipher').fuzzy_file_search()<cr>
