@@ -29,3 +29,5 @@ set incsearch
 set hlsearch
 set ignorecase smartcase
 set splitright splitbelow
+set secure
+set exrc
