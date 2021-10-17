@@ -1,5 +1,4 @@
 local dap = require('dap')
-require('dapui').setup()
 
 dap.adapters.lldb = {
   type = 'executable';
@@ -24,3 +23,5 @@ dap.configurations.python = {
     end;
   },
 }
+
+require('dapui').setup()
