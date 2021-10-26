@@ -39,6 +39,10 @@ cmp.setup({
     { name = 'buffer' },
     { name = 'emoji' },
     { name = 'vsnip' },
+  },
+  experimental = {
+    native_menu = false,
+    ghost_text = true,
   }
 })
 
