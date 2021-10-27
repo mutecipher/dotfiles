@@ -8,6 +8,9 @@ nnoremap <c-l> <c-w>l
 
 nnoremap <cr> <cmd>noh<cr>
 
+nnoremap <leader>vs <cmd>vsplit<cr>
+nnoremap <leader>ss <cmd>split<cr>
+
 " Telescope helpers
 nnoremap <leader>ff <cmd>Telescope find_files<cr>
 nnoremap <leader>fg <cmd>Telescope live_grep<cr>
