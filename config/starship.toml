@@ -1,9 +1,6 @@
 [aws]
 symbol = "  "
 
-[character]
-success_symbol = "[▷](bold green)"
-
 [conda]
 symbol = " "
 
