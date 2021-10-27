@@ -1,4 +1,4 @@
-local cmp = require'cmp'
+local cmp = require('cmp')
 
 cmp.setup({
   snippet = {
@@ -7,26 +7,26 @@ cmp.setup({
     end,
   },
   mapping = {
-    ['<C-p>'] = cmp.mapping.select_prev_item(),
-    ['<C-n>'] = cmp.mapping.select_next_item(),
-    ['<C-d>'] = cmp.mapping.scroll_docs(-4),
-    ['<C-f>'] = cmp.mapping.scroll_docs(4),
-    ['<C-Space>'] = cmp.mapping.complete(),
-    ['<C-e>'] = cmp.mapping.close(),
-    ['<CR>'] = cmp.mapping.confirm {
+    ['<c-p>'] = cmp.mapping.select_prev_item(),
+    ['<c-n>'] = cmp.mapping.select_next_item(),
+    ['<c-d>'] = cmp.mapping.scroll_docs(-4),
+    ['<c-f>'] = cmp.mapping.scroll_docs(4),
+    ['<c-space>'] = cmp.mapping.complete(),
+    ['<c-e>'] = cmp.mapping.close(),
+    ['<cr>'] = cmp.mapping.confirm {
       behavior = cmp.ConfirmBehavior.Replace,
       select = true,
     },
-    ['<Tab>'] = function(fallback)
+    ['<tab>'] = function(fallback)
       if vim.fn.pumvisible() == 1 then
-        vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<C-n>', true, true, true), 'n')
+        vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<c-n>', true, true, true), 'n')
       else
         fallback()
       end
     end,
-    ['<S-Tab>'] = function(fallback)
+    ['<s-tab>'] = function(fallback)
       if vim.fn.pumvisible() == 1 then
-        vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<C-p>', true, true, true), 'n')
+        vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<c-p>', true, true, true), 'n')
       else
         fallback()
       end

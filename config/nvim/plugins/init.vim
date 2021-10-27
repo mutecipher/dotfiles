@@ -1,7 +1,7 @@
 " Always have `vim-plug` at the top as, obviously, all subsequent plugins rely on it.
 source $HOME/.config/nvim/plugins/plug.vim
 
-source $HOME/.config/nvim/plugins/cmp.lua
+source $HOME/.config/nvim/plugins/completion.lua
 source $HOME/.config/nvim/plugins/debugger.lua
 source $HOME/.config/nvim/plugins/gitsigns.lua
 source $HOME/.config/nvim/plugins/lspconfig.lua
