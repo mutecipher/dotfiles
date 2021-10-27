@@ -9,7 +9,6 @@ if empty(glob(vim_plug_path))
 endif
 
 call plug#begin(nvim_data_dir.'/plugged')
-
 " LSP
 Plug 'neovim/nvim-lspconfig'
 Plug 'williamboman/nvim-lsp-installer'
@@ -73,4 +72,7 @@ Plug 'vim-airline/vim-airline-themes'
 
 " Indentation guide
 Plug 'lukas-reineke/indent-blankline.nvim'
+
+" DevIcons
+Plug 'kyazdani42/nvim-web-devicons'
 call plug#end()
