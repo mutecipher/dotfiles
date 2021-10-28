@@ -33,6 +33,7 @@ cmp.setup({
     end,
   },
   sources = {
+    { name = 'env' },
     { name = 'nvim_lsp' },
     { name = 'nvim_lua' },
     { name = 'path' },
