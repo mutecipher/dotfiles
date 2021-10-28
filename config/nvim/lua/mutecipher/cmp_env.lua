@@ -42,11 +42,12 @@ function source:complete(_, callback)
         local result = job:result()
         local items = {}
         for _, item in ipairs(result) do
-          local k = split(item, '=')[1]
+          local kv = split(item, '=')
           table.insert(items, {
-            label = k,
+            label = kv[1],
             documentation = {
-              kind = "ENV",
+              kind = "markdown",
+              value = string.format("# Value\n\n`%s=%s`", kv[1], kv[2])
             }
           })
         end
