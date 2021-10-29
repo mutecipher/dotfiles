@@ -83,7 +83,7 @@ plugins=(
   zsh_reload
 )
 
-source $ZSH/oh-my-zsh.sh
+[ -e "$ZSH/oh-my-zsh.sh" ] && source $ZSH/oh-my-zsh.sh
 
 # User configuration
 
