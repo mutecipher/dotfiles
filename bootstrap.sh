@@ -5,6 +5,7 @@ DOTFILES=(
   gemrc
   gitconfig
   gitignore
+  gitmessage
   irbrc
   my.cnf
   pryrc
