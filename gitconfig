@@ -24,6 +24,7 @@
 [commit]
   gpgsign = true
   verbose = true
+  template = ~/.gitmessage
 
 [protocol]
   version = 2
