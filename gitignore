@@ -19,3 +19,4 @@ ehthumbs.db
 curl-format.txt
 projections.json
 .solargraph.yml
+.nvimrc
