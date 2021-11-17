@@ -9,6 +9,9 @@ if empty(glob(vim_plug_path))
 endif
 
 call plug#begin(nvim_data_dir.'/plugged')
+" UI
+Plug 'noib3/cokeline.nvim'
+
 " LSP
 Plug 'neovim/nvim-lspconfig'
 Plug 'williamboman/nvim-lsp-installer'
