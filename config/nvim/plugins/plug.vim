@@ -11,6 +11,8 @@ endif
 call plug#begin(nvim_data_dir.'/plugged')
 " UI
 Plug 'noib3/cokeline.nvim'
+Plug 'nvim-lualine/lualine.nvim'
+Plug 'SmiteshP/nvim-gps'
 
 " LSP
 Plug 'neovim/nvim-lspconfig'
@@ -68,10 +70,6 @@ Plug 'elzr/vim-json'
 " Rust
 Plug 'rust-lang/rust.vim'
 Plug 'cespare/vim-toml'
-
-" Airline Status bar
-Plug 'vim-airline/vim-airline'
-Plug 'vim-airline/vim-airline-themes'
 
 " Indentation guide
 Plug 'lukas-reineke/indent-blankline.nvim'
