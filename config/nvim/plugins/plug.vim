@@ -59,6 +59,9 @@ Plug 'tpope/vim-commentary'
 Plug 'vim-ruby/vim-ruby'
 Plug 'tpope/vim-rails'
 
+" Testing
+Plug 'vim-test/vim-test'
+
 " Debugger
 Plug 'mfussenegger/nvim-dap'
 Plug 'rcarriga/nvim-dap-ui'
