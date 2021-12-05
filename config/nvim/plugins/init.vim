@@ -2,7 +2,6 @@
 source $HOME/.config/nvim/plugins/plug.vim
 
 lua require('nvim-gps').setup{}
-lua require('cokeline').setup{}
 lua require('lualine').setup({ sections = { lualine_c = { { require('nvim-gps').get_location, cond = require('nvim-gps').is_available }, } } })
 
 source $HOME/.config/nvim/plugins/completion.lua

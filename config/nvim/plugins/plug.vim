@@ -10,7 +10,6 @@ endif
 
 call plug#begin(nvim_data_dir.'/plugged')
 " UI
-Plug 'noib3/cokeline.nvim'
 Plug 'nvim-lualine/lualine.nvim'
 Plug 'SmiteshP/nvim-gps'
 
