@@ -19,6 +19,7 @@ Plug 'williamboman/nvim-lsp-installer'
 
 " Autocomplete
 Plug 'hrsh7th/nvim-cmp'
+Plug 'onsails/lspkind-nvim'
 Plug 'hrsh7th/vim-vsnip'
 Plug 'hrsh7th/vim-vsnip-integ'
 Plug 'hrsh7th/cmp-nvim-lsp'
