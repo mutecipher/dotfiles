@@ -26,6 +26,12 @@ nnoremap <leader>gs <cmd>Telescope git_status<cr>
 nnoremap <leader>bl <cmd>Gitsigns blame_line<cr>
 nnoremap gB <cmd>Git blame<cr>
 
+" Test helpers
+nnoremap <leader>tf <cmd>Ultest<cr>
+nnoremap <leader>ts <cmd>UltestSummary<cr>
+nnoremap <leader>tl <cmd>UltestLast<cr>
+nnoremap <leader>tn <cmd>UltestNearest<cr>
+
 " Tmux helpers
 nnoremap <leader>sh <cmd>call system("tmux split-pane -v -p 25")<cr>
 

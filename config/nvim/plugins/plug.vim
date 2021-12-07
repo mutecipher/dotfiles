@@ -62,6 +62,8 @@ Plug 'tpope/vim-rails'
 
 " Testing
 Plug 'vim-test/vim-test'
+Plug 'rcarriga/vim-ultest', { 'do': ':UpdateRemotePlugins' }
+
 
 " Debugger
 Plug 'mfussenegger/nvim-dap'
