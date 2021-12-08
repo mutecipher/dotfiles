@@ -31,6 +31,8 @@ nnoremap <leader>tf <cmd>Ultest<cr>
 nnoremap <leader>ts <cmd>UltestSummary<cr>
 nnoremap <leader>tl <cmd>UltestLast<cr>
 nnoremap <leader>tn <cmd>UltestNearest<cr>
+nmap ]t <Plug>(ultest-next-fail)
+nmap [t <Plug>(ultest-prev-fail)
 
 " Tmux helpers
 nnoremap <leader>sh <cmd>call system("tmux split-pane -v -p 25")<cr>
