@@ -75,6 +75,7 @@ plugins=(
   cargo
   chruby
   colored-man-pages
+  dotenv
   encode64
   git
   git-auto-fetch
