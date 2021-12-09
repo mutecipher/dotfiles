@@ -103,5 +103,3 @@ for x in "${CONFIG_DIRS[@]}"; do
   cd $dotfiles_root
   echo
 done
-
-source "$HOME/.zshrc"
