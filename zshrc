@@ -89,7 +89,6 @@ plugins=(
 
 # User configuration
 
-source "$HOME/.cargo/env"
 case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
   "darwin" )
     [ -s "$(brew --prefix)/opt/chruby/share/chruby/chruby.sh" ] && source "$(brew --prefix)/opt/chruby/share/chruby/chruby.sh"
@@ -103,6 +102,7 @@ case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
     ;;
 esac
 
+[ -e "$(which cargo)" ] && source "$HOME/.cargo/env"
 [ -e "$(which shadowenv)" ] && eval "$(shadowenv init zsh)"
 [ -e "$(which starship)" ]  && eval "$(starship init zsh)"
 [ -e "$(which gh)" ] && eval "$(gh completion -s zsh)"
