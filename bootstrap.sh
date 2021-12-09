@@ -33,7 +33,7 @@ function backup() {
 }
 
 for x in "${DOTFILES[@]}"; do
-  pushd "$HOME" >/dev/null
+  cd "$HOME"
   if [[ -f ".$x" ]]; then
     echo "⚠️  $HOME/.$x exists..."
 
@@ -41,17 +41,17 @@ for x in "${DOTFILES[@]}"; do
     backup ".$x"
 
     echo "🔗 Linking $x to $HOME/.$x"
-    ln -s "$dotfiles_root/$x" ".$x"
+    ln -sf "$dotfiles_root/$x" ".$x"
   else
     echo "🔗 Linking $x to $HOME/.$x"
-    ln -s "$dotfiles_root/$x" ".$x"
+    ln -sf "$dotfiles_root/$x" ".$x"
   fi
-  popd >/dev/null
+  cd $dotfiles_root
   echo
 done
 
 for x in "${DIRS[@]}"; do
-  pushd "$HOME" >/dev/null
+  cd "$HOME"
   if [[ -d ".$x" ]]; then
     echo "⚠️  $HOME/.$x exists..."
 
@@ -59,17 +59,17 @@ for x in "${DIRS[@]}"; do
     backup ".$x"
 
     echo "🔗 Linking $x to $HOME/.$x"
-    ln -s "$dotfiles_root/$x" ".$x"
+    ln -sfn "$dotfiles_root/$x" ".$x"
   else
     echo "🔗 Linking $x to $HOME/.$x"
-    ln -s "$dotfiles_root/$x" ".$x"
+    ln -sfn "$dotfiles_root/$x" ".$x"
   fi
+  cd $dotfiles_root
   echo
-  popd >/dev/null
 done
 
 for x in "${CONFIG_FILES[@]}"; do
-  pushd "$HOME/.config" >/dev/null
+  cd "$HOME/.config"
   if [[ -f "$x" ]]; then
     echo "⚠️  $HOME/.config/$x exists..."
 
@@ -77,17 +77,17 @@ for x in "${CONFIG_FILES[@]}"; do
     backup "$x"
 
     echo "🔗 Linking $x to $HOME/.config/$x"
-    ln -s "$dotfiles_root/config/$x" "$x"
+    ln -sf "$dotfiles_root/config/$x" "$x"
   else
     echo "🔗 Linking $x to $HOME/.config/$x"
-    ln -s "$dotfiles_root/config/$x" "$x"
+    ln -sf "$dotfiles_root/config/$x" "$x"
   fi
+  cd $dotfiles_root
   echo
-  popd >/dev/null
 done
 
 for x in "${CONFIG_DIRS[@]}"; do
-  pushd "$HOME/.config"
+  cd "$HOME/.config"
   if [[ -d "$x" ]]; then
     echo "⚠️  $HOME/.config/$x exists..."
 
@@ -95,13 +95,13 @@ for x in "${CONFIG_DIRS[@]}"; do
     backup "$x"
 
     echo "🔗 Linking $x to $HOME/.config/$x"
-    ln -s "$dotfiles_root/config/$x" "$x"
+    ln -sfn "$dotfiles_root/config/$x" "$x"
   else
     echo "🔗 Linking $x to $HOME/.config/$x"
-    ln -s "$dotfiles_root/config/$x" "$x"
+    ln -sfn "$dotfiles_root/config/$x" "$x"
   fi
+  cd $dotfiles_root
   echo
-  popd >/dev/null
 done
 
 source "$HOME/.zshrc"
