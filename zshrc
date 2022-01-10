@@ -72,7 +72,6 @@ ZSH_THEME="crcandy"
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(
-  cargo
   chruby
   colored-man-pages
   dotenv
@@ -80,9 +79,9 @@ plugins=(
   git
   git-auto-fetch
   gpg-agent
+  rust
   safe-paste
   themes
-  zsh_reload
 )
 
 [ -e "$ZSH/oh-my-zsh.sh" ] && source $ZSH/oh-my-zsh.sh
