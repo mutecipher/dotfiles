@@ -17,6 +17,9 @@ Plug 'SmiteshP/nvim-gps'
 Plug 'neovim/nvim-lspconfig'
 Plug 'williamboman/nvim-lsp-installer'
 
+" Sidebar
+Plug 'sidebar-nvim/sidebar.nvim'
+
 " Autocomplete
 Plug 'hrsh7th/nvim-cmp'
 Plug 'onsails/lspkind-nvim'

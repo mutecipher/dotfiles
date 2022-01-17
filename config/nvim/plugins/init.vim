@@ -5,6 +5,7 @@ lua require('nvim-gps').setup{}
 lua require('lualine').setup({ sections = { lualine_c = { { require('nvim-gps').get_location, cond = require('nvim-gps').is_available }, } } })
 
 source $HOME/.config/nvim/plugins/completion.lua
+source $HOME/.config/nvim/plugins/sidebar.lua
 source $HOME/.config/nvim/plugins/debugger.lua
 source $HOME/.config/nvim/plugins/gitsigns.lua
 source $HOME/.config/nvim/plugins/lspconfig.lua
