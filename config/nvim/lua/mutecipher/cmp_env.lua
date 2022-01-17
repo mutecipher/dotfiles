@@ -7,20 +7,15 @@ source.new = function()
 end
 
 function source:is_available()
-  -- local ft = vim.bo.filetype
-  -- return ft == 'sh' or ft == 'bash'
-  return true
+  local ft = vim.bo.filetype
+  return ft == 'sh' or 'bash' or 'lua'
 end
 
 function source:get_debug_name()
   return 'cmp_env'
 end
 
--- function source:get_keyword_pattern(_)
---   return 'lua'
--- end
-
-function source:get_trigger_characters(params)
+function source:get_trigger_characters(_)
   return { '$' }
 end
 
