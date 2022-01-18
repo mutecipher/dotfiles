@@ -4,8 +4,11 @@ require('sidebar-nvim').setup({
     hide_statusline = true,
     sections = {
       "git",
+      "todos",
+      "symbols",
       "diagnostics",
       "containers"
     },
     section_separator = "",
+    disable_closing_prompt = true
 })
