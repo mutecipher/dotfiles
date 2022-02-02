@@ -95,6 +95,7 @@ plugins=(
   gpg-agent
   rust
   safe-paste
+  ssh-agent
   themes
 )
 
