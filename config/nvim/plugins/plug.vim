@@ -59,10 +59,6 @@ Plug 'editorconfig/editorconfig-vim'
 " Comment toggle
 Plug 'tpope/vim-commentary'
 
-" Ruby support
-Plug 'vim-ruby/vim-ruby'
-Plug 'tpope/vim-rails'
-
 " Testing
 Plug 'vim-test/vim-test'
 Plug 'rcarriga/vim-ultest', { 'do': ':UpdateRemotePlugins' }
