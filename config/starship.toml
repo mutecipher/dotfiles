@@ -69,3 +69,6 @@ symbol = " "
 
 [swift]
 symbol = "ﯣ "
+
+[gcloud]
+disabled = true
