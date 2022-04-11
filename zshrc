@@ -86,7 +86,7 @@ ZSH_THEME="crcandy"
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(
-  chruby
+  asdf
   colored-man-pages
   dotenv
   encode64
@@ -103,24 +103,10 @@ plugins=(
 
 # User configuration
 
-case "$(uname -s | tr '[:upper:]' '[:lower:]')" in
-  "darwin" )
-    [ -s "$(brew --prefix)/opt/chruby/share/chruby/chruby.sh" ] && source "$(brew --prefix)/opt/chruby/share/chruby/chruby.sh"
-    [ -s "$(brew --prefix)/opt/chruby/share/chruby/auto.sh" ]   && source "$(brew --prefix)/opt/chruby/share/chruby/auto.sh"
-    [ -s "$(brew --prefix)/opt/nvm/nvm.sh" ]                    && source "$(brew --prefix)/opt/nvm/nvm.sh"
-    ;;
-  "linux" )
-    [ -s "/usr/local/share/chruby/chruby.sh" ] && source "/usr/local/share/chruby/chruby.sh"
-    [ -s "/usr/local/share/chruby/auto.sh" ] && source "/usr/local/share/chruby/auto.sh"
-    [ -s "$HOME/.nvm/nvm.sh" ] && source "$HOME/.nvm/nvm.sh"
-    ;;
-esac
-
 [ -e "$(which cargo)" ] && source "$HOME/.cargo/env"
 [ -e "$(which shadowenv)" ] && eval "$(shadowenv init zsh)"
 [ -e "$(which starship)" ]  && eval "$(starship init zsh)"
 [ -e "$(which gh)" ] && eval "$(gh completion -s zsh)"
-[ -e "$(which pyenv)" ] && eval "$(pyenv init - zsh)"
 
 # export MANPATH="/usr/local/man:$MANPATH"
 
