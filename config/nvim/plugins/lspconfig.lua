@@ -1,8 +1,13 @@
 local lsp_installer = require("nvim-lsp-installer")
 local capabilities = require("cmp_nvim_lsp").update_capabilities(vim.lsp.protocol.make_client_capabilities())
+local lspconfig = require("lspconfig")
 
 local on_attach = function(_, bufnr)
-  local opts = { noremap = true, silent = true }
+  local opts = {
+    noremap = true,
+    silent = true
+  }
+
   vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gD', '<Cmd>lua vim.lsp.buf.declaration()<CR>', opts)
   vim.api.nvim_buf_set_keymap(bufnr, 'n', 'gd', '<Cmd>lua vim.lsp.buf.definition()<CR>', opts)
   vim.api.nvim_buf_set_keymap(bufnr, 'n', 'K', '<Cmd>lua vim.lsp.buf.hover()<CR>', opts)
@@ -29,6 +34,19 @@ lsp_installer.on_server_ready(function(server)
       capabilities = capabilities,
       on_attach = on_attach
     }
+
+    if server.name == "sumneko_lua" then
+      opts.settings = {
+        Lua = {
+          diagnostics = {
+            globals = { "vim" },
+          },
+          workspace = {
+            library = vim.api.nvim_get_runtime_file("", true),
+          }
+        }
+      }
+    end
 
     server:setup(opts)
 end)
