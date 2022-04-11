@@ -1,14 +1,10 @@
-require('sidebar-nvim').setup({
+local sidebar = require('sidebar-nvim')
+local opts = {
     open = true,
     initial_width = 25,
     hide_statusline = true,
-    sections = {
-      "git",
-      "todos",
-      "symbols",
-      "diagnostics",
-      "containers"
-    },
     section_separator = "",
     disable_closing_prompt = true
-})
+}
+
+sidebar.setup(opts)

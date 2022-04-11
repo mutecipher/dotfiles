@@ -16,6 +16,7 @@ Plug 'SmiteshP/nvim-gps'
 " LSP
 Plug 'neovim/nvim-lspconfig'
 Plug 'williamboman/nvim-lsp-installer'
+Plug 'github/copilot.vim'
 
 " Sidebar
 Plug 'sidebar-nvim/sidebar.nvim'
