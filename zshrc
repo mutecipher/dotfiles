@@ -6,14 +6,9 @@ export EDITOR=nvim
 export GOPATH="$HOME/.go"
 export GOBIN="$GOPATH/bin"
 export GOPROXY="direct"
-export HOMEBREW_BIN="/opt/homebrew/bin:/opt/homebrew/bin"
-export NVM_DIR="$HOME/.nvm"
 export RUSTBIN="$HOME/.cargo/bin"
-export PYENV_ROOT="$HOME/.pyenv"
-export PYENVBIN="$PYENV_ROOT/bin"
-export PYENVSHIMS="$PYENV_ROOT/shims"
 export ZSH_DOTENV_PROMPT=false
-export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$HOMEBREW_BIN:$PYENVBIN:$PYENVSHIMS:$PATH
+export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$PATH
 
 # Path to your oh-my-zsh installation.
 export ZSH=$HOME/.oh-my-zsh
