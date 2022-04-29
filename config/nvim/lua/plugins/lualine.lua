@@ -1,3 +1,6 @@
+-- lualine.lua
+-- https://github.com/nvim-lualine/lualine.nvim
+
 local gps = require('nvim-gps');
 
 gps.setup{}

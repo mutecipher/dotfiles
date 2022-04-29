@@ -1,3 +1,6 @@
+-- dap.lua
+-- https://github.com/mfussenegger/nvim-dap
+
 local dap = require('dap')
 
 dap.adapters.lldb = {
@@ -24,4 +27,4 @@ dap.configurations.python = {
   },
 }
 
-require('dapui').setup()
+require('dapui').setup{}
