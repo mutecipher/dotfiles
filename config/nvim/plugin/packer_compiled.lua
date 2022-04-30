@@ -104,11 +104,6 @@ _G.packer_plugins = {
     path = "/Users/mutecipher/.local/share/nvim/site/pack/packer/start/cmp-vsnip",
     url = "https://github.com/hrsh7th/cmp-vsnip"
   },
-  ["colorbuddy.vim"] = {
-    loaded = true,
-    path = "/Users/mutecipher/.local/share/nvim/site/pack/packer/start/colorbuddy.vim",
-    url = "https://github.com/tjdevries/colorbuddy.vim"
-  },
   ["copilot.vim"] = {
     loaded = true,
     path = "/Users/mutecipher/.local/share/nvim/site/pack/packer/start/copilot.vim",

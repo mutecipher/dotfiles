@@ -29,6 +29,7 @@ vim.opt.smartcase = true
 vim.opt.softtabstop = 2
 vim.opt.splitbelow = true
 vim.opt.splitright = true
+vim.opt.syntax = 'on'
 vim.opt.tabstop = 2
 vim.opt.termguicolors = true
 vim.opt.wildmenu = true
