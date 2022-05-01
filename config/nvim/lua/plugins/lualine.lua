@@ -1,17 +1,19 @@
 -- lualine.lua
 -- https://github.com/nvim-lualine/lualine.nvim
 
-local gps = require('nvim-gps');
+local has_gps, gps = pcall(require, 'nvim-gps');
+if not has_gps then
+  require('lualine').setup()
+else
+  gps.setup{}
 
-gps.setup{}
-
-require('lualine').setup({
-  sections = {
-    lualine_c = {
-      {
-        gps.get_location,
-        cond = gps.is_available
-      },
+  require('lualine').setup({
+    options = { theme = 'github_light' },
+    sections = {
+      lualine_c = {
+        { gps.get_location, cond = gps.is_available }
+      }
     }
-  }
-})
+  })
+end
+

@@ -24,23 +24,8 @@ cmp.setup({
       behavior = cmp.ConfirmBehavior.Replace,
       select = true,
     },
-    ['<tab>'] = function(fallback)
-      if vim.fn.pumvisible() == 1 then
-        vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<c-n>', true, true, true), 'n')
-      else
-        fallback()
-      end
-    end,
-    ['<s-tab>'] = function(fallback)
-      if vim.fn.pumvisible() == 1 then
-        vim.fn.feedkeys(vim.api.nvim_replace_termcodes('<c-p>', true, true, true), 'n')
-      else
-        fallback()
-      end
-    end,
   },
   sources = {
-    { name = 'env' },
     { name = 'nvim_lsp' },
     { name = 'nvim_lua' },
     { name = 'path' },

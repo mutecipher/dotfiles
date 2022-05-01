@@ -1,10 +1,33 @@
 -- lspconfig.lua
 -- https://github.com/neovim/nvim-lspconfig
 
-require('nvim-lsp-installer').setup({})
+require('nvim-lsp-installer').setup({
+  ensure_installed = {
+    'bashls',
+    'dockerls',
+    'eslint',
+    'gopls',
+    'pyright',
+    'rust_analyzer',
+    'arduino_language_server',
+    'clangd',
+    'cmake',
+    'cssls',
+    'diagnosticls',
+    'dotls',
+    'emmet_ls',
+    'graphql',
+    'html',
+    'jsonls',
+    'stylelint_lsp',
+    'sumneko_lua',
+    'tsserver'
+  },
+  automatic_install = true
+})
+
 local lspconfig = require('lspconfig')
 local cmp_nvim_lsp = require('cmp_nvim_lsp')
-
 local capabilities = cmp_nvim_lsp.update_capabilities(vim.lsp.protocol.make_client_capabilities())
 local function on_attach(_, bufnr)
   local opts = {
@@ -39,12 +62,22 @@ local opts = {
   capabilities = capabilities
 }
 
+lspconfig.bashls.setup(opts)
+lspconfig.dockerls.setup(opts)
+lspconfig.eslint.setup(opts)
+lspconfig.gopls.setup(opts)
+lspconfig.pyright.setup(opts)
+lspconfig.rust_analyzer.setup(opts)
+lspconfig.arduino_language_server.setup(opts)
+lspconfig.clangd.setup(opts)
+lspconfig.cmake.setup(opts)
 lspconfig.cssls.setup(opts)
 lspconfig.diagnosticls.setup(opts)
+lspconfig.dotls.setup(opts)
+lspconfig.emmet_ls.setup(opts)
 lspconfig.graphql.setup(opts)
 lspconfig.html.setup(opts)
 lspconfig.jsonls.setup(opts)
-lspconfig.sqlls.setup(opts)
 lspconfig.stylelint_lsp.setup(opts)
 lspconfig.sumneko_lua.setup({
   on_attach = on_attach,
