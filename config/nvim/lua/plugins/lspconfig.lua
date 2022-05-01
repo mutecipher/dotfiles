@@ -31,9 +31,9 @@ local cmp_nvim_lsp = require('cmp_nvim_lsp')
 local capabilities = cmp_nvim_lsp.update_capabilities(vim.lsp.protocol.make_client_capabilities())
 local function on_attach(_, bufnr)
   local opts = {
+    buffer = bufnr,
     noremap = true,
-    silent = true,
-    buffer = bufnr
+    silent = true
   }
 
   vim.keymap.set('n', '<c-K>', '<cmd>lua vim.lsp.buf.signature_help()<CR>', opts)
@@ -54,7 +54,7 @@ local function on_attach(_, bufnr)
   vim.keymap.set('n', 'gi', '<cmd>lua vim.lsp.buf.implementation()<CR>', opts)
   vim.keymap.set('n', 'gr', '<cmd>lua vim.lsp.buf.references()<CR>', opts)
   vim.keymap.set('v', '<leader>ca', '<cmd>lua vim.lsp.buf.range_code_action()<CR>', opts)
-  vim.cmd [[ command! Format execute 'lua vim.lsp.buf.formatting()' ]]
+  vim.cmd [[ command! Format execute 'lua vim.lsp.buf.format({ async = true })' ]]
 end
 
 local opts = {
@@ -86,12 +86,12 @@ lspconfig.sumneko_lua.setup({
     Lua = {
       workspace = {
         library = {
-          vim.api.nvim_get_runtime_file("", true),
+          vim.api.nvim_get_runtime_file('', true),
         }
       },
       diagnostics = {
         globals = { 'vim' },
-        disable =  { "lowercase-global" }
+        disable = { 'lowercase-global' }
       }
     }
   }

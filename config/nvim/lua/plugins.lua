@@ -70,7 +70,7 @@ return require('packer').startup({
       'nvim-treesitter/playground',
       'nvim-treesitter/nvim-treesitter-refactor',
       'nvim-treesitter/nvim-treesitter-textobjects',
-      -- 'sheerun/vim-polyglot'
+      'sheerun/vim-polyglot'
     }
 
     -- Snippets
@@ -83,7 +83,7 @@ return require('packer').startup({
       {
         'danymat/neogen',
         config = function()
-            require('neogen').setup {}
+          require('neogen').setup()
         end,
         requires = 'nvim-treesitter/nvim-treesitter'
       },
@@ -244,8 +244,8 @@ return require('packer').startup({
     use {
       {
         'pwntester/octo.nvim',
-        config = function ()
-          require'octo'.setup()
+        config = function()
+          require('octo').setup()
         end,
         requires = {
           'nvim-lua/plenary.nvim',
