@@ -26,6 +26,10 @@ CONFIG_DIRS=(
   nvim
 )
 
+TMUX_DIRS=(
+  colors
+)
+
 dotfiles_root="$(pwd)"
 
 function backup() {
@@ -99,6 +103,25 @@ for x in "${CONFIG_DIRS[@]}"; do
   else
     echo "🔗 Linking $x to $HOME/.config/$x"
     ln -sfn "$dotfiles_root/config/$x" "$x"
+  fi
+  cd $dotfiles_root
+  echo
+done
+
+for x in "${TMUX_DIRS[@]}"; do
+  mkdir -p "$HOME/.tmux"
+  cd "$HOME/.tmux"
+  if [[ -d "$x" ]]; then
+    echo "⚠️  $HOME/.tmux/$x exists..."
+
+    echo "Backing up $HOME/.tmux/$x..."
+    backup "$x"
+
+    echo "🔗 Linking $x to $HOME/.tmux/$x"
+    ln -sfn "$dotfiles_root/tmux/$x" "$x"
+  else
+    echo "🔗 Linking $x to $HOME/.tmux/$x"
+    ln -sfn "$dotfiles_root/tmux/$x" "$x"
   fi
   cd $dotfiles_root
   echo
