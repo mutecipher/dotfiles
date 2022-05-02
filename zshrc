@@ -13,6 +13,9 @@ export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$PATH
 # Path to your oh-my-zsh installation.
 export ZSH=$HOME/.oh-my-zsh
 
+if [[ is_wsl ]]; then
+  export GCM_CREDENTIAL_STORE=cache
+fi
 # Set name of the theme to load --- if set to "random", it will
 # load a random theme each time oh-my-zsh is loaded, in which case,
 # to know which specific one was loaded, run: echo $RANDOM_THEME

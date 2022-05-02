@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+set -e
+
+if [[ -z "${WSL_DISTRO_NAME}" ]]; then
+  exit 0
+else
+  exit 1
+fi
