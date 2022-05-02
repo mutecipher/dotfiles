@@ -40,6 +40,10 @@ return require('packer').startup({
           })
         end
       },
+      {
+        'weilbith/nvim-code-action-menu',
+        cmd = 'CodeActionMenu',
+      },
       'williamboman/nvim-lsp-installer'
     }
 
@@ -83,7 +87,7 @@ return require('packer').startup({
       {
         'danymat/neogen',
         config = function()
-          require('neogen').setup()
+          require('neogen').setup({})
         end,
         requires = 'nvim-treesitter/nvim-treesitter'
       },
@@ -270,15 +274,7 @@ return require('packer').startup({
     use {
       'ahmedkhalf/project.nvim',
       config = function()
-        vim.g.nvim_tree_respect_buf_cwd = 1
-
-        require('nvim-tree').setup({
-          update_cwd = true,
-          update_focused_file = {
-            enable = true,
-            update_cwd = true
-          },
-        })
+        require('project_nvim').setup({})
       end
     }
 
@@ -366,7 +362,6 @@ return require('packer').startup({
     if BOOTSTRAPPED then require('packer').sync() end
   end,
   config = {
-    compile_path = vim.fn.stdpath('data') .. '/site/pack/packer_compiled.lua',
     display = {
       open_fn = require('packer.util').float,
     }
