@@ -366,6 +366,7 @@ return require('packer').startup({
     if BOOTSTRAPPED then require('packer').sync() end
   end,
   config = {
+    compile_path = vim.fn.stdpath('data') .. '/site/pack/packer_compiled.lua',
     display = {
       open_fn = require('packer.util').float,
     }
