@@ -2,15 +2,30 @@
 -- https://github.com/wbthomason/packer.nvim
 -- See also: https://github.com/rockerBOO/awesome-neovim
 
+-- Bootstrap neovim with packer.nvim on first boot
 local install_path = vim.fn.stdpath('data') .. '/site/pack/packer/start/packer.nvim'
-
 if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
   BOOTSTRAPPED = vim.fn.system({
     'git', 'clone', '--depth', '1', 'https://github.com/wbthomason/packer.nvim', install_path
   })
+  print('Installed packer.nvim, relauch neovim...')
+  vim.cmd[[packadd packer.nvim]]
 end
 
-return require('packer').startup({
+vim.cmd[[
+  augroup packer_user_config
+    autocmd!
+    autocmd BufWritePost plugins.lua source <afile> | PackerSync
+  augroup end
+]]
+
+-- Don't error when first launching without packer.nvim
+local ok, packer = pcall(require, 'packer')
+if not ok then
+  return
+end
+
+return packer.startup({
   function(use)
     -- Packer can manage itself
     use 'wbthomason/packer.nvim'
@@ -352,8 +367,9 @@ return require('packer').startup({
       {
         'luukvbaal/stabilize.nvim',
         config = function()
-          require('stabilize').setup()
-          nested = "QuickFixCmdPost,DiagnosticChanged *"
+          require('stabilize').setup({
+            nested = "QuickFixCmdPost,DiagnosticChanged *"
+          })
         end
       }
     }
