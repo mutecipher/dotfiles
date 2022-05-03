@@ -73,8 +73,7 @@ return require('packer').startup({
       },
       'nvim-treesitter/playground',
       'nvim-treesitter/nvim-treesitter-refactor',
-      'nvim-treesitter/nvim-treesitter-textobjects',
-      'sheerun/vim-polyglot'
+      'nvim-treesitter/nvim-treesitter-textobjects'
     }
 
     -- Snippets

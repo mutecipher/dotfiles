@@ -17,6 +17,12 @@ require('nvim-treesitter.configs').setup({
   ignore_install = {
     "phpdoc"
   },
+  highlight = {
+    enable = true
+  },
+  indent = {
+    enable = true
+  },
   refactor = {
     highlight_current_scope = {
       enable = false

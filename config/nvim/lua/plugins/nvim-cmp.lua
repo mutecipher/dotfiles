@@ -10,8 +10,18 @@ cmp.setup({
       vim.fn["vsnip#anonymous"](args.body)
     end,
   },
+  window = {
+    completion = cmp.config.window.bordered(),
+    documentation = cmp.config.window.bordered()
+  },
   formatting = {
-    format = lspkind.cmp_format{}
+    format = lspkind.cmp_format{{
+      with_text = true,
+      maxwidth = 80,
+      before = function(_, item)
+        return item
+      end
+    }}
   },
   mapping = {
     ['<c-p>'] = cmp.mapping.select_prev_item(),
@@ -38,4 +48,3 @@ cmp.setup({
     ghost_text = true,
   }
 })
-
