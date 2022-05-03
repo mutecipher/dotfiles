@@ -33,10 +33,8 @@ vim.keymap.set('n', '<leader>}', '<cmd>BufferLineCycleNext<cr>', opts)
 vim.keymap.set('n', 'Y', 'y$', opts)
 vim.keymap.set('n', '[t', '<Plug>(ultest-prev-fail)', { noremap = false, silent = true })
 vim.keymap.set('n', ']t', '<Plug>(ultest-next-fail)', { noremap = false, silent = true })
-vim.keymap.set('n', 'gB', '<cmd>Git blame<cr>', opts)
 
 -- TODO: Configure these eventually
--- nnoremap <leader>fif <cmd>lua require('mutecipher.telescope').find_in_file()<cr>
 -- imap <expr> <Tab>   vsnip#jumpable(1)   ? '<Plug>(vsnip-jump-next)'      : '<Tab>'
 -- imap <expr> <S-Tab> vsnip#jumpable(-1)  ? '<Plug>(vsnip-jump-prev)'      : '<S-Tab>'
 -- smap <expr> <Tab>   vsnip#jumpable(1)   ? '<Plug>(vsnip-jump-next)'      : '<Tab>'
