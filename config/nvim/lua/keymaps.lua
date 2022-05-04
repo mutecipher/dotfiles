@@ -1,4 +1,4 @@
--- mappings.lua
+-- keymaps.lua
 
 local opts = {
   noremap = true,

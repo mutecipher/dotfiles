@@ -1,21 +1,23 @@
 -- treesitter.lua
 
+local configs = {
+  'html',
+  'http',
+  'css',
+  'javascript',
+  'json',
+  'jsonc',
+  'typescript',
+  'python',
+  'rust',
+  'lua',
+  'go',
+  'ruby',
+  'vim'
+}
+
 require('nvim-treesitter.configs').setup({
-  ensure_installed = {
-    'html',
-    'http',
-    'css',
-    'javascript',
-    'json',
-    'jsonc',
-    'typescript',
-    'python',
-    'rust',
-    'lua',
-    'go',
-    'ruby',
-    'vim'
-  },
+  ensure_installed = configs,
   ignore_install = {
     "phpdoc"
   },

@@ -9,10 +9,10 @@ if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
     'git', 'clone', '--depth', '1', 'https://github.com/wbthomason/packer.nvim', install_path
   })
   print('Installed packer.nvim, relauch neovim...')
-  vim.cmd[[packadd packer.nvim]]
+  vim.cmd [[packadd packer.nvim]]
 end
 
-vim.cmd[[
+vim.cmd [[
   augroup packer_user_config
     autocmd!
     autocmd BufWritePost plugins.lua source <afile> | PackerSync
