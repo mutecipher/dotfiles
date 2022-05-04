@@ -41,7 +41,13 @@ return packer.startup({
         'kosayoda/nvim-lightbulb',
         config = function()
           require('nvim-lightbulb').setup({})
-          vim.cmd [[autocmd CursorHold,CursorHoldI * lua require'nvim-lightbulb'.update_lightbulb()]]
+          vim.api.nvim_create_autocmd(
+            { "CursorHold", "CursorHoldI" },
+            {
+              pattern = "*",
+              command = "lua require('nvim-lightbulb').update_lightbulb()"
+            }
+          )
         end
       },
       'onsails/lspkind-nvim',
