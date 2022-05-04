@@ -33,6 +33,7 @@ vim.keymap.set('n', '<leader>}', '<cmd>BufferLineCycleNext<cr>', opts)
 vim.keymap.set('n', 'Y', 'y$', opts)
 vim.keymap.set('n', '[t', '<Plug>(ultest-prev-fail)', { noremap = false, silent = true })
 vim.keymap.set('n', ']t', '<Plug>(ultest-next-fail)', { noremap = false, silent = true })
+vim.keymap.set('n', 'm', '<cmd>NvimTreeToggle<cr>', opts)
 
 -- TODO: Configure these eventually
 -- imap <expr> <Tab>   vsnip#jumpable(1)   ? '<Plug>(vsnip-jump-next)'      : '<Tab>'
