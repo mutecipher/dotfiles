@@ -123,10 +123,7 @@ return packer.startup({
     }
 
     -- Theme
-    use {
-      'projekt0n/github-nvim-theme',
-      config = [[require('plugins.theme')]]
-    }
+    use 'projekt0n/github-nvim-theme'
 
     -- Utility
     use {
@@ -297,13 +294,13 @@ return packer.startup({
     use {
       'max-0406/autoclose.nvim',
       'p00f/nvim-ts-rainbow',
-      {
-        'Pocco81/AutoSave.nvim',
-        config = function()
-          require('autosave').setup()
-          vim.g.autosave_state = true
-        end
-      },
+      -- {
+      --   'Pocco81/AutoSave.nvim',
+      --   config = function()
+      --     require('autosave').setup()
+      --     vim.g.autosave_state = true
+      --   end
+      -- },
       {
         'nacro90/numb.nvim',
         config = function()
