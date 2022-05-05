@@ -7,6 +7,8 @@ local configs = {
   'javascript',
   'json',
   'jsonc',
+  'markdown',
+  'yaml',
   'typescript',
   'python',
   'rust',

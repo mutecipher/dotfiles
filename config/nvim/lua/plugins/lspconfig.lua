@@ -61,3 +61,7 @@ local opts = {
 for _, server in ipairs(servers) do
   lspconfig[server].setup(opts)
 end
+
+if os.getenv('SHOPIFY_OWNED_DEVICE') then
+  lspconfig.sorbet.setup(opts)
+end

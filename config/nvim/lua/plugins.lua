@@ -377,6 +377,10 @@ return packer.startup({
       }
     }
 
+    if os.getenv('SHOPIFY_OWNED_DEVICE') then
+      use "Shopify/shadowenv.vim"
+    end
+
     -- Automatically run a sync if the system has just installed Packer.nvim
     if BOOTSTRAPPED then require('packer').sync() end
   end,
