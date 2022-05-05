@@ -277,7 +277,7 @@ return packer.startup({
       {
         'pwntester/codeql.nvim',
         config = function()
-          require('codeql').setup {}
+          require('codeql').setup({})
         end,
         requires = {
           'MunifTanjim/nui.nvim',
