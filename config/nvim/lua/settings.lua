@@ -35,5 +35,6 @@ vim.opt.splitright = true
 vim.opt.syntax = 'on'
 vim.opt.tabstop = 2
 vim.opt.termguicolors = true
+vim.opt.updatetime = 500
 vim.opt.wildmenu = true
 vim.opt.wrap = false
