@@ -357,7 +357,12 @@ return packer.startup({
     }
 
     -- Remote development
-    use 'jamestthompson3/nvim-remote-containers'
+    use {
+      'esensar/nvim-dev-container',
+      config = function()
+        require('devcontainer').setup({})
+      end
+    }
 
     -- Window management
     use {
