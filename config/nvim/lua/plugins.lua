@@ -8,10 +8,11 @@ if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
   BOOTSTRAPPED = vim.fn.system({
     'git', 'clone', '--depth', '1', 'https://github.com/wbthomason/packer.nvim', install_path
   })
-  print('Installed packer.nvim, relauch neovim...')
+  print('Installed packer.nvim, re-launch NeoVim...')
   vim.cmd [[packadd packer.nvim]]
 end
 
+-- Automatically run PackerSync on save
 vim.cmd [[
   augroup packer_user_config
     autocmd!
