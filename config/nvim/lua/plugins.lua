@@ -353,10 +353,20 @@ return packer.startup({
     use {
       "nvim-neotest/neotest",
       requires = {
-        "nvim-lua/plenary.nvim",
-        "nvim-treesitter/nvim-treesitter",
-        "antoinemadec/FixCursorHold.nvim"
-      }
+        'nvim-lua/plenary.nvim',
+        'nvim-treesitter/nvim-treesitter',
+        'antoinemadec/FixCursorHold.nvim',
+        'nvim-neotest/neotest-vim-test',
+        'vim-test/vim-test',
+        'nvim-neotest/neotest-python',
+      },
+      config = function()
+        require('neotest').setup({
+          adapters = {
+            require('neotest-vim-test')({ ignore_filetypes = { 'python' } })
+          }
+        })
+      end
     }
 
     -- Remote development
