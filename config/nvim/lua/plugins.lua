@@ -351,10 +351,12 @@ return packer.startup({
 
     -- Test
     use {
-      'rcarriga/vim-ultest',
-      config = [[require('plugins.ultest')]],
-      requires = 'vim-test/vim-test',
-      run = ':UpdateRemotePlugins',
+      "nvim-neotest/neotest",
+      requires = {
+        "nvim-lua/plenary.nvim",
+        "nvim-treesitter/nvim-treesitter",
+        "antoinemadec/FixCursorHold.nvim"
+      }
     }
 
     -- Remote development
