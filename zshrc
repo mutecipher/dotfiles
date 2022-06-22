@@ -95,6 +95,7 @@ plugins=(
   encode64
   git
   git-auto-fetch
+  gh
   gpg-agent
   rust
   safe-paste
@@ -106,10 +107,8 @@ plugins=(
 
 # User configuration
 
-[ -e "$(which cargo)" ] && source "$HOME/.cargo/env"
 [ -e "$(which shadowenv)" ] && eval "$(shadowenv init zsh)"
 [ -e "$(which starship)" ]  && eval "$(starship init zsh)"
-[ -e "$(which gh)" ] && eval "$(gh completion -s zsh)"
 
 # export MANPATH="/usr/local/man:$MANPATH"
 
