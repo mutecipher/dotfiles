@@ -20,7 +20,8 @@ local servers = {
   'jsonls',
   'stylelint_lsp',
   'sumneko_lua',
-  'tsserver'
+  'tsserver',
+  'tailwindcss',
 }
 
 require('nvim-lsp-installer').setup({
