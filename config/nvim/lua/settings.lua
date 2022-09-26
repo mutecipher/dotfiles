@@ -38,3 +38,7 @@ vim.opt.termguicolors = true
 vim.opt.updatetime = 500
 vim.opt.wildmenu = true
 vim.opt.wrap = false
+
+vim.cmd [[
+  autocmd BufRead,BufNewFile *.astro set filetype=astro
+]]
