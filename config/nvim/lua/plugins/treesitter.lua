@@ -19,6 +19,9 @@ local configs = {
 }
 
 require('nvim-treesitter.configs').setup({
+  autotag = {
+    enable = true
+  },
   ensure_installed = configs,
   ignore_install = {
     "phpdoc"
@@ -101,10 +104,10 @@ require('nvim-treesitter.configs').setup({
     lsp_interop = {
       enable = true,
       border = 'none',
-      peek_definition_code = {
-        ["<leader>df"] = "@function.outer",
-        ["<leader>dF"] = "@class.outer",
-      },
+      -- peek_definition_code = {
+      --   ["<leader>df"] = "@function.outer",
+      --   ["<leader>dF"] = "@class.outer",
+      -- },
     }
   },
   playground = {

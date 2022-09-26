@@ -2,29 +2,19 @@
 -- https://github.com/neovim/nvim-lspconfig
 
 local servers = {
-  'bashls',
-  'dockerls',
-  'eslint',
-  'gopls',
-  'pyright',
-  'rust_analyzer',
-  'arduino_language_server',
-  'clangd',
-  'cmake',
-  'cssls',
-  'diagnosticls',
-  'dotls',
-  'emmet_ls',
-  'graphql',
-  'html',
-  'jsonls',
-  'stylelint_lsp',
-  'sumneko_lua',
-  'tsserver',
-  'tailwindcss',
+    "bashls",
+    "clangd",
+    "diagnosticls",
+    "gopls",
+    "jsonls",
+    "sumneko_lua",
+    "pyright",
+    "rust_analyzer",
+    "sorbet"
 }
 
-require('nvim-lsp-installer').setup({
+require('mason').setup()
+require('mason-lspconfig').setup({
   ensure_installed = servers,
   automatic_install = true
 })
@@ -40,7 +30,7 @@ local function on_attach(_, bufnr)
 
   vim.keymap.set('n', '<c-K>', '<cmd>lua vim.lsp.buf.signature_help()<CR>', opts)
   vim.keymap.set('n', '<leader>D', '<cmd>lua vim.lsp.buf.type_definition()<CR>', opts)
-  vim.keymap.set('n', '<leader>ca', '<cmd>CodeActionMenu<CR>', opts)
+  vim.keymap.set('n', '<leader>ca', '<cmd>lua vim.lsp.buf.code_action<CR>', opts)
   vim.keymap.set('n', '<leader>e', '<cmd>lua vim.diagnostic.open_float()<CR>', opts)
   vim.keymap.set('n', '<leader>q', '<cmd>lua vim.diagnostic.setqflist()<CR>', opts)
   vim.keymap.set('n', '<leader>rn', '<cmd>lua vim.lsp.buf.rename()<CR>', opts)
@@ -64,5 +54,19 @@ for _, server in ipairs(servers) do
 end
 
 if os.getenv('SHOPIFY_OWNED_DEVICE') then
+  local configs = require('lspconfig.configs')
+
+  if not configs.ruby_lsp then
+    configs.ruby_lsp = {
+      default_config = {
+        cmd = { '/Users/mutecipher/.local/share/nvim/mason/packages/ruby-lsp/bin/ruby-lsp' },
+        filetypes = {'ruby'},
+        root_dir = lspconfig.util.root_pattern('.git', 'Gemfile'),
+        settings = {}
+      }
+    }
+  end
+
   lspconfig.sorbet.setup(opts)
+  lspconfig.ruby_lsp.setup(opts)
 end
