@@ -35,5 +35,3 @@
 
 [init]
   defaultBranch = main
-
-# vim:ft=gitconfig ts=2 sw=2 tw=0 et
