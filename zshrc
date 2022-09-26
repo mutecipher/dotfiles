@@ -89,7 +89,6 @@ ZSH_THEME="crcandy"
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
 plugins=(
-  asdf
   colored-man-pages
   dotenv
   encode64
@@ -99,7 +98,6 @@ plugins=(
   gpg-agent
   rust
   safe-paste
-  ssh-agent
   themes
 )
 
