@@ -113,6 +113,16 @@ return packer.startup({
 
     -- Theme
     use 'projekt0n/github-nvim-theme'
+    use {
+      'xiyaowong/nvim-transparent',
+      config = function()
+        require('transparent').setup({
+          enable = true,
+          extra_groups = { 'NvimTree', 'NvimTreeNormal', 'NvimTreeVertSplit' },
+          exclude = {}
+        })
+      end
+    }
 
     -- Utility
     use 'famiu/bufdelete.nvim'

@@ -7,5 +7,5 @@ if not ok then
 end
 
 github.setup({
-  theme_style = 'light'
+  theme_style = 'dark'
 })
