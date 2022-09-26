@@ -155,10 +155,8 @@ return packer.startup({
       config = [[
         require('plugins.lualine')
       ]],
-      requires = {
-        { 'kyazdani42/nvim-web-devicons', opt = true },
-      },
     }
+    use 'WhoIsSethDaniel/lualine-lsp-progress.nvim'
     use {
       'SmiteshP/nvim-gps',
       requires = 'nvim-treesitter/nvim-treesitter'
@@ -295,6 +293,19 @@ return packer.startup({
 
     -- Formatting
     use 'gpanders/editorconfig.nvim'
+    use {
+      'mfussenegger/nvim-lint',
+      config = function()
+        require('lint').linters_by_ft = {
+          lua = {'luacheck'},
+          ruby = {'rubocop'},
+          markdown = {'markdownlint'},
+          python = {'flake8'},
+          sh = {'shellcheck'},
+          yaml = {'yamllint'},
+        }
+      end
+    }
 
     -- Test
     use {
