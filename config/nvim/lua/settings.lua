@@ -39,6 +39,15 @@ vim.opt.updatetime = 500
 vim.opt.wildmenu = true
 vim.opt.wrap = false
 
-vim.cmd [[
-  autocmd BufRead,BufNewFile *.astro set filetype=astro
-]]
+vim.api.nvim_create_autocmd({ 'BufRead', 'BufNewFile' }, {
+  pattern = {"*.astro"},
+  callback = function()
+    vim.bo.filetype = "astro"
+  end
+})
+
+vim.api.nvim_create_autocmd({ 'BufRead', 'BufWritePost' }, {
+  callback = function()
+    require("lint").try_lint()
+  end,
+})

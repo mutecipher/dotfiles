@@ -13,12 +13,12 @@ if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
 end
 
 -- Automatically run PackerSync on save
-vim.cmd [[
-  augroup packer_user_config
-    autocmd!
-    autocmd BufWritePost plugins.lua source <afile> | PackerSync
-  augroup end
-]]
+vim.api.nvim_create_autocmd({'BufWritePost'}, {
+  pattern = {'plugins.lua'},
+  callback = function()
+    require('packer').sync()
+  end
+})
 
 -- Don't error when first launching without packer.nvim
 local ok, packer = pcall(require, 'packer')
@@ -116,11 +116,11 @@ return packer.startup({
     use {
       'xiyaowong/nvim-transparent',
       config = function()
-        require('transparent').setup({
+        require('transparent').setup {
           enable = true,
           extra_groups = { 'NvimTree', 'NvimTreeNormal', 'NvimTreeVertSplit' },
           exclude = {}
-        })
+        }
       end
     }
 
