@@ -7,21 +7,21 @@ configuring macOS, however, recently I've made a major effort to automate Linux 
 ## 💾 Installation
 
 ```shell
-$ # I typically run this from the $HOME directory
-$ git clone https://github.com/cjhutchi/dotfiles $HOME/.dotfiles
-$ cd $HOME/.dotfiles
-$ ./bootstrap.sh
+# I typically run this from the $HOME directory
+git clone https://github.com/cjhutchi/dotfiles $HOME/.dotfiles
+cd $HOME/.dotfiles
+./bootstrap.sh
 ```
 
 ## 🛠 Tools (Optional)
 
 ```shell
-$ # I have some optional scripts that add some default software depending on the system
-$ # which can be found in the scripts folder.
-$
-$ # On macOS
-$ scripts/install-macos.sh
-$
-$ # On Linux (only Debian-like for now)
-$ scripts/install-linux.sh
+# I have some optional scripts that add some default software depending on the system
+# which can be found in the scripts folder.
+
+# On macOS
+scripts/install-macos.sh
+
+# On Linux (only Debian-like for now)
+scripts/install-linux.sh
 ```
