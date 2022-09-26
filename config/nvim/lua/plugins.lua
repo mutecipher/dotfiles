@@ -137,12 +137,7 @@ return packer.startup({
     use 'kyazdani42/nvim-web-devicons'
 
     -- Debugging
-    use {
-      'mfussenegger/nvim-dap',
-      config = [[
-        require('plugins.dap')
-      ]],
-    }
+    use 'mfussenegger/nvim-dap'
     use 'rcarriga/nvim-dap-ui'
 
     -- Tab line
