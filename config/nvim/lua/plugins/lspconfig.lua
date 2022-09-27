@@ -1,26 +1,6 @@
 -- lspconfig.lua
 -- https://github.com/neovim/nvim-lspconfig
 
-local servers = {
-    "bashls",
-    "clangd",
-    "diagnosticls",
-    "gopls",
-    "jsonls",
-    "sumneko_lua",
-    "pyright",
-    "rust_analyzer",
-    "sorbet"
-}
-
-require('mason').setup()
-require('mason-lspconfig').setup({
-  ensure_installed = servers,
-  automatic_install = true
-})
-
-local lspconfig = require('lspconfig')
-local cmp_nvim_lsp = require('cmp_nvim_lsp')
 local function on_attach(_, bufnr)
   local opts = {
     buffer = bufnr,
@@ -44,22 +24,50 @@ local function on_attach(_, bufnr)
   vim.keymap.set('v', '<leader>ca', '<cmd>lua vim.lsp.buf.range_code_action()<CR>', opts)
 end
 
-local opts = {
-  on_attach = on_attach,
-  capabilities = cmp_nvim_lsp.update_capabilities(vim.lsp.protocol.make_client_capabilities())
+local capabilities = vim.lsp.protocol.make_client_capabilities()
+
+local servers = {
+  "astro",
+  "bashls",
+  "clangd",
+  "cssls",
+  "diagnosticls",
+  "eslint",
+  "gopls",
+  "html",
+  "jsonls",
+  "sumneko_lua",
+  "pyright",
+  "rust_analyzer",
+  "tailwindcss",
+  "tsserver",
+  "vimls",
+  "yamlls"
 }
 
+require('mason').setup()
+require('mason-lspconfig').setup({
+  ensure_installed = servers,
+  automatic_install = true
+})
+
+local lspconfig = require('lspconfig')
+local cmp_nvim_lsp = require('cmp_nvim_lsp')
+
 for _, server in ipairs(servers) do
-  lspconfig[server].setup(opts)
+  lspconfig[server].setup {
+    on_attach = on_attach,
+    capabilities = cmp_nvim_lsp.update_capabilities(capabilities)
+  }
 end
 
 if os.getenv('SHOPIFY_OWNED_DEVICE') then
-  local configs = require('lspconfig.configs')
+  local shopify_configs = require('lspconfig.configs')
 
-  if not configs.ruby_lsp then
-    configs.ruby_lsp = {
+  if not shopify_configs.ruby_lsp then
+    shopify_configs.ruby_lsp = {
       default_config = {
-        cmd = { '/Users/mutecipher/.local/share/nvim/mason/packages/ruby-lsp/bin/ruby-lsp' },
+        cmd = { vim.fn.stdpath('data') .. '/mason/packages/ruby-lsp/bin/ruby-lsp' },
         filetypes = {'ruby'},
         root_dir = lspconfig.util.root_pattern('.git', 'Gemfile'),
         settings = {}
@@ -67,6 +75,12 @@ if os.getenv('SHOPIFY_OWNED_DEVICE') then
     }
   end
 
-  lspconfig.sorbet.setup(opts)
-  lspconfig.ruby_lsp.setup(opts)
+  lspconfig.sorbet.setup {
+    on_attach = on_attach,
+    capabilities = cmp_nvim_lsp.update_capabilities(capabilities)
+  }
+  lspconfig.ruby_lsp.setup {
+    on_attach = on_attach,
+    capabilities = cmp_nvim_lsp.update_capabilities(capabilities)
+  }
 end
