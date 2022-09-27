@@ -7,6 +7,7 @@ export GOPATH="$HOME/.go"
 export GOBIN="$GOPATH/bin"
 export GOPROXY="direct"
 export RUSTBIN="$HOME/.cargo/bin"
+export NVM_DIR="$HOME/.nvm"
 export ZSH_DOTENV_PROMPT=false
 export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$PATH
 
@@ -105,6 +106,10 @@ plugins=(
 
 # User configuration
 
+[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && source "/opt/homebrew/opt/nvm/nvm.sh"
+eval "$(/opt/homebrew/bin/brew shellenv)"
+eval "$(rbenv init - zsh)"
+eval "$(pyenv init -)"
 [ -e "$(which shadowenv)" ] && eval "$(shadowenv init zsh)"
 [ -e "$(which starship)" ]  && eval "$(starship init zsh)"
 
