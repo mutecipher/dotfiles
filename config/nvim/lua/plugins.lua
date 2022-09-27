@@ -84,6 +84,7 @@ return packer.startup({
     use 'nvim-treesitter/playground'
     use 'nvim-treesitter/nvim-treesitter-refactor'
     use 'nvim-treesitter/nvim-treesitter-textobjects'
+    use 'nvim-treesitter/nvim-treesitter-context'
 
     -- Snippets
     use 'hrsh7th/vim-vsnip'

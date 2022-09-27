@@ -22,6 +22,9 @@ require('nvim-treesitter.configs').setup({
   autotag = {
     enable = true
   },
+  context = {
+    enable = true
+  },
   ensure_installed = configs,
   ignore_install = {
     "phpdoc"
