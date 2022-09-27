@@ -9,7 +9,7 @@ if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
     'git', 'clone', '--depth', '1', 'https://github.com/wbthomason/packer.nvim', install_path
   })
   print('Installed packer.nvim, re-launch NeoVim...')
-  vim.cmd [[packadd packer.nvim]]
+  vim.cmd('packadd packer.nvim')
 end
 
 -- Automatically run PackerSync on save
@@ -126,12 +126,6 @@ return packer.startup({
 
     -- Utility
     use 'famiu/bufdelete.nvim'
-    use {
-      'rcarriga/nvim-notify',
-      config = function()
-        vim.notify = require('notify')
-      end
-    }
 
     -- Icons
     use 'kyazdani42/nvim-web-devicons'
@@ -216,6 +210,7 @@ return packer.startup({
         }
       end
     }
+    use { 'sindrets/diffview.nvim', requires = 'nvim-lua/plenary.nvim' }
     use {
       'TimUntersberger/neogit',
       config = function()
