@@ -45,8 +45,14 @@ local servers = {
   "yamlls"
 }
 
+if os.getenv('SHOPIFY_OWNED_DEVICE') then
+  table.insert(servers, "ruby_ls")
+  table.insert(servers, "sorbet")
+end
+
+local mason_lspconfig = require('mason-lspconfig')
 require('mason').setup()
-require('mason-lspconfig').setup({
+mason_lspconfig.setup({
   ensure_installed = servers,
   automatic_install = true
 })
@@ -54,32 +60,8 @@ require('mason-lspconfig').setup({
 local lspconfig = require('lspconfig')
 local cmp_nvim_lsp = require('cmp_nvim_lsp')
 
-for _, server in ipairs(require('mason-lspconfig').get_installed_servers()) do
+for _, server in ipairs(mason_lspconfig.get_installed_servers()) do
   lspconfig[server].setup {
-    on_attach = on_attach,
-    capabilities = cmp_nvim_lsp.update_capabilities(capabilities)
-  }
-end
-
-if os.getenv('SHOPIFY_OWNED_DEVICE') then
-  local shopify_configs = require('lspconfig.configs')
-
-  if not shopify_configs.ruby_lsp then
-    shopify_configs.ruby_lsp = {
-      default_config = {
-        cmd = { vim.fn.stdpath('data') .. '/mason/packages/ruby-lsp/bin/ruby-lsp' },
-        filetypes = {'ruby'},
-        root_dir = lspconfig.util.root_pattern('.git', 'Gemfile'),
-        settings = {}
-      }
-    }
-  end
-
-  lspconfig.sorbet.setup {
-    on_attach = on_attach,
-    capabilities = cmp_nvim_lsp.update_capabilities(capabilities)
-  }
-  lspconfig.ruby_lsp.setup {
     on_attach = on_attach,
     capabilities = cmp_nvim_lsp.update_capabilities(capabilities)
   }
