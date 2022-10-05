@@ -54,7 +54,7 @@ require('mason-lspconfig').setup({
 local lspconfig = require('lspconfig')
 local cmp_nvim_lsp = require('cmp_nvim_lsp')
 
-for _, server in ipairs(servers) do
+for _, server in ipairs(require('mason-lspconfig').get_installed_servers()) do
   lspconfig[server].setup {
     on_attach = on_attach,
     capabilities = cmp_nvim_lsp.update_capabilities(capabilities)
