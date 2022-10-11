@@ -24,6 +24,7 @@ CONFIG_FILES=(
 
 CONFIG_DIRS=(
   nvim
+  helix
 )
 
 TMUX_DIRS=(
