@@ -10,6 +10,7 @@ export RUSTBIN="$HOME/.cargo/bin"
 export NVM_DIR="$HOME/.nvm"
 export ZSH_DOTENV_PROMPT=false
 export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$PATH
+export DISABLE_AUTO_TITLE='true' # fix for tmuxp
 
 # Path to your oh-my-zsh installation.
 export ZSH=$HOME/.oh-my-zsh
