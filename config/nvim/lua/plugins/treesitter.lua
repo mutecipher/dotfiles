@@ -1,23 +1,5 @@
 -- treesitter.lua
 
-local configs = {
-  'html',
-  'http',
-  'css',
-  'javascript',
-  'json',
-  'jsonc',
-  'markdown',
-  'yaml',
-  'typescript',
-  'python',
-  'rust',
-  'lua',
-  'go',
-  'ruby',
-  'vim'
-}
-
 require('nvim-treesitter.configs').setup({
   autotag = {
     enable = true
@@ -25,7 +7,23 @@ require('nvim-treesitter.configs').setup({
   context = {
     enable = true
   },
-  ensure_installed = configs,
+  ensure_installed = {
+    'html',
+    'http',
+    'css',
+    'javascript',
+    'json',
+    'jsonc',
+    'markdown',
+    'yaml',
+    'typescript',
+    'python',
+    'rust',
+    'lua',
+    'go',
+    'ruby',
+    'vim'
+  },
   ignore_install = {
     "phpdoc"
   },

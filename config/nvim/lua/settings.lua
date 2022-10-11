@@ -20,7 +20,7 @@ vim.opt.incsearch = true
 vim.opt.laststatus = 3
 vim.opt.mouse = 'a'
 vim.opt.number = true
-vim.opt.numberwidth = 2
+vim.opt.numberwidth = 5
 vim.opt.relativenumber = true
 vim.opt.scrolloff = 4
 vim.opt.secure = true
@@ -38,6 +38,7 @@ vim.opt.termguicolors = true
 vim.opt.updatetime = 500
 vim.opt.wildmenu = true
 vim.opt.wrap = false
+vim.opt.timeoutlen = 500
 
 vim.api.nvim_create_autocmd({ 'BufRead', 'BufNewFile' }, {
   pattern = {"*.astro"},

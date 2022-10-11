@@ -3,22 +3,17 @@
 -- See also: https://github.com/rockerBOO/awesome-neovim
 
 --- Bootstrap neovim with packer.nvim on first boot
-local install_path = vim.fn.stdpath('data') .. '/site/pack/packer/start/packer.nvim'
-if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
-  BOOTSTRAPPED = vim.fn.system({
-    'git', 'clone', '--depth', '1', 'https://github.com/wbthomason/packer.nvim', install_path
-  })
-  print('Installed packer.nvim, re-launch NeoVim...')
-  vim.cmd('packadd packer.nvim')
+local ensure_packer = function()
+  local install_path = vim.fn.stdpath('data')..'/site/pack/packer/start/packer.nvim'
+  if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
+    vim.fn.system({'git', 'clone', '--depth', '1', 'https://github.com/wbthomason/packer.nvim', install_path})
+    vim.cmd [[packadd packer.nvim]]
+    return true
+  end
+  return false
 end
 
--- Automatically run PackerSync on save
-vim.api.nvim_create_autocmd({'BufWritePost'}, {
-  pattern = {'plugins.lua'},
-  callback = function()
-    require('packer').sync()
-  end
-})
+local packer_bootstrap = ensure_packer()
 
 -- Don't error when first launching without packer.nvim
 local ok, packer = pcall(require, 'packer')
@@ -63,7 +58,7 @@ return packer.startup({
     use {
       'norcalli/nvim-colorizer.lua',
       config = function()
-        require("colorizer").setup {}
+        require('colorizer').setup {}
       end
     }
     use {
@@ -109,8 +104,19 @@ return packer.startup({
         { 'kyazdani42/nvim-web-devicons', opt = true },
       }
     }
-    use 'nvim-telescope/telescope-fzy-native.nvim'
+    use {
+      'nvim-telescope/telescope-fzy-native.nvim',
+      config = function()
+        require('telescope').load_extension('fzy_native')
+      end
+    }
     use 'nvim-telescope/telescope-symbols.nvim'
+    use {
+      'FeiyouG/command_center.nvim',
+      config = function()
+        require('telescope').load_extension('command_center')
+      end,
+    }
 
     -- Theme
     use 'projekt0n/github-nvim-theme'
@@ -134,15 +140,6 @@ return packer.startup({
     -- Debugging
     use 'mfussenegger/nvim-dap'
     use 'rcarriga/nvim-dap-ui'
-
-    -- Tab line
-    use {
-      'akinsho/bufferline.nvim',
-      config = function()
-        require("bufferline").setup {}
-      end,
-      requires = 'kyazdani42/nvim-web-devicons'
-    }
 
     -- Status line
     use {
@@ -268,15 +265,6 @@ return packer.startup({
       }
     }
 
-    -- Project management
-    use {
-      'ahmedkhalf/project.nvim',
-      config = function()
-        require('project_nvim').setup {}
-        require('telescope').load_extension('projects')
-      end
-    }
-
     -- Editor support
     -- use 'max-0406/autoclose.nvim'
     use 'p00f/nvim-ts-rainbow'
@@ -305,7 +293,7 @@ return packer.startup({
 
     -- Test
     use {
-      "nvim-neotest/neotest",
+      'nvim-neotest/neotest',
       requires = {
         'nvim-lua/plenary.nvim',
         'nvim-treesitter/nvim-treesitter',
@@ -317,6 +305,9 @@ return packer.startup({
       config = function()
         require('neotest').setup {
           adapters = {
+            require('neotest-python')({
+              runner = 'unittest'
+            }),
             require('neotest-vim-test')({ ignore_filetypes = { 'python' } })
           }
         }
@@ -334,20 +325,20 @@ return packer.startup({
       'luukvbaal/stabilize.nvim',
       config = function()
         require('stabilize').setup {
-          nested = "QuickFixCmdPost,DiagnosticChanged *"
+          nested = 'QuickFixCmdPost,DiagnosticChanged *'
         }
       end
     }
 
     --- Shopify specific plugins
     if os.getenv('SHOPIFY_OWNED_DEVICE') then
-      use "Shopify/shadowenv.vim"
-      use "Shopify/spin-vim"
-      use "Shopify/vim-devilish"
+      use 'Shopify/shadowenv.vim'
+      use 'Shopify/spin-vim'
+      use 'Shopify/vim-devilish'
     end
 
     -- Automatically run a sync if the system has just installed Packer.nvim
-    if BOOTSTRAPPED then
+    if packer_bootstrap then
       require('packer').sync()
     end
   end,
