@@ -8,12 +8,12 @@ local opts = {
 -- Builtin vim maps
 vim.keymap.set('n', '<cr>',       '<cmd>noh<cr>', opts)
 vim.keymap.set('n', 'Y',          'y$', opts)
-vim.keymap.set('n', '<leader>wh',  '<c-w>h', opts)
-vim.keymap.set('n', '<leader>wj',  '<c-w>j', opts)
-vim.keymap.set('n', '<leader>wk',  '<c-w>k', opts)
-vim.keymap.set('n', '<leader>wl',  '<c-w>l', opts)
-vim.keymap.set('n', '<leader>ws',  '<cmd>split<cr>', opts)
-vim.keymap.set('n', '<leader>wv',  '<cmd>vsplit<cr>', opts)
+vim.keymap.set('n', '<leader>wh', '<c-w>h', opts)
+vim.keymap.set('n', '<leader>wj', '<c-w>j', opts)
+vim.keymap.set('n', '<leader>wk', '<c-w>k', opts)
+vim.keymap.set('n', '<leader>wl', '<c-w>l', opts)
+vim.keymap.set('n', '<leader>ws', '<cmd>split<cr>', opts)
+vim.keymap.set('n', '<leader>wv', '<cmd>vsplit<cr>', opts)
 
 -- Plugin maps
 vim.keymap.set('n', '<leader>c',  function() require('telescope.builtin').colorscheme() end, opts)
