@@ -15,13 +15,13 @@ cmp.setup({
     documentation = cmp.config.window.bordered()
   },
   formatting = {
-    format = lspkind.cmp_format{{
+    format = lspkind.cmp_format { {
       with_text = true,
       maxwidth = 80,
       before = function(_, item)
         return item
       end
-    }}
+    } }
   },
   mapping = {
     ['<c-p>'] = cmp.mapping.select_prev_item(),

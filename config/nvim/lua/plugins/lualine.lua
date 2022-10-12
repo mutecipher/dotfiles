@@ -5,7 +5,7 @@ local has_gps, gps = pcall(require, 'nvim-gps');
 if not has_gps then
   require('lualine').setup()
 else
-  gps.setup{}
+  gps.setup {}
 
   require('lualine').setup({
     sections = {
@@ -16,4 +16,3 @@ else
     }
   })
 end
-

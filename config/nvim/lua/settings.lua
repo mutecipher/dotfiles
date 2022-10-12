@@ -41,8 +41,15 @@ vim.opt.wrap = false
 vim.opt.timeoutlen = 500
 
 vim.api.nvim_create_autocmd({ 'BufRead', 'BufNewFile' }, {
-  pattern = {"*.astro"},
+  pattern = { "*.astro" },
   callback = function()
     vim.bo.filetype = "astro"
+  end
+})
+
+vim.api.nvim_create_autocmd({ 'BufWritePre' }, {
+  pattern = { "*" },
+  callback = function()
+    vim.lsp.buf.format()
   end
 })

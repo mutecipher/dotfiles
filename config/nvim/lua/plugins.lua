@@ -4,9 +4,9 @@
 
 --- Bootstrap neovim with packer.nvim on first boot
 local ensure_packer = function()
-  local install_path = vim.fn.stdpath('data')..'/site/pack/packer/start/packer.nvim'
+  local install_path = vim.fn.stdpath('data') .. '/site/pack/packer/start/packer.nvim'
   if vim.fn.empty(vim.fn.glob(install_path)) > 0 then
-    vim.fn.system({'git', 'clone', '--depth', '1', 'https://github.com/wbthomason/packer.nvim', install_path})
+    vim.fn.system({ 'git', 'clone', '--depth', '1', 'https://github.com/wbthomason/packer.nvim', install_path })
     vim.cmd [[packadd packer.nvim]]
     return true
   end
@@ -281,12 +281,12 @@ return packer.startup({
       'mfussenegger/nvim-lint',
       config = function()
         require('lint').linters_by_ft = {
-          lua = {'luacheck'},
-          ruby = {'rubocop'},
-          markdown = {'markdownlint'},
-          python = {'flake8'},
-          sh = {'shellcheck'},
-          yaml = {'yamllint'},
+          lua = { 'luacheck' },
+          ruby = { 'rubocop' },
+          markdown = { 'markdownlint' },
+          python = { 'flake8' },
+          sh = { 'shellcheck' },
+          yaml = { 'yamllint' },
         }
       end
     }
