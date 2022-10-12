@@ -146,3 +146,8 @@ function reset_launchpad() {
 function reset_dock() {
   defaults delete com.apple.dock; killall Dock
 }
+
+function it2prof() {
+  ITERM_PROFILE="$1"
+  echo -e "\033]50;SetProfile=$1\a"
+}

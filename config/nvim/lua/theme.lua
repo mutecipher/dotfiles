@@ -7,5 +7,5 @@ if not ok then
 end
 
 github.setup({
-  theme_style = 'dark'
+  theme_style = string.lower(vim.env.ITERM_PROFILE)
 })
