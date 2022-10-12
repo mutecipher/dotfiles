@@ -51,7 +51,7 @@ for x in "${DOTFILES[@]}"; do
     echo "🔗 Linking $x to $HOME/.$x"
     ln -sf "$dotfiles_root/$x" ".$x"
   fi
-  cd $dotfiles_root
+  cd "$dotfiles_root"
   echo
 done
 
@@ -69,7 +69,7 @@ for x in "${DIRS[@]}"; do
     echo "🔗 Linking $x to $HOME/.$x"
     ln -sfn "$dotfiles_root/$x" ".$x"
   fi
-  cd $dotfiles_root
+  cd "$dotfiles_root"
   echo
 done
 
@@ -87,7 +87,7 @@ for x in "${CONFIG_FILES[@]}"; do
     echo "🔗 Linking $x to $HOME/.config/$x"
     ln -sf "$dotfiles_root/config/$x" "$x"
   fi
-  cd $dotfiles_root
+  cd "$dotfiles_root"
   echo
 done
 
@@ -105,7 +105,7 @@ for x in "${CONFIG_DIRS[@]}"; do
     echo "🔗 Linking $x to $HOME/.config/$x"
     ln -sfn "$dotfiles_root/config/$x" "$x"
   fi
-  cd $dotfiles_root
+  cd "$dotfiles_root"
   echo
 done
 
@@ -124,6 +124,6 @@ for x in "${TMUX_DIRS[@]}"; do
     echo "🔗 Linking $x to $HOME/.tmux/$x"
     ln -sfn "$dotfiles_root/tmux/$x" "$x"
   fi
-  cd $dotfiles_root
+  cd "$dotfiles_root"
   echo
 done
