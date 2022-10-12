@@ -331,7 +331,7 @@ return packer.startup({
     }
 
     --- Shopify specific plugins
-    if os.getenv('SHOPIFY_OWNED_DEVICE') then
+    if vim.env.SPIN then
       use 'Shopify/shadowenv.vim'
       use 'Shopify/spin-vim'
       use 'Shopify/vim-devilish'

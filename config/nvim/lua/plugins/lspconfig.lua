@@ -50,7 +50,7 @@ local shopify_servers = {
   'sorbet'
 }
 
-if os.getenv('SPIN') then
+if vim.env.SPIN then
   for _, server in ipairs(shopify_servers) do
     table.insert(default_servers, server)
   end
