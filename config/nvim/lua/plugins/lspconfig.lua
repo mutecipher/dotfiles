@@ -69,6 +69,6 @@ local cmp_nvim_lsp = require('cmp_nvim_lsp')
 for _, server in ipairs(mason_lspconfig.get_installed_servers()) do
   lspconfig[server].setup {
     on_attach = on_attach,
-    capabilities = cmp_nvim_lsp.update_capabilities(capabilities)
+    capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
   }
 end
