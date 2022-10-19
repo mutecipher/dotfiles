@@ -1,0 +1,34 @@
+[[language]]
+name = "bash"
+language-server = { command = "bash-language-server", args = ["start"] }
+
+[language.debugger]
+command = "bash-debug-adapter"
+name = "bash-debug-adapter"
+transport = "stdio"
+
+[[language.debugger.templates]]
+name = "binary"
+request = "launch"
+[[language.debugger.templates.completion]]
+completion = "filename"
+name = "binary"
+
+[language.debugger.templates.args]
+program = "{0}"
+runInTerminal = true
+
+[[language]]
+name = "ruby"
+language-server = { command = "typeprof", args = ["--lsp", "--stdio"] }
+formatter = { command = "bundle", args = [
+  "exec",
+  "rubocop",
+  "--stdin",
+  "foo.rb",
+  "--fix",
+  "--stderr",
+  "--fail-level",
+  "fatal",
+] }
+auto-format = true
