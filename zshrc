@@ -1,6 +1,6 @@
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:/usr/local/bin:$PATH
-export DOTNET_CLI_TELEMETRY_OPTOUT=true
+export DISABLE_AUTO_TITLE='true' # fix for tmuxp
 export DOTBIN="$HOME/.bin"
 export EDITOR=nvim
 export GOPATH="$HOME/.go"
@@ -9,13 +9,14 @@ export GOPROXY="direct"
 export RUSTBIN="$HOME/.cargo/bin"
 export NVM_DIR="$HOME/.nvm"
 export ZSH_DOTENV_PROMPT=false
+
 export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$PATH
-export DISABLE_AUTO_TITLE='true' # fix for tmuxp
 
 # Path to your oh-my-zsh installation.
 export ZSH=$HOME/.oh-my-zsh
 
 if [[ is_wsl ]]; then
+  export DOTNET_CLI_TELEMETRY_OPTOUT=true
   export GCM_CREDENTIAL_STORE=cache
 fi
 
