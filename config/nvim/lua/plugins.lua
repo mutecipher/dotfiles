@@ -148,7 +148,6 @@ return packer.startup({
         require('plugins.lualine')
       ]],
     }
-    use 'WhoIsSethDaniel/lualine-lsp-progress.nvim'
     use {
       'SmiteshP/nvim-gps',
       requires = 'nvim-treesitter/nvim-treesitter'

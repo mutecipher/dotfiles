@@ -11,7 +11,6 @@ else
     sections = {
       lualine_c = {
         { gps.get_location, cond = gps.is_available },
-        { "lsp_progress" }
       }
     }
   })
