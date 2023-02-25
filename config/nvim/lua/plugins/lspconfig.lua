@@ -61,3 +61,11 @@ for _, server in ipairs(mason_lspconfig.get_installed_servers()) do
     capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
   }
 end
+
+local is_mac = vim.fn.has('mac') == 1
+if is_mac then
+  lspconfig.sourcekit.setup {
+    on_attach = on_attach,
+    capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
+  }
+end
