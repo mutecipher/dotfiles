@@ -45,17 +45,6 @@ local default_servers = {
   'yamlls'
 }
 
-local shopify_servers = {
-  'ruby_ls',
-  'sorbet'
-}
-
-if vim.env.SPIN then
-  for _, server in ipairs(shopify_servers) do
-    table.insert(default_servers, server)
-  end
-end
-
 local mason_lspconfig = require('mason-lspconfig')
 require('mason').setup {}
 mason_lspconfig.setup {

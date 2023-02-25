@@ -330,13 +330,6 @@ return packer.startup({
       end
     }
 
-    --- Shopify specific plugins
-    if vim.env.SPIN then
-      use 'Shopify/shadowenv.vim'
-      use 'Shopify/spin-vim'
-      use 'Shopify/vim-devilish'
-    end
-
     -- Automatically run a sync if the system has just installed Packer.nvim
     if packer_bootstrap then
       require('packer').sync()
