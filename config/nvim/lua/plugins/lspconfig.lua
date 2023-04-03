@@ -36,7 +36,7 @@ local default_servers = {
   'gopls',
   'html',
   'jsonls',
-  'sumneko_lua',
+  'lua_ls',
   'pyright',
   'rust_analyzer',
   'tailwindcss',
@@ -69,3 +69,8 @@ if is_mac then
     capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
   }
 end
+
+lspconfig.standardrb.setup {
+  on_attach = on_attach,
+  capabilities = cmp_nvim_lsp.default_capabilities(capabilities)
+}

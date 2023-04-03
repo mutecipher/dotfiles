@@ -17,18 +17,3 @@ name = "binary"
 [language.debugger.templates.args]
 program = "{0}"
 runInTerminal = true
-
-[[language]]
-name = "ruby"
-language-server = { command = "typeprof", args = ["--lsp", "--stdio"] }
-formatter = { command = "bundle", args = [
-  "exec",
-  "rubocop",
-  "--stdin",
-  "foo.rb",
-  "--fix",
-  "--stderr",
-  "--fail-level",
-  "fatal",
-] }
-auto-format = true

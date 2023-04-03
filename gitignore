@@ -20,3 +20,4 @@ curl-format.txt
 projections.json
 .solargraph.yml
 .nvimrc
+.env*

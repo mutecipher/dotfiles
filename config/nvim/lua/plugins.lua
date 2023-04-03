@@ -97,7 +97,27 @@ return packer.startup({
     use {
       'nvim-telescope/telescope.nvim',
       config = function()
-        require('telescope').setup {}
+        require('telescope').setup {
+          defaults = {
+            file_ignore_patterns = {
+              "^.git/",
+              "^node_modules/",
+              "^vendor/",
+              "**/*/.keep",
+              "**/cache/"
+            }
+          },
+          pickers = {
+            find_files = {
+              theme = 'dropdown',
+              previewer = false,
+              no_ignore = true,
+              hidden = true,
+              prompt_title = '',
+              prompt_prefix = '🔍 ',
+            }
+          }
+        }
       end,
       requires = {
         'nvim-lua/plenary.nvim',
@@ -124,9 +144,7 @@ return packer.startup({
       'xiyaowong/nvim-transparent',
       config = function()
         require('transparent').setup {
-          enable = true,
           extra_groups = { 'NvimTree', 'NvimTreeNormal', 'NvimTreeVertSplit' },
-          exclude = {}
         }
       end
     }
@@ -274,19 +292,19 @@ return packer.startup({
 
     -- Formatting
     use 'gpanders/editorconfig.nvim'
-    use {
-      'mfussenegger/nvim-lint',
-      config = function()
-        require('lint').linters_by_ft = {
-          lua = { 'luacheck' },
-          ruby = { 'rubocop' },
-          markdown = { 'markdownlint' },
-          python = { 'flake8' },
-          sh = { 'shellcheck' },
-          yaml = { 'yamllint' },
-        }
-      end
-    }
+    -- use {
+    --   'mfussenegger/nvim-lint',
+    --   config = function()
+    --     require('lint').linters_by_ft = {
+    --       lua = { 'luacheck' },
+    --       ruby = { 'standardrb' },
+    --       markdown = { 'markdownlint' },
+    --       python = { 'flake8' },
+    --       sh = { 'shellcheck' },
+    --       yaml = { 'yamllint' },
+    --     }
+    --   end
+    -- }
 
     -- Test
     use {

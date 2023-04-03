@@ -108,6 +108,7 @@ plugins=(
 eval "$(/opt/homebrew/bin/brew shellenv)"
 eval "$(rbenv init - zsh)"
 eval "$(pyenv init -)"
+eval "$(github-copilot-cli alias zsh)"
 [ -e "$(which shadowenv)" ] && eval "$(shadowenv init zsh)"
 [ -e "$(which starship)" ]  && eval "$(starship init zsh)"
 

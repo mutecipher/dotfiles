@@ -31,8 +31,6 @@ end
 set('n', '<leader>c', function() ts_builtin.colorscheme() end, opts)
 set('n', '<leader>fb', function() ts_builtin.buffers() end, opts)
 set('n', '<leader>ff', function() ts_builtin.find_files() end, opts)
-set('n', '<leader>fF', function() ts_builtin.find_files({ cwd = vim.fn.getcwd(), no_ignore = true, hidden = true }) end,
-  opts)
 set('n', '<leader>fd', function() ts_builtin.find_files({ cwd = '~/.dotfiles' }) end, opts)
 set('n', '<leader>g', function() ts_builtin.live_grep() end, opts)
 set('n', 'g?', function() ts_builtin.help_tags() end, opts)
