@@ -6,6 +6,5 @@ if not ok then
   return
 end
 
-github.setup({
-  theme_style = 'dark'
-})
+github.setup({})
+vim.cmd('colorscheme github_dark')

@@ -114,7 +114,7 @@ return packer.startup({
               no_ignore = true,
               hidden = true,
               prompt_title = '',
-              prompt_prefix = '🔍 ',
+              prompt_prefix = '🔎 ',
             }
           }
         }
@@ -292,19 +292,19 @@ return packer.startup({
 
     -- Formatting
     use 'gpanders/editorconfig.nvim'
-    -- use {
-    --   'mfussenegger/nvim-lint',
-    --   config = function()
-    --     require('lint').linters_by_ft = {
-    --       lua = { 'luacheck' },
-    --       ruby = { 'standardrb' },
-    --       markdown = { 'markdownlint' },
-    --       python = { 'flake8' },
-    --       sh = { 'shellcheck' },
-    --       yaml = { 'yamllint' },
-    --     }
-    --   end
-    -- }
+    use {
+      'mfussenegger/nvim-lint',
+      config = function()
+        require('lint').linters_by_ft = {
+          lua = { 'luacheck' },
+          ruby = { 'standardrb' },
+          markdown = { 'markdownlint' },
+          python = { 'flake8' },
+          sh = { 'shellcheck' },
+          yaml = { 'yamllint' },
+        }
+      end
+    }
 
     -- Test
     use {

@@ -39,10 +39,3 @@ vim.opt.updatetime = 500
 vim.opt.wildmenu = true
 vim.opt.wrap = false
 vim.opt.timeoutlen = 500
-
-vim.api.nvim_create_autocmd({ 'BufRead', 'BufNewFile' }, {
-  pattern = { "*.astro" },
-  callback = function()
-    vim.bo.filetype = "astro"
-  end
-})
