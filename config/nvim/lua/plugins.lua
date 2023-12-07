@@ -281,7 +281,6 @@ return packer.startup({
     }
 
     -- Editor support
-    -- use 'max-0406/autoclose.nvim'
     use 'p00f/nvim-ts-rainbow'
     use {
       'nacro90/numb.nvim',
@@ -334,14 +333,6 @@ return packer.startup({
       'sindrets/winshift.nvim',
       config = function()
         require('winshift').setup {}
-      end
-    }
-    use {
-      'luukvbaal/stabilize.nvim',
-      config = function()
-        require('stabilize').setup {
-          nested = 'QuickFixCmdPost,DiagnosticChanged *'
-        }
       end
     }
 
