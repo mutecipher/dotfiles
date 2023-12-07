@@ -7,4 +7,4 @@ if not ok then
 end
 
 github.setup({})
--- vim.cmd('colorscheme github_dark')
+vim.cmd('colorscheme github_dark')
