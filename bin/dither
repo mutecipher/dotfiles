@@ -1,0 +1,4 @@
+#!/bin/bash
+
+filename=$1
+didder --palette "black white" -i "${filename}" -o "${filename%.*}_dithered.png" bayer 8x8
