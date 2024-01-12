@@ -11,7 +11,7 @@
   defaultBranch = main
 
 [includeIf "gitdir:~/Developer/github.com/GhostGroup/"]
-  path = ~/Developer/github.com/github.com/GhostGroup/.gitconfig
+  path = ~/Developer/github.com/GhostGroup/.gitconfig
 
 [url "git@github.com:"]
   insteadOf = "https://github.com/"
