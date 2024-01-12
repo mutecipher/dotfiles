@@ -1,0 +1,17 @@
+[user]
+  name = Cory Hutchison
+  email = cory@mutecipher.com
+  username = mutecipher
+  signingkey = 32ABE5D29C8EE52D273ACB98705B2FEF0EF41082
+
+[commit]
+  gpgsign = true
+
+[init]
+  defaultBranch = main
+
+[includeIf "gitdir:~/Developer/github.com/GhostGroup/"]
+  path = ~/Developer/github.com/github.com/GhostGroup/.gitconfig
+
+[url "git@github.com:"]
+  insteadOf = "https://github.com/"

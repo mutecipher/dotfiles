@@ -1,6 +1,2 @@
--- init.lua
-
-require('settings')
-require('plugins')
-require('theme')
-require('keymaps')
+-- bootstrap lazy.nvim, LazyVim and your plugins
+require("config.lazy")

@@ -1,36 +1,23 @@
 # If you come from bash you might have to change your $PATH.
 # export PATH=$HOME/bin:/usr/local/bin:$PATH
-export DISABLE_AUTO_TITLE='true' # fix for tmuxp
-export DOTBIN="$HOME/.bin"
-export EDITOR=nvim
-export GOPATH="$HOME/.go"
-export GOBIN="$GOPATH/bin"
-export GOPROXY="direct"
-export RUSTBIN="$HOME/.cargo/bin"
 export NVM_DIR="$HOME/.nvm"
-export ZSH_DOTENV_PROMPT=false
-
-export PATH=$DOTBIN:$RUSTBIN:$GOBIN:$PATH
+export GOPATH="$HOME/.go"
+export PATH=$GOPATH/bin:$HOME/.local/bin:/usr/local/sbin:$PATH
 
 # Path to your oh-my-zsh installation.
 export ZSH=$HOME/.oh-my-zsh
-
-if [[ is_wsl ]]; then
-  export DOTNET_CLI_TELEMETRY_OPTOUT=true
-  export GCM_CREDENTIAL_STORE=cache
-fi
 
 # Set name of the theme to load --- if set to "random", it will
 # load a random theme each time oh-my-zsh is loaded, in which case,
 # to know which specific one was loaded, run: echo $RANDOM_THEME
 # See https://github.com/ohmyzsh/ohmyzsh/wiki/Themes
-ZSH_THEME="crcandy"
+ZSH_THEME="agnoster"
 
 # Set list of themes to pick from when loading at random
 # Setting this variable when ZSH_THEME=random will cause zsh to load
 # a theme from this variable instead of looking in $ZSH/themes/
 # If set to an empty array, this variable will have no effect.
-# ZSH_THEME_RANDOM_CANDIDATES=( "robbyrussell" "agnoster" )
+# ZSH_THEME_RANDOM_CANDIDATES=( "robbyrussell" "agnoster" "crcandy" )
 
 # Uncomment the following line to use case-sensitive completion.
 # CASE_SENSITIVE="true"
@@ -39,14 +26,13 @@ ZSH_THEME="crcandy"
 # Case-sensitive completion must be off. _ and - will be interchangeable.
 # HYPHEN_INSENSITIVE="true"
 
-# Uncomment the following line to disable bi-weekly auto-update checks.
-# DISABLE_AUTO_UPDATE="true"
-
-# Uncomment the following line to automatically update without prompting.
-# DISABLE_UPDATE_PROMPT="true"
+# Uncomment one of the following lines to change the auto-update behavior
+# zstyle ':omz:update' mode disabled  # disable automatic updates
+# zstyle ':omz:update' mode auto      # update automatically without asking
+# zstyle ':omz:update' mode reminder  # just remind me to update when it's time
 
 # Uncomment the following line to change how often to auto-update (in days).
-# export UPDATE_ZSH_DAYS=13
+# zstyle ':omz:update' frequency 13
 
 # Uncomment the following line if pasting URLs and other text is messed up.
 # DISABLE_MAGIC_FUNCTIONS="true"
@@ -87,30 +73,11 @@ ZSH_THEME="crcandy"
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(
-  colored-man-pages
-  dotenv
-  encode64
-  git
-  git-auto-fetch
-  gh
-  gpg-agent
-  rust
-  safe-paste
-  themes
-)
+plugins=(git dotenv)
 
-[ -e "$ZSH/oh-my-zsh.sh" ] && source $ZSH/oh-my-zsh.sh
+source $ZSH/oh-my-zsh.sh
 
 # User configuration
-
-[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && source "/opt/homebrew/opt/nvm/nvm.sh"
-eval "$(/opt/homebrew/bin/brew shellenv)"
-eval "$(rbenv init - zsh)"
-eval "$(pyenv init -)"
-eval "$(github-copilot-cli alias zsh)"
-[ -e "$(which shadowenv)" ] && eval "$(shadowenv init zsh)"
-[ -e "$(which starship)" ]  && eval "$(starship init zsh)"
 
 # export MANPATH="/usr/local/man:$MANPATH"
 
@@ -118,11 +85,11 @@ eval "$(github-copilot-cli alias zsh)"
 # export LANG=en_US.UTF-8
 
 # Preferred editor for local and remote sessions
-# if [[ -n $SSH_CONNECTION ]]; then
-#   export EDITOR='vim'
-# else
-#   export EDITOR='mvim'
-# fi
+if [[ -n $SSH_CONNECTION ]]; then
+  export EDITOR='vim'
+else
+  export EDITOR='nvim'
+fi
 
 # Compilation flags
 # export ARCHFLAGS="-arch x86_64"
@@ -136,20 +103,4 @@ eval "$(github-copilot-cli alias zsh)"
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 alias vim=nvim
-
-# Helper functions
-
-# Resets LaunchPad layout and restarts the Dock
-function reset_launchpad() {
-  defaults write com.apple.dock ResetLaunchPad -bool true; killall Dock
-}
-
-# Resets Dock layout and restarts the Dock
-function reset_dock() {
-  defaults delete com.apple.dock; killall Dock
-}
-
-function it2prof() {
-  ITERM_PROFILE="$1"
-  echo -e "\033]50;SetProfile=$1\a"
-}
+alias dev='cd $HOME/Developer/'
