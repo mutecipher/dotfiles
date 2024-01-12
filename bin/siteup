@@ -13,19 +13,17 @@
 #
 
 ['droplet_kit'].each do |gem|
-  begin
-    require gem
-  rescue LoadError
-    puts "You need to install #{gem}: gem install #{gem}"
-    exit! 1
-  end
+  require gem
+rescue LoadError
+  puts "You need to install #{gem}: gem install #{gem}"
+  exit! 1
 end
 
 token = ENV['DIGITAL_OCEAN_TOKEN']
 client = DropletKit::Client.new(access_token: token)
 
 def is_available?(droplet)
-  droplet.status == "active" && droplet.region.available
+  droplet.status == 'active' && droplet.region.available
 end
 
 droplets = client.droplets.all
@@ -34,8 +32,8 @@ max_length = droplets.map(&:name).map(&:length).max + 1
 
 droplets.each do |droplet|
   if is_available?(droplet)
-    puts "#{ droplet.name.ljust(max_length) } #{ droplet.networks.v4.first.ip_address.center(15) } ✓"
+    puts "#{droplet.name.ljust(max_length)} #{droplet.networks.v4.first.ip_address.center(15)} ✓"
   else
-    puts "#{ droplet.name.ljust(max_length) } ✗"
+    puts "#{droplet.name.ljust(max_length)} ✗"
   end
 end
