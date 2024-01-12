@@ -2,7 +2,7 @@
 # export PATH=$HOME/bin:/usr/local/bin:$PATH
 export NVM_DIR="$HOME/.nvm"
 export GOPATH="$HOME/.go"
-export PATH=$GOPATH/bin:$HOME/.local/bin:/usr/local/sbin:$PATH
+export PATH=$HOME/.dotfiles/bin:$GOPATH/bin:$HOME/.local/bin:/usr/local/sbin:$PATH
 
 # Path to your oh-my-zsh installation.
 export ZSH=$HOME/.oh-my-zsh
