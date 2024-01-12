@@ -11,7 +11,7 @@ Config files that I use for my systems.
 
 ```shell
 # I typically run this from the $HOME directory
-git clone https://github.com/cjhutchi/dotfiles $HOME/.dotfiles
+git clone https://github.com/mutecipher/dotfiles $HOME/.dotfiles
 ln -s $HOME/.dotfiles/.gitconfig $HOME/.gitconfig
 ln -s $HOME/.dotfiles/.zshrc $HOME/.zshrc
 ln -s $HOME/.dotfiles/.zprofile HOME/.zprofile
