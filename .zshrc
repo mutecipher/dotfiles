@@ -102,6 +102,6 @@ fi
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
-alias vim=nvim
 alias dev='cd $HOME/Developer/'
 alias dotfiles='cd $HOME/.dotfiles'
+alias vim=nvim
