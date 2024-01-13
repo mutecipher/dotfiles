@@ -2,10 +2,10 @@
   "entries": {
     "tap": {
       "homebrew/bundle": {
-        "revision": "6c2c7cdf221b70f72bfc95b92e06b7b74ad5342d"
+        "revision": "3ccb29e5338eff0418544086d9ca56315832ff7b"
       },
       "homebrew/cask-fonts": {
-        "revision": "cb5a031b8b969be9685c5e5106dc52e9484172c9"
+        "revision": "ce6d85bb40f1113ec132a57007810cb3da052dcb"
       },
       "homebrew/services": {
         "revision": "33b407f77320756bf9aaf5832b6e2a5c5595634f"
@@ -1457,6 +1457,12 @@
         "options": {
           "full_name": "zoom"
         }
+      },
+      "via": {
+        "version": "3.0.0",
+        "options": {
+          "full_name": "via"
+        }
       }
     },
     "vscode": {
@@ -1510,7 +1516,7 @@
   "system": {
     "macos": {
       "sonoma": {
-        "HOMEBREW_VERSION": "4.2.3-58-g0c7638e",
+        "HOMEBREW_VERSION": "4.2.3-78-g302e83e",
         "HOMEBREW_PREFIX": "/opt/homebrew",
         "Homebrew/homebrew-core": "api",
         "CLT": "15.1.0.0.1.1700200546",
