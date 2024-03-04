@@ -1,8 +1,8 @@
 return {
-  {
-    "projekt0n/github-nvim-theme",
-  },
+  -- add github
+  { "projekt0n/github-nvim-theme" },
 
+  -- set the colorscheme
   {
     "LazyVim/LazyVim",
     opts = {
