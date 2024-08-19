@@ -9,6 +9,16 @@ else
 	config.color_scheme = "Github Light Default"
 end
 
+-- Modify the PATH to include Homebrew binaries
+config.set_environment_variables = {
+	PATH = "/opt/homebrew/bin:" .. os.getenv("PATH"),
+}
+
+config.initial_cols = 120
+config.initial_rows = 40
+
+config.native_macos_fullscreen_mode = true
+
 config.font = wezterm.font({
 	family = "MonoLisa Variable",
 	harfbuzz_features = { "calt=1", "liga=1", "zero=1", "ss02=1", "ss06=1", "ss07=1", "ss08=1", "ss10=1", "ss11=1" },
@@ -17,10 +27,6 @@ config.font_size = 13
 
 config.hide_tab_bar_if_only_one_tab = true
 config.use_fancy_tab_bar = false
-
-config.set_environment_variables = {
-	PATH = "/opt/homebrew/bin:" .. os.getenv("PATH"),
-}
 
 config.keys = {
 	-- Sends ESC + b and ESC + f sequence, which is used
