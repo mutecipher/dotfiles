@@ -21,6 +21,7 @@
     "lazyvim.plugins.extras.test.core",
     "lazyvim.plugins.extras.ui.mini-animate",
     "lazyvim.plugins.extras.util.dot",
+    "lazyvim.plugins.extras.util.gitui",
     "lazyvim.plugins.extras.util.mini-hipatterns",
     "lazyvim.plugins.extras.util.rest"
   ],
