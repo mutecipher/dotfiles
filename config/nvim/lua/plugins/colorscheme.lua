@@ -1,17 +1,14 @@
 return {
-  -- add github
   {
     "projekt0n/github-nvim-theme",
     config = function()
-      require("github-theme").setup({})
+      require("github-theme").setup({
+        options = {
+          styles = {
+            comments = "italic",
+          },
+        },
+      })
     end,
-  },
-
-  -- set the colorscheme
-  {
-    "LazyVim/LazyVim",
-    opts = {
-      colorscheme = "github_dark_default",
-    },
   },
 }
