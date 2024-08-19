@@ -21,7 +21,17 @@ config.native_macos_fullscreen_mode = true
 
 config.font = wezterm.font({
 	family = "MonoLisa Variable",
-	harfbuzz_features = { "calt=1", "liga=1", "zero=1", "ss02=1", "ss06=1", "ss07=1", "ss08=1", "ss10=1", "ss11=1" },
+	harfbuzz_features = {
+		"calt=1", -- Whitespace ligatures
+		"liga=1", -- Enable ligatures
+		"zero=1", -- Zeros with lines instead of dot
+		"ss02=1", -- Script variant of italics
+		"ss06=1", -- Proper @ symbol
+		"ss07=1", -- Curlier braces
+		"ss08=1", -- Rounder parentheses
+		"ss10=1", -- Alternative greater than or equal symbol (eg. >=)
+		"ss11=1", -- Alternative hexadecimal symbol (eg. 0x23)
+	},
 })
 config.font_size = 13
 
