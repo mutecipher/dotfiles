@@ -13,7 +13,7 @@ config.font = wezterm.font({
 	family = "MonoLisa Variable",
 	harfbuzz_features = { "calt=1", "liga=1", "zero=1", "ss02=1", "ss06=1", "ss07=1", "ss08=1", "ss10=1", "ss11=1" },
 })
-config.font_size = 14
+config.font_size = 13
 
 config.hide_tab_bar_if_only_one_tab = true
 config.use_fancy_tab_bar = false
