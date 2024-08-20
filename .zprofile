@@ -28,6 +28,3 @@ eval "$(rbenv init - zsh)"
 
 # cargo initialization
 [ -s "${HOME}/.cargo/env" ] && source "$HOME/.cargo/env"
-
-# zellij iniitalization
-eval "$(zellij setup --generate-auto-start zsh)"
