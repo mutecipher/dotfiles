@@ -14,4 +14,7 @@
   defaultBranch = main
 
 [includeIf "gitdir:~/Developer/github.com/GhostGroup/"]
-  path = ~/Developer/github.com/GhostGroup/.gitconfig
+  path = ~/.gitconfig.weedmaps
+
+[includeIf "gitdir:~/src/"]
+  path = ~/.gitconfig.weedmaps
