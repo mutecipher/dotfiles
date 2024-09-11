@@ -62,6 +62,11 @@ config.keys = {
       args = { "nvim", wezterm.config_file },
     }),
   },
+  {
+    key = "o",
+    mods = "CTRL",
+    action = wezterm.action({ PaneSelect = {} }),
+  },
 }
 
 return config
