@@ -33,7 +33,7 @@ config.font = wezterm.font({
     "ss11=1", -- Alternative hexadecimal symbol (eg. 0x23)
   },
 })
-config.font_size = 13
+config.font_size = 14
 
 config.hide_tab_bar_if_only_one_tab = true
 config.show_new_tab_button_in_tab_bar = false
