@@ -104,5 +104,7 @@ fi
 # alias ohmyzsh="mate ~/.oh-my-zsh"
 alias dev='cd $HOME/Developer/'
 alias dotfiles='cd $HOME/.dotfiles'
+alias k=kubectl
+alias kn='kubectl config set-context --current --namespace'
 alias reset_launchpad='defaults write com.apple.dock ResetLaunchPad -bool true; killall Dock'
 alias vim=nvim
