@@ -13,8 +13,8 @@
 [init]
   defaultBranch = main
 
-[includeIf "gitdir:~/Developer/github.com/GhostGroup/"]
+[includeIf "gitdir:~/Developer/Weedmaps/"]
   path = ~/.gitconfig.weedmaps
 
-[includeIf "gitdir:~/src/"]
+[includeIf "gitdir:~/Weedmaps/"]
   path = ~/.gitconfig.weedmaps
