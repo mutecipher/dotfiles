@@ -28,6 +28,3 @@ eval "$(rbenv init - zsh)"
 
 # cargo initialization
 [ -s "${HOME}/.cargo/env" ] && source "$HOME/.cargo/env"
-
-# starship initialization
-eval "$(starship init zsh)"

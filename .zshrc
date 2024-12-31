@@ -108,3 +108,6 @@ alias k=kubectl
 alias kn='kubectl config set-context --current --namespace'
 alias reset_launchpad='defaults write com.apple.dock ResetLaunchPad -bool true; killall Dock'
 alias vim=nvim
+
+# starship initialization
+eval "$(starship init zsh)"
