@@ -11,4 +11,5 @@ return {
       })
     end,
   },
+  { "nomis51/nvim-xcode-theme" },
 }
