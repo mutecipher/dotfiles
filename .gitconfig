@@ -19,5 +19,5 @@
 [includeIf "gitdir:~/Weedmaps/"]
   path = ~/.gitconfig.weedmaps
 
-[url "ssh://git@github.com/"]
-	insteadOf = https://github.com/
+[gpg]
+  program = /opt/homebrew/bin/gpg
