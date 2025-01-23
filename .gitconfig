@@ -13,11 +13,11 @@
 [init]
   defaultBranch = main
 
+[gpg]
+  program = /opt/homebrew/bin/gpg
+
 [includeIf "gitdir:~/Developer/Weedmaps/"]
   path = ~/.gitconfig.weedmaps
 
 [includeIf "gitdir:~/Weedmaps/"]
   path = ~/.gitconfig.weedmaps
-
-[gpg]
-  program = /opt/homebrew/bin/gpg
