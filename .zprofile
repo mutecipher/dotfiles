@@ -15,9 +15,6 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   # nvm initialization
   [ -s "$(brew --prefix nvm)/nvm.sh" ] && source "$(brew --prefix nvm)/nvm.sh"
   [ -s "$(brew --prefix nvm)/etc/bash_completion.d/nvm" ] && source "$(brew --prefix nvm)/etc/bash_completion.d/nvm"
-
-  # asdf initialization
-  [ -s "$(brew --prefix asdf)" ] && source "$(brew --prefix asdf)/libexec/asdf.sh"
 fi
 
 # pyenv initialization
