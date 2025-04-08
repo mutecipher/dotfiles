@@ -16,11 +16,8 @@
 [gpg]
   program = /opt/homebrew/bin/gpg
 
-[url "ssh://git@github.com/"]
-  insteadOf = https://github.com/
+[includeIf "gitdir:~/Developer/urllo/"]
+  path = ~/.gitconfig.urllo
 
-[includeIf "gitdir:~/Developer/Weedmaps/"]
-  path = ~/.gitconfig.weedmaps
-
-[includeIf "gitdir:~/Weedmaps/"]
-  path = ~/.gitconfig.weedmaps
+[includeIf "gitdir:~/urllo/"]
+  path = ~/.gitconfig.urllo
