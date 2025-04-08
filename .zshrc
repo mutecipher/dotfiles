@@ -102,7 +102,7 @@ fi
 # Example aliases
 # alias zshconfig="mate ~/.zshrc"
 # alias ohmyzsh="mate ~/.oh-my-zsh"
-alias dev='cd $HOME/Developer/'
+# alias dev='cd $HOME/Developer/'
 alias dotfiles='cd $HOME/.dotfiles'
 alias k=kubectl
 alias kn='kubectl config set-context --current --namespace'
@@ -111,3 +111,6 @@ alias vim=nvim
 
 # starship initialization
 eval "$(starship init zsh)"
+
+# direnv hook
+eval "$(direnv hook zsh)"
