@@ -8,6 +8,7 @@ font-feature = ss08
 font-feature = ss10
 font-feature = ss11
 font-feature = zero
+macos-option-as-alt = true
 shell-integration-features = no-cursor
 theme = light:xcodelighthc,dark:xcodedarkhc
 window-height = 35
