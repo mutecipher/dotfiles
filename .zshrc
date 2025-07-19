@@ -106,7 +106,6 @@ fi
 alias dotfiles='cd $HOME/.dotfiles'
 alias k=kubectl
 alias kn='kubectl config set-context --current --namespace'
-alias reset_launchpad='defaults write com.apple.dock ResetLaunchPad -bool true; killall Dock'
 alias vim=nvim
 alias dcu='devcontainer up --docker-path podman --docker-compose-path podman-compose --workspace-folder . --buildkit never'
 alias dce='devcontainer exec --workspace-folder . --docker-path podman --docker-compose-path podman-compose'
