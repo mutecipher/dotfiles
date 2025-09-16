@@ -11,6 +11,6 @@ font-feature = ss11
 font-feature = zero
 macos-option-as-alt = true
 shell-integration-features = no-cursor
-theme = light:xcodelighthc,dark:xcodedarkhc
+theme = light:XCode Light hc,dark:XCode Dark hc
 window-height = 35
 window-width = 110
