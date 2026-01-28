@@ -16,8 +16,5 @@
 [gpg]
   program = /opt/homebrew/bin/gpg
 
-[includeIf "gitdir:~/Developer/urllo/"]
-  path = ~/.gitconfig.urllo
-
-[includeIf "gitdir:~/urllo/"]
-  path = ~/.gitconfig.urllo
+[include]
+  path = ~/.gitconfig.overrides
