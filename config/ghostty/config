@@ -1,5 +1,6 @@
 font-family = MonoLisa Variable
-font-size=14
+font-style = Light
+font-size = 12
 font-feature = calt
 font-feature = liga
 font-feature = ss02
