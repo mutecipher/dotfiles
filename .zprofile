@@ -16,12 +16,3 @@ if [[ "$(uname -s)" == "Darwin" ]]; then
   [ -s "$(brew --prefix nvm)/nvm.sh" ] && source "$(brew --prefix nvm)/nvm.sh"
   [ -s "$(brew --prefix nvm)/etc/bash_completion.d/nvm" ] && source "$(brew --prefix nvm)/etc/bash_completion.d/nvm"
 fi
-
-# pyenv initialization
-eval "$(pyenv init -)"
-
-# rbenv initialization
-eval "$(rbenv init - zsh)"
-
-# cargo initialization
-[ -s "${HOME}/.cargo/env" ] && source "$HOME/.cargo/env"

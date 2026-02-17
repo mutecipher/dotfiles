@@ -112,6 +112,3 @@ alias dce='devcontainer exec --workspace-folder . --docker-path podman --docker-
 
 # starship initialization
 eval "$(starship init zsh)"
-
-# direnv hook
-eval "$(direnv hook zsh)"
