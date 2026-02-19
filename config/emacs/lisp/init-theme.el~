@@ -1,0 +1,22 @@
+(use-package font-lock
+  :defer t
+  :custom-face
+  (font-lock-comment-face ((t (:inherit font-lock-comment-face :italic t))))
+  (font-lock-doc-face ((t (:inherit font-lock-doc-face :italic t))))
+  (font-lock-string-face ((t (:inherit font-lock-string-face :italic t)))))
+
+(use-package spacious-padding
+  :ensure t)
+
+(spacious-padding-mode 1)
+
+(use-package circadian                  ; you need to install this
+  :ensure t
+  :config
+  (setq calendar-latitude 51.050
+        calendar-longitude -114.067)
+  (setq circadian-themes '((:sunrise . modus-operandi)
+                           (:sunset  . modus-vivendi)))
+  (circadian-setup))
+
+(provide 'init-theme)
