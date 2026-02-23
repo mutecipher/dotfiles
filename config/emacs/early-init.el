@@ -2,6 +2,8 @@
 (setq-default header-line-format mode-line-format
 	      mode-line-format nil)
 
+(add-hook 'window-setup-hook 'toggle-frame-maximized t)
+
 (setq frame-resize-pixelwise t
       frame-inhibit-implied-resize 'force
       frame-title-format ""
