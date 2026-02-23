@@ -3,3 +3,4 @@ config/emacs/auto-save-list/
 config/emacs/newsticker/
 config/emacs/elpa/
 config/emacs/projects
+config/emacs/var
