@@ -4,3 +4,4 @@ config/emacs/newsticker/
 config/emacs/elpa/
 config/emacs/projects
 config/emacs/var
+config/emacs/tree-sitter

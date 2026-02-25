@@ -89,5 +89,6 @@
 
 
 (mapc #'treesit-install-language-grammar (mapcar #'car treesit-language-source-alist))
+(setq treesit-load-name-override-list '((js "libtree-sitter-js" "tree_sitter_javascript")))
 
 (provide 'plugin)

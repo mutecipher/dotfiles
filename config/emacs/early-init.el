@@ -2,6 +2,8 @@
 (setq-default header-line-format mode-line-format
 	      mode-line-format nil)
 
+(prefer-coding-system 'utf-8)
+
 (add-hook 'window-setup-hook 'toggle-frame-maximized t)
 
 (setq frame-resize-pixelwise t
