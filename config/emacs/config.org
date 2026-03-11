@@ -1,0 +1,540 @@
+#+title: Emacs Configuration
+#+author: Cory Hutchison
+
+
+* EMACS GENERAL
+** EMACS
+This section contains general configurations and tweaks to Emacs default behaviour to be more modern/intuitive/etc.
+
+#+begin_src emacs-lisp
+  (use-package emacs
+    :ensure nil
+    :bind
+    (("M-o" . other-window)
+     ("M-j" . duplicate-dwim)
+     ("C-x ;" . comment-line)
+     ("C-x C-b" . ibuffer)
+     ("C-x p l" . project-list-buffers)
+     ("RET" . newline-and-indent)
+     ("C-z" . nil)
+     ("C-x C-z" . nil))
+    :custom
+    (ad-redefinition-action 'accept)
+    (auto-save-default t)
+    (calendar-latitude 51.050)		; Used for M-x `sunrise-sunset`
+    (calendar-longitude -114.067)
+    (calendar-location-name "Calgary, AB")
+    (column-number-mode t)
+    (line-number-mode t)
+    (line-spacing nil)
+    (completion-ignore-case t)
+    (completions-detailed t)
+    (delete-by-moving-to-trash t)
+    (delete-pair-blink-delay 0)
+    (display-line-numbers-width 4)
+    (display-line-numbers-widen t)
+    (delete-selection-mode t)
+    (enable-recursive-minibuffers t)
+    (frame-resize-pixelwise t)
+    (global-goto-address-mode t)		; C-c RET opens URL in default browser
+    (browse-url-secondary-browser-function 'eww-browser-url)
+    (help-window-select t)
+    (history-length 300)
+    (inhibit-startup-message t)
+    (ibuffer-human-readable-size t)
+    (ielm-history-file-name (expand-file-name "cache/ielm-history.eld" user-emacs-directory))
+    (kill-do-not-save-duplicates t)
+    (create-lockfiles nil)
+    (make-backup-files nil)
+    (pixel-scroll-precision-mode t)
+    (pixel-scroll-precision-use-momentum nil)
+    (project-list-file (expand-file-name "cache/projects" user-emacs-directory))
+    (ring-bell-function 'ignore)
+    (read-answer-short t)
+    (recentf-max-saved-items 300)
+    (recentf-max-menu-items 15)
+    (recentf-auto-cleanup (if (daemonp) 300 'never))
+    (recentf-exclude (list "^/\\(?:ssh\\|su\\|sudo\\)?:"))
+    (recentf-save-file (expand-file-name "cache/recentf" user-emacs-directory))
+    (register-use-preview t)
+    (remote-file-name-inhibit-delete-by-moving-to-trash t)
+    (remote-file-name-inhibit-auto-save t)
+    (remote-file-name-inhibit-locks t)
+    (remote-file-name-inhibit-auto-save-visited t)
+    (resize-mini-windows 'grow-only)
+    (scroll-conservatively 8)
+    (scroll-margin 5)
+    (savehist-save-minibuffer-history t)
+    (savehist-additional-variables
+     '(kill-ring                            ; clipboard
+  	 register-alist                       ; macros
+  	 mark-ring global-mark-ring           ; marks
+  	 search-ring regexp-search-ring))     ; searches
+    (savehist-file (expand-file-name "cache/history" user-emacs-directory))
+    (save-place-file (expand-file-name "cache/saveplace" user-emacs-directory))
+    (save-place-limit 600)
+    (set-mark-command-repeat-pop t) ; So we can use C-u C-SPC C-SPC C-SPC... instead of C-u C-SPC C-u C-SPC...
+    (split-width-threshold 170)     ; So vertical splits are preferred
+    (split-height-threshold nil)
+    (shr-use-colors nil)
+    (switch-to-buffer-obey-display-actions t)
+    (tab-always-indent 'complete)
+    (tab-width 4)
+    (transient-history-file (expand-file-name "cache/transient/history.el" user-emacs-directory))
+    (transient-levels-file (expand-file-name "cache/transient/levels.el" user-emacs-directory))
+    (transient-values-file (expand-file-name "cache/transient/values.el" user-emacs-directory))
+    (treesit-font-lock-level 4)
+    (truncate-lines t)
+    (undo-limit (* 13 160000))
+    (undo-strong-limit (* 13 240000))
+    (undo-outer-limit (* 13 24000000))
+    (url-configuration-directory (expand-file-name "cache/url/" user-emacs-directory))
+    (use-dialog-box nil)
+    (use-file-dialog nil)
+    (use-package-hook-name-suffix nil)
+    (use-short-answers t)
+    (visible-bell nil)
+    (window-combination-resize t)
+    (window-resize-pixelwise nil)
+    :config
+    (setq custom-file (locate-user-emacs-file "custom-vars.el"))
+    (load custom-file 'noerror 'nomessage)
+
+    ;; Makes everything utf-8
+    (modify-coding-system-alist 'file "" 'utf-8)
+
+    ;; Set font faces
+    (set-face-attribute 'default nil
+			:family "MonoLisa Variable"
+			:height 120)
+    (set-fontset-font t '(#xe0b0 . #xe0bf) (font-spec :family "Symbols Nerd Font Mono"))
+
+    ;; macOS tweaks
+    (when (eq system-type 'darwin)
+  	(setq mac-command-modifier "meta")
+  	(add-to-list 'default-frame-alist '(ns-transparent-titlebar t))
+  	(set-fontset-font t 'emoji (font-spec :family "Apple Color Emoji") nil 'append))
+
+
+    ;; Auto save configs
+    (make-directory (expand-file-name "cache/auto-saves" user-emacs-directory) t)
+    (setq auto-save-list-file-prefix (expand-file-name "cache/auto-saves/sessions/" user-emacs-directory)
+	  auto-save-file-name-transformation `((".*" ,(expand-file-name "cache/auto-saves/" user-emacs-directory) t)))
+
+    ;; Line number mode configs
+    (setq display-line-numbers-type 'relative)
+    (add-hook 'prog-mode-hook #'display-line-numbers-mode)
+    (add-hook 'text-mode-hook #'display-line-numbers-mode)
+
+    ;; Completion previews
+    (add-hook 'prog-mode-hook #'completion-preview-mode)
+    (add-hook 'text-mode-hook #'completion-preview-mode)
+    (add-hook 'erc-mode-hook #'completion-preview-mode)
+
+    (select-frame-set-input-focus (selected-frame))
+    (blink-cursor-mode 0)
+    (recentf-mode 1)
+    (repeat-mode 1)
+    (savehist-mode 1)
+    (save-place-mode 1)
+    (winner-mode))
+#+end_src
+** ABBREV
+** AUTH-SOURCE
+#+begin_src emacs-lisp
+  (use-package auth-source
+    :ensure nil
+    :defer t
+    :config
+    (setq epg-pinentry-mode 'loopback)
+    (setq auth-sources
+		(list (expand-file-name ".authinfo.gpg" user-emacs-directory)))
+    (setq user-full-name "Cory Hutchison"
+		user-mail-address "cory@mutecipher.com"))
+#+end_src
+** AUTOREVERT
+#+begin_src emacs-lisp
+  (use-package autorevert
+    :ensure nil
+    :hook (emacs-startup-hook . global-auto-revert-mode)
+    :custom
+    (auto-revert-remote-files nil) ; Makes TRAMP slow
+    (auto-revert-verbose t)
+    (auto-revert-avoid-polling t)
+    (global-auto-revert-non-file-buffers t))
+#+end_src
+** CONF
+Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
+
+#+begin_src emacs-lisp
+  (use-package conf-mode
+    :ensure nil
+    :mode ("\\.env\\..*\\'" "\\.env\\'")
+    :init
+    (add-to-list 'auto-mode-alist '("\\.env\\'" . conf-mode)))
+#+end_src
+** COMPILATION
+#+begin_src emacs-lisp
+  (use-package compile
+    :ensure nil
+    :custom
+    (compilation-always-kill t)
+    (compilation-scroll-output t)
+    (ansi-color-for-compilation-mode t)
+    :config
+    (add-hook 'compilation-filter-hook #'ansi-color-compilation-filter))
+#+end_src
+** WINDOW
+** TAB-BAR
+** ERC
+#+begin_src emacs-lisp
+  (use-package erc
+    :ensure nil
+    :defer t
+    :custom
+    (erc-join-buffer 'window)
+    (erc-hide-list '("JOIN" "PART" "QUIT"))
+    (erc-autojoin-channels-alist '((".*\\.libera\\.chat" "#emacs" "#guix" "#guile" "#fsf")))
+    (erc-server-reconnect-attempts 10)
+    (erc-server-reconnect-timeout 3)
+    (erc-fill-function 'erc-fill-wrap)
+    (erc-log-channels-directory (expand-file-name "cache/erc/logs" user-emacs-directory))
+    (erc-save-buffer-on-quit t)
+    (erc-save-queries-on-quit t)
+    (erc-log-write-after-send t)
+    (erc-log-write-after-insert t)
+    (erc-spelling-dictionaries '(("Libera.Chat", "en_US")))
+    :config
+    (make-directory (expand-file-name "cache/erc/logs" user-emacs-directory) t)
+
+    (add-to-list 'erc-modules 'log)
+    (erc-spelling-mode 1)
+    :init
+    (with-eval-after-load 'erc
+	(when (< emacs-major-version 31)
+	  (add-to-list 'erc-modules 'scrolltobottom))))
+#+end_src
+** ICOMPLETE
+#+begin_src emacs-lisp
+  (use-package icomplete
+    :ensure nil
+    :bind
+    (:map icomplete-minibuffer-map
+		("C-n" . icomplete-forward-completions)
+		("C-p" . icomplete-backward-completions)
+		("C-v" . icomplete-vertical-toggle)
+		("RET" . icomplete-force-complete-and-exit)
+		("C-j" . exit-minibuffer))
+    :hook
+    (after-init-hook . (lambda ()
+					   (fido-mode -1)
+					   (icomplete-vertical-mode 1)))
+    :config
+    (setq icomplete-delay-completions-threshold 0)
+    (setq icomplete-compute-delay 0)
+    (setq icomplete-show-matches-on-no-input t)
+    (setq icomplete-hide-common-prefix nil)
+    (setq icomplete-prospects-height 10)
+    (setq icomplete-separator " . ")
+    (setq icomplete-with-completion-tables t)
+    (setq icomplete-in-buffer t)
+    (setq icomplete-max-delay-chars 0)
+    (setq icomplete-scroll t)
+
+    (if icomplete-in-buffer
+	  (advice-add 'completion-at-point
+				  :after #'minibuffer-hide-completions)))
+#+end_src
+** DIRED
+#+begin_src emacs-lisp
+  (use-package dired
+    :ensure nil
+    :custom
+    (dired-auto-revert-buffer t)
+    (dired-dwim-target t)
+    (dired-kill-when-opening-new-dired-buffer t)
+    (dired-listing-switches "-aloghF")
+    (dired-omit-files "^\\.")				; (C-x M-o) to toggle dired-omit-mode
+    (image-dired-dir (expand-file-name "cache/images" user-emacs-directory))
+    :init
+    (add-hook 'dired-mode-hook (lambda ()
+							   (dired-omit-mode 1))))
+#+end_src
+** WDIRED
+#+begin_src emacs-lisp
+  (use-package wdired
+    :ensure nil
+    :commands (wdired-change-to-wdired-mode)
+    :config
+    (setq wdired-allow-to-change-permissions t)
+    (setq wdired-create-parent-directories t))
+#+end_src
+** ESHELL
+** ISEARCH
+#+begin_src emacs-lisp
+  (use-package isearch
+    :ensure nil
+    :config
+    (setq isearch-lazy-count t)
+    (setq lazy-count-prefix-format "(%s/%s) ")
+    (setq lazy-count-suffix-format nil)
+    (setq search-whitespace-regex ".*?")
+
+    (define-key isearch-mode-map (kbd "M-w") 'isearch-copy-selected-word))
+#+end_src
+** VC
+#+begin_src emacs-lisp
+  (use-package vc
+    :ensure nil
+    :defer nil
+    :config
+    (setopt vc-git-diff-switches '("--patch-with-stat" "--histogram")
+	      vc-git-log-switches '("--stat")
+	      vc-git-log-edit-summary-target-len 50
+	      vc-git-log-edit-summary-max-len 70
+	      vc-git-print-log-follow t
+	      vc-git-revision-complete-only-branches nil
+	      vc-annotate-display-mode 'scale
+	      vc-make-backup-files nil))
+#+end_src
+** SMERGE
+** DIFF
+#+begin_src emacs-lisp
+  (use-package diff-mode
+    :ensure nil
+    :defer t
+    :bind
+    (:map diff-mode-map
+		("M-o" . other-window))
+    :config
+    (setq diff-default-read-only t)
+    (setq diff-advance-after-apply-hunk t)
+    (setq diff-update-on-the-fly t)
+    (setq diff-font-lock-syntax 'hunk-also)
+    (setq diff-font-lock-prettify t))
+#+end_src
+** EDIFF
+#+begin_src emacs-lisp
+  (use-package ediff
+    :ensure nil
+    :commands (ediff-buffers ediff-files ediff-buffers3 ediff-files3)
+    :init
+    (setq ediff-split-window-function 'split-window-horizontally)
+    (setq ediff-window-setup-function 'ediff-setup-windows-plain)
+    :config
+    (setq ediff-keep-variants nil)
+    (setq ediff-make-buffers-readonly-at-startup nil)
+    (setq ediff-show-clashes-only t))
+#+end_src
+** ELDOC
+#+begin_src emacs-lisp
+  (use-package eldoc
+    :ensure nil
+    :custom
+    (eldoc-echo-area-use-multiline-p nil)
+    (eldoc-echo-area-prefer-doc-buffer t)
+    (eldoc-documentation-strategy 'eldoc-documentation-compose)
+    :init
+    (global-eldoc-mode))
+#+end_src
+** EGLOT
+#+begin_src emacs-lisp
+  (use-package elgot
+    :ensure nil
+    :custom
+    (elgot-autoshutdown t)
+    (elgot-events-buffer-config '(:size 0 :format full))
+    (elgot-prefer-plaintext nil)
+    (jsonrpc-event-hook nil)
+    :init
+    (fset #'jsonrpc--log-event #'ignore)
+    :bind
+    (:map eglot-mode-map
+		("C-c l a" . eglot-code-actions)
+		("C-c l o" . eglot-code-actions-organize-imports)
+		("C-c l r" . eglot-rename)
+		("C-c l i" . eglot-inlay-hints-mode)
+		("C-c l f" . eglot-format)))
+#+end_src
+** FLYMAKE
+** FLYSPELL
+** WHITESPACE
+#+begin_src emacs-lisp
+  (use-package whitespace
+    :ensure nil
+    :defer t
+    :hook (before-save-hook . whitespace-cleanup))
+#+end_src
+** GNUS
+** MAN
+** MINIBUFFER
+** NEWSTICKER
+
+** ELECTRIC-PAIR
+#+begin_src emacs-lisp
+  (use-package electric-pair
+    :ensure nil
+    :defer t
+    :hook (after-init-hook . electric-pair-mode))
+#+end_src
+** PAREN
+#+begin_src emacs-lisp
+  (use-package paren
+    :ensure nil
+    :hook (after-init-hook . show-paren-mode)
+    :custom
+    (show-paren-delay 0)
+    (show-paren-style 'mixed)
+    (show-paren-context-when-offscreen t))
+#+end_src
+** PROCED
+** ORG
+#+begin_src emacs-lisp
+  (use-package org
+    :ensure nil
+    :defer t
+    :mode ("\\.org\\'" . org-mode)
+    :config
+    (setopt org-export-backends '(ascii html icalendar latex odt md))
+    (setq org-startup-folded t
+		org-hide-leading-stars t
+		org-auto-align-tags nil
+		org-tags-column 0
+		org-fold-catch-invisible-edits 'show-and-error
+		org-special-ctrl-a/e t
+		org-insert-heading-respect-content t
+		org-hide-emphasis-markers t
+		org-pretty-entities t
+		org-use-sub-superscripts t
+		org-log-done 'time
+		org-confirm-babel-evaluate nil
+		)
+    (org-babel-do-load-languages
+     'org-babel-load-languages
+     '((python . t)
+	 (js . t)
+	 (emacs-lisp . t)
+	 (org . t)
+	 (shell . t))))
+#+end_src
+** SPEEDBAR
+** TIME
+** UNIQUIFY
+#+begin_src emacs-lisp
+  (use-package uniquify
+    :ensure nil
+    :config
+    (setq uniquify-buffer-name-style 'forward
+		uniquify-strip-common-suffix t)
+    (with-no-warnings
+	(setq uniquify-after-kill-buffer-p t)))
+#+end_src
+** WHICH-KEY
+#+begin_src emacs-lisp
+  (use-package which-key
+    :ensure nil
+    :defer t
+    :hook (after-init-hook . which-key-mode)
+    :config
+    (setq which-key-separator " "
+		which-key-prefix-prefix "... "
+		which-key-max-display-columns 3
+		which-key-idle-delay 1
+		which-key-idle-secondary-delay 0.25
+		which-key-add-column-padding 1
+		which-key-max-description-length 40))
+#+end_src
+** WEBJUMP
+#+begin_src emacs-lisp
+  (use-package webjump
+    :ensure nil
+    :defer t
+    :bind ("C-x /" . webjump)
+    :custom
+    (webjump-sites
+     '(("DuckDuckGo" . [simple-query "www.duckduckgo.com" "www.duckduckgo.com/?q=" ""]))))
+
+#+end_src
+** EDITORCONFIG
+#+begin_src emacs-lisp
+  (use-package editorconfig
+    :ensure nil
+    :hook (after-init-hook . editorconfig-mode)
+    :init
+    (setq editorconfig-trim-whitespaces-mode 'whitespace))
+#+end_src
+* TREESITTER
+** Ruby
+#+begin_src emacs-lisp
+  (use-package ruby-ts-mode
+    :ensure nil
+    :mode "\\.rb\\'"
+    :mode "Rakefile\\'"
+    :mode "Gemfile\\'"
+    :custom
+    (add-to-list 'treesit-language-source-alist '(ruby "https://github.com/tree-sitter/tree-sitter-ruby" "master" "src")))
+#+end_src
+** JavaScript/TypeScript
+#+begin_src emacs-lisp
+  (use-package js-ts-mode
+    :ensure nil
+    :mode "\\.jsx?\\'"
+    :defer t
+    :hook ((js-ts-mode-hook . (lambda () (setq indent-tabs-mode nil))))
+    :config
+    (add-to-list 'treesit-language-source-alist '(javascript "https://github.com/tree-sitter/tree-sitter-javascript" "master" "src"))
+    (add-to-list 'treesit-language-source-alist '(jsdoc "https://github.com/tree-sitter/tree-sitter-jsdoc" "master" "src")))
+
+  (use-package typescript-ts-mode
+    :ensure nil
+    :defer t
+    :hook ((typescript-ts-mode-hook . (lambda () (setq indent-tabs-mode nil))))
+    :config
+    (add-to-list 'treesit-language-source-alist '(tsx "https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
+    (unbind-key "M-." typescript-ts-base-mode-map))
+#+end_src
+** Bash
+#+begin_src emacs-lisp
+  (use-package bash-ts-mode
+    :ensure nil
+    :defer t
+    :mode "\\.\\(sh\\|bash\\)\\'"
+    :config
+    (add-to-list 'treesit-language-source-alist '(bash "https://github.com/tree-sitter/tree-sitter-bash" "master" "src")))
+#+end_src
+** Markdown
+#+begin_src emacs-lisp
+  (use-package markdown-ts-mode
+    :ensure nil
+    :defer t
+    :mode "\\.md\\'"
+    :config
+    (add-to-list 'major-mode-remap-alist '(markdown-mode . markdown-ts-mode)))
+#+end_src
+** YAML
+#+begin_src emacs-lisp
+  (use-package yaml-ts-mode
+    :ensure nil
+    :defer t
+    :mode "\\.ya?ml\\'"
+    :config
+    (add-to-list 'treesit-language-source-alist '(yaml "https://github.com/tree-sitter-grammars/tree-sitter-yaml" "master" "src")))
+#+end_src
+** Docker/Podman
+#+begin_src emacs-lisp
+  (use-package dockerfile-ts-mode
+    :ensure nil
+    :defer t
+    :mode "\\(Docker\\|Container\\)file\\'"
+    :config
+    (add-to-list 'treesit-language-source-alist '(docker "https://github.com/camdencheek/tree-sitter-dockerfile" "main" "src")))
+#+end_src
+* CUSTOM PACKAGES
+#+begin_src emacs-lisp
+  (add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
+
+  (require 'mutecipher-centered)
+  (require 'mutecipher-ligatures)
+
+  (provide 'init)
+#+end_src

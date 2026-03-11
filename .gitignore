@@ -1,7 +1,3 @@
 config/nvim/lazy-lock.json
-config/emacs/auto-save-list/
-config/emacs/newsticker/
-config/emacs/elpa/
-config/emacs/projects
-config/emacs/var
-config/emacs/tree-sitter
+config/emacs/cache/
+config/emacs/config.el
