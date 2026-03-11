@@ -105,9 +105,9 @@ This section contains general configurations and tweaks to Emacs default behavio
 
     ;; Set font faces
     (set-face-attribute 'default nil
-		        :family "MonoLisa Variable"
-		        :height 120
-		        :weight 'light)
+			:family "MonoLisa Variable"
+			:height 120
+			:weight 'light)
     (set-fontset-font t '(#xe0b0 . #xe0bf) (font-spec :family "Symbols Nerd Font Mono"))
 
     ;; macOS tweaks
@@ -219,17 +219,14 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
 #+begin_src emacs-lisp
   (use-package icomplete
     :ensure nil
-    :bind
-    (:map icomplete-minibuffer-map
-		("C-n" . icomplete-forward-completions)
-		("C-p" . icomplete-backward-completions)
-		("C-v" . icomplete-vertical-toggle)
-		("RET" . icomplete-force-complete-and-exit)
-		("C-j" . exit-minibuffer))
+    :bind (:map icomplete-minibuffer-map
+	    ("C-n" . icomplete-forward-completions)
+	    ("C-p" . icomplete-backward-completions)
+	    ("C-j" . exit-minibuffer)) ;; So we can exit commands like `multi-file-replace-regexp-as-diff'
     :hook
     (after-init-hook . (lambda ()
-					   (fido-mode -1)
-					   (icomplete-vertical-mode 1)))
+		         (fido-mode -1)
+		         (icomplete-vertical-mode 1)))
     :config
     (setq icomplete-delay-completions-threshold 0)
     (setq icomplete-compute-delay 0)
@@ -240,11 +237,7 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (setq icomplete-with-completion-tables t)
     (setq icomplete-in-buffer t)
     (setq icomplete-max-delay-chars 0)
-    (setq icomplete-scroll t)
-
-    (if icomplete-in-buffer
-	  (advice-add 'completion-at-point
-				  :after #'minibuffer-hide-completions)))
+    (setq icomplete-scroll t))
 #+end_src
 ** DIRED
 #+begin_src emacs-lisp
