@@ -105,8 +105,9 @@ This section contains general configurations and tweaks to Emacs default behavio
 
     ;; Set font faces
     (set-face-attribute 'default nil
-			:family "MonoLisa Variable"
-			:height 120)
+		        :family "MonoLisa Variable"
+		        :height 120
+		        :weight 'light)
     (set-fontset-font t '(#xe0b0 . #xe0bf) (font-spec :family "Symbols Nerd Font Mono"))
 
     ;; macOS tweaks
