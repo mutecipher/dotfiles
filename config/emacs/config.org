@@ -1,6 +1,15 @@
 #+title: Emacs Configuration
 #+author: Cory Hutchison
 
+* VARIABLES
+#+begin_src emacs-lisp
+  (defvar font-face "MonoLisa Variable")
+  (defvar font-face-nf "Symbols Nerd Font Mono")
+
+  (defvar cache-directory (expand-file-name "cache" user-emacs-directory))
+
+  (defvar custom-module-directory (expand-file-name "lisp" user-emacs-directory))
+#+end_src
 * EMACS GENERAL
 ** EMACS
 This section contains general configurations and tweaks to Emacs default behaviour to be more modern/intuitive/etc.
@@ -41,20 +50,20 @@ This section contains general configurations and tweaks to Emacs default behavio
     (history-length 300)
     (inhibit-startup-message t)
     (ibuffer-human-readable-size t)
-    (ielm-history-file-name (expand-file-name "cache/ielm-history.eld" user-emacs-directory))
+    (ielm-history-file-name (expand-file-name "ielm-history.eld" cache-directory))
     (kill-do-not-save-duplicates t)
     (create-lockfiles nil)
     (make-backup-files nil)
     (pixel-scroll-precision-mode t)
     (pixel-scroll-precision-use-momentum nil)
-    (project-list-file (expand-file-name "cache/projects" user-emacs-directory))
+    (project-list-file (expand-file-name "projects" cache-directory))
     (ring-bell-function 'ignore)
     (read-answer-short t)
     (recentf-max-saved-items 300)
     (recentf-max-menu-items 15)
     (recentf-auto-cleanup (if (daemonp) 300 'never))
     (recentf-exclude (list "^/\\(?:ssh\\|su\\|sudo\\)?:"))
-    (recentf-save-file (expand-file-name "cache/recentf" user-emacs-directory))
+    (recentf-save-file (expand-file-name "recentf" cache-directory))
     (register-use-preview t)
     (remote-file-name-inhibit-delete-by-moving-to-trash t)
     (remote-file-name-inhibit-auto-save t)
@@ -66,11 +75,11 @@ This section contains general configurations and tweaks to Emacs default behavio
     (savehist-save-minibuffer-history t)
     (savehist-additional-variables
      '(kill-ring                            ; clipboard
-  	 register-alist                       ; macros
-  	 mark-ring global-mark-ring           ; marks
-  	 search-ring regexp-search-ring))     ; searches
-    (savehist-file (expand-file-name "cache/history" user-emacs-directory))
-    (save-place-file (expand-file-name "cache/saveplace" user-emacs-directory))
+       register-alist                       ; macros
+       mark-ring global-mark-ring           ; marks
+       search-ring regexp-search-ring))     ; searches
+    (savehist-file (expand-file-name "history" cache-directory))
+    (save-place-file (expand-file-name "saveplace" cache-directory))
     (save-place-limit 600)
     (set-mark-command-repeat-pop t) ; So we can use C-u C-SPC C-SPC C-SPC... instead of C-u C-SPC C-u C-SPC...
     (split-width-threshold 170)     ; So vertical splits are preferred
@@ -79,15 +88,15 @@ This section contains general configurations and tweaks to Emacs default behavio
     (switch-to-buffer-obey-display-actions t)
     (tab-always-indent 'complete)
     (tab-width 4)
-    (transient-history-file (expand-file-name "cache/transient/history.el" user-emacs-directory))
-    (transient-levels-file (expand-file-name "cache/transient/levels.el" user-emacs-directory))
-    (transient-values-file (expand-file-name "cache/transient/values.el" user-emacs-directory))
+    (transient-history-file (expand-file-name "transient/history.el" cache-directory))
+    (transient-levels-file (expand-file-name "transient/levels.el" cache-directory))
+    (transient-values-file (expand-file-name "transient/values.el" cache-directory))
     (treesit-font-lock-level 4)
     (truncate-lines t)
     (undo-limit (* 13 160000))
     (undo-strong-limit (* 13 240000))
     (undo-outer-limit (* 13 24000000))
-    (url-configuration-directory (expand-file-name "cache/url/" user-emacs-directory))
+    (url-configuration-directory (expand-file-name "url" cache-directory))
     (use-dialog-box nil)
     (use-file-dialog nil)
     (use-package-hook-name-suffix nil)
@@ -104,22 +113,22 @@ This section contains general configurations and tweaks to Emacs default behavio
 
     ;; Set font faces
     (set-face-attribute 'default nil
-			:family "MonoLisa Variable"
-			:height 120
-			:weight 'light)
-    (set-fontset-font t '(#xe0b0 . #xe0bf) (font-spec :family "Symbols Nerd Font Mono"))
+	        :family font-face
+	        :height 120
+	        :weight 'light)
+    (set-fontset-font t '(#xe0b0 . #xe0bf) (font-spec :family font-face-nf))
 
     ;; macOS tweaks
     (when (eq system-type 'darwin)
-  	(setq mac-command-modifier "meta")
-  	(add-to-list 'default-frame-alist '(ns-transparent-titlebar t))
-  	(set-fontset-font t 'emoji (font-spec :family "Apple Color Emoji") nil 'append))
+      (setq mac-command-modifier "meta")
+      (add-to-list 'default-frame-alist '(ns-transparent-titlebar t))
+      (set-fontset-font t 'emoji (font-spec :family "Apple Color Emoji") nil 'append))
 
 
     ;; Auto save configs
-    (make-directory (expand-file-name "cache/auto-saves" user-emacs-directory) t)
-    (setq auto-save-list-file-prefix (expand-file-name "cache/auto-saves/sessions/" user-emacs-directory)
-	  auto-save-file-name-transformation `((".*" ,(expand-file-name "cache/auto-saves/" user-emacs-directory) t)))
+    (make-directory (expand-file-name "auto-saves" cache-directory) t)
+    (setq auto-save-list-file-prefix (expand-file-name "auto-saves/sessions" cache-directory)
+  	auto-save-file-name-transformation `((".*" ,(expand-file-name "auto-saves" cache-directory) t)))
 
     ;; Line number mode configs
     (setq display-line-numbers-type 'relative)
@@ -148,9 +157,9 @@ This section contains general configurations and tweaks to Emacs default behavio
     :config
     (setq epg-pinentry-mode 'loopback)
     (setq auth-sources
-		(list (expand-file-name ".authinfo.gpg" user-emacs-directory)))
+  	(list (expand-file-name ".authinfo.gpg" user-emacs-directory)))
     (setq user-full-name "Cory Hutchison"
-		user-mail-address "cory@mutecipher.com"))
+  	user-mail-address "cory@mutecipher.com"))
 #+end_src
 ** AUTOREVERT
 #+begin_src emacs-lisp
@@ -211,8 +220,8 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (erc-spelling-mode 1)
     :init
     (with-eval-after-load 'erc
-	(when (< emacs-major-version 31)
-	  (add-to-list 'erc-modules 'scrolltobottom))))
+      (when (< emacs-major-version 31)
+	(add-to-list 'erc-modules 'scrolltobottom))))
 #+end_src
 ** ICOMPLETE
 #+begin_src emacs-lisp
@@ -251,7 +260,7 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (image-dired-dir (expand-file-name "cache/images" user-emacs-directory))
     :init
     (add-hook 'dired-mode-hook (lambda ()
-							   (dired-omit-mode 1))))
+	             (dired-omit-mode 1))))
 #+end_src
 ** WDIRED
 #+begin_src emacs-lisp
@@ -282,13 +291,13 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :defer nil
     :config
     (setopt vc-git-diff-switches '("--patch-with-stat" "--histogram")
-	      vc-git-log-switches '("--stat")
-	      vc-git-log-edit-summary-target-len 50
-	      vc-git-log-edit-summary-max-len 70
-	      vc-git-print-log-follow t
-	      vc-git-revision-complete-only-branches nil
-	      vc-annotate-display-mode 'scale
-	      vc-make-backup-files nil))
+  	  vc-git-log-switches '("--stat")
+  	  vc-git-log-edit-summary-target-len 50
+  	  vc-git-log-edit-summary-max-len 70
+  	  vc-git-print-log-follow t
+  	  vc-git-revision-complete-only-branches nil
+  	  vc-annotate-display-mode 'scale
+  	  vc-make-backup-files nil))
 #+end_src
 ** SMERGE
 ** DIFF
@@ -298,7 +307,7 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :defer t
     :bind
     (:map diff-mode-map
-		("M-o" . other-window))
+  	("M-o" . other-window))
     :config
     (setq diff-default-read-only t)
     (setq diff-advance-after-apply-hunk t)
@@ -343,11 +352,11 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (fset #'jsonrpc--log-event #'ignore)
     :bind
     (:map eglot-mode-map
-		("C-c l a" . eglot-code-actions)
-		("C-c l o" . eglot-code-actions-organize-imports)
-		("C-c l r" . eglot-rename)
-		("C-c l i" . eglot-inlay-hints-mode)
-		("C-c l f" . eglot-format)))
+  	("C-c l a" . eglot-code-actions)
+  	("C-c l o" . eglot-code-actions-organize-imports)
+  	("C-c l r" . eglot-rename)
+  	("C-c l i" . eglot-inlay-hints-mode)
+  	("C-c l f" . eglot-format)))
 #+end_src
 ** FLYMAKE
 ** FLYSPELL
@@ -362,7 +371,6 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
 ** MAN
 ** MINIBUFFER
 ** NEWSTICKER
-
 ** ELECTRIC-PAIR
 #+begin_src emacs-lisp
   (use-package electric-pair
@@ -390,25 +398,25 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :config
     (setopt org-export-backends '(ascii html icalendar latex odt md))
     (setq org-startup-folded t
-		org-hide-leading-stars t
-		org-auto-align-tags nil
-		org-tags-column 0
-		org-fold-catch-invisible-edits 'show-and-error
-		org-special-ctrl-a/e t
-		org-insert-heading-respect-content t
-		org-hide-emphasis-markers t
-		org-pretty-entities t
-		org-use-sub-superscripts t
-		org-log-done 'time
-		org-confirm-babel-evaluate nil
-		)
+  	org-hide-leading-stars t
+  	org-auto-align-tags nil
+  	org-tags-column 0
+  	org-fold-catch-invisible-edits 'show-and-error
+  	org-special-ctrl-a/e t
+  	org-insert-heading-respect-content t
+  	org-hide-emphasis-markers t
+  	org-pretty-entities t
+  	org-use-sub-superscripts t
+  	org-log-done 'time
+  	org-confirm-babel-evaluate nil
+  	)
     (org-babel-do-load-languages
      'org-babel-load-languages
      '((python . t)
-	 (js . t)
-	 (emacs-lisp . t)
-	 (org . t)
-	 (shell . t))))
+       (js . t)
+       (emacs-lisp . t)
+       (org . t)
+       (shell . t))))
 #+end_src
 ** SPEEDBAR
 ** TIME
@@ -418,9 +426,9 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :ensure nil
     :config
     (setq uniquify-buffer-name-style 'forward
-		uniquify-strip-common-suffix t)
+  	uniquify-strip-common-suffix t)
     (with-no-warnings
-	(setq uniquify-after-kill-buffer-p t)))
+      (setq uniquify-after-kill-buffer-p t)))
 #+end_src
 ** WHICH-KEY
 #+begin_src emacs-lisp
@@ -430,12 +438,12 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :hook (after-init-hook . which-key-mode)
     :config
     (setq which-key-separator " "
-		which-key-prefix-prefix "... "
-		which-key-max-display-columns 3
-		which-key-idle-delay 1
-		which-key-idle-secondary-delay 0.25
-		which-key-add-column-padding 1
-		which-key-max-description-length 40))
+  	which-key-prefix-prefix "... "
+  	which-key-max-display-columns 3
+  	which-key-idle-delay 1
+  	which-key-idle-secondary-delay 0.25
+  	which-key-add-column-padding 1
+  	which-key-max-description-length 40))
 #+end_src
 ** WEBJUMP
 #+begin_src emacs-lisp
@@ -465,7 +473,7 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :mode "Rakefile\\'"
     :mode "Gemfile\\'"
     :custom
-    (add-to-list 'treesit-language-source-alist '(ruby "https://github.com/tree-sitter/tree-sitter-ruby" "master" "src")))
+    (add-to-list 'treesit-language-source-alist '(ruby "https://github.com/tree-sitter/tree-sitter-ruby")))
 #+end_src
 ** JavaScript/TypeScript
 #+begin_src emacs-lisp
@@ -475,15 +483,15 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :defer t
     :hook ((js-ts-mode-hook . (lambda () (setq indent-tabs-mode nil))))
     :config
-    (add-to-list 'treesit-language-source-alist '(javascript "https://github.com/tree-sitter/tree-sitter-javascript" "master" "src"))
-    (add-to-list 'treesit-language-source-alist '(jsdoc "https://github.com/tree-sitter/tree-sitter-jsdoc" "master" "src")))
+    (add-to-list 'treesit-language-source-alist '(javascript "https://github.com/tree-sitter/tree-sitter-javascript"))
+    (add-to-list 'treesit-language-source-alist '(jsdoc "https://github.com/tree-sitter/tree-sitter-jsdoc")))
 
   (use-package typescript-ts-mode
     :ensure nil
     :defer t
     :hook ((typescript-ts-mode-hook . (lambda () (setq indent-tabs-mode nil))))
     :config
-    (add-to-list 'treesit-language-source-alist '(tsx "https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
+    (add-to-list 'treesit-language-source-alist '(tsx "https://github.com/tree-sitter/tree-sitter-typescript"))
     (unbind-key "M-." typescript-ts-base-mode-map))
 #+end_src
 ** Bash
@@ -493,7 +501,7 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :defer t
     :mode "\\.\\(sh\\|bash\\)\\'"
     :config
-    (add-to-list 'treesit-language-source-alist '(bash "https://github.com/tree-sitter/tree-sitter-bash" "master" "src")))
+    (add-to-list 'treesit-language-source-alist '(bash "https://github.com/tree-sitter/tree-sitter-bash")))
 #+end_src
 ** Markdown
 #+begin_src emacs-lisp
@@ -511,7 +519,7 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :defer t
     :mode "\\.ya?ml\\'"
     :config
-    (add-to-list 'treesit-language-source-alist '(yaml "https://github.com/tree-sitter-grammars/tree-sitter-yaml" "master" "src")))
+    (add-to-list 'treesit-language-source-alist '(yaml "https://github.com/tree-sitter-grammars/tree-sitter-yaml")))
 #+end_src
 ** Docker/Podman
 #+begin_src emacs-lisp
@@ -520,11 +528,11 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :defer t
     :mode "\\(Docker\\|Container\\)file\\'"
     :config
-    (add-to-list 'treesit-language-source-alist '(docker "https://github.com/camdencheek/tree-sitter-dockerfile" "main" "src")))
+    (add-to-list 'treesit-language-source-alist '(docker "https://github.com/camdencheek/tree-sitter-dockerfile")))
 #+end_src
 * CUSTOM PACKAGES
 #+begin_src emacs-lisp
-  (add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
+  (add-to-list 'load-path custom-module-directory)
 
   (require 'mutecipher-centered)
   (require 'mutecipher-ligatures)

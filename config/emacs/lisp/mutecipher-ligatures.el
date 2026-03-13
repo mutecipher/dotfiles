@@ -5,7 +5,7 @@
   :no-require t
   :init
   (when (window-system)
-	(set-frame-font "MonoLisa Variable"))
+	(set-frame-font font-face))
   (let ((alist '((33 . ".\\(?:\\(?:==\\|!!\\)\\|[!=]\\)")
 				 (35 . ".\\(?:###\\|##\\|_(\\|[#(?[_{]\\)")
 				 (36 . ".\\(?:>\\)")
