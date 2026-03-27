@@ -2,9 +2,9 @@
 #
 # Bash library for logging helpers.
 
-. color.sh
-. date-time.sh
-. fs.sh
+. "$DOTFILES_LIB/color.sh"
+. "$DOTFILES_LIB/date-time.sh"
+. "$DOTFILES_LIB/fs.sh"
 
 ##############################
 # Logs an informal message with a timestamp and the current file.
