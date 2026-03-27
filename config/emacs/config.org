@@ -450,15 +450,52 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (setq editorconfig-trim-whitespaces-mode 'whitespace))
 #+end_src
 * TREESITTER
+Grammar sources are declared eagerly so ~treesit-install-language-grammar~ always has recipes available, regardless of which modes have been activated.
+
+#+begin_src emacs-lisp
+  (setq treesit-language-source-alist
+        '((bash       . ("https://github.com/tree-sitter/tree-sitter-bash"))
+          (dockerfile . ("https://github.com/camdencheek/tree-sitter-dockerfile"))
+          (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript"))
+          (jsdoc      . ("https://github.com/tree-sitter/tree-sitter-jsdoc"))
+          (ruby       . ("https://github.com/tree-sitter/tree-sitter-ruby"))
+          (tsx        . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
+          (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src"))
+          (yaml       . ("https://github.com/tree-sitter-grammars/tree-sitter-yaml"))))
+
+  ;; Remap legacy modes to their tree-sitter equivalents.
+  ;; This is the correct Emacs 29+ mechanism — takes priority over auto-mode-alist.
+  (dolist (mapping '((sh-mode          . bash-ts-mode)
+                     (ruby-mode         . ruby-ts-mode)
+                     (js-mode           . js-ts-mode)
+                     (typescript-mode   . typescript-ts-mode)
+                     (yaml-mode         . yaml-ts-mode)
+                     (dockerfile-mode   . dockerfile-ts-mode)))
+    (add-to-list 'major-mode-remap-alist mapping))
+
+  (defun mutecipher/treesit-install-all-grammars ()
+    "Install missing grammars from `treesit-language-source-alist' to `mutecipher/data-dir'.
+Skips any language whose grammar is already available."
+    (interactive)
+    (let ((out-dir (expand-file-name "tree-sitter/" mutecipher/data-dir)))
+      (make-directory out-dir t)
+      (dolist (lang (mapcar #'car treesit-language-source-alist))
+        (if (treesit-language-available-p lang)
+            (message "Tree-sitter: %s already installed, skipping" lang)
+          ;; Emacs 30+ accepts an explicit out-dir argument; Emacs 29 does not.
+          (if (>= emacs-major-version 30)
+              (treesit-install-language-grammar lang out-dir)
+            (let ((user-emacs-directory mutecipher/data-dir))
+              (treesit-install-language-grammar lang)))))
+      (message "Tree-sitter grammars installed to %s" out-dir)))
+#+end_src
 ** Ruby
 #+begin_src emacs-lisp
   (use-package ruby-ts-mode
     :ensure nil
     :mode "\\.rb\\'"
     :mode "Rakefile\\'"
-    :mode "Gemfile\\'"
-    :custom
-    (add-to-list 'treesit-language-source-alist '(ruby "https://github.com/tree-sitter/tree-sitter-ruby")))
+    :mode "Gemfile\\'")
 #+end_src
 ** JavaScript/TypeScript
 #+begin_src emacs-lisp
@@ -466,17 +503,13 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :ensure nil
     :mode "\\.jsx?\\'"
     :defer t
-    :hook ((js-ts-mode-hook . (lambda () (setq indent-tabs-mode nil))))
-    :config
-    (add-to-list 'treesit-language-source-alist '(javascript "https://github.com/tree-sitter/tree-sitter-javascript"))
-    (add-to-list 'treesit-language-source-alist '(jsdoc "https://github.com/tree-sitter/tree-sitter-jsdoc")))
+    :hook ((js-ts-mode-hook . (lambda () (setq indent-tabs-mode nil)))))
 
   (use-package typescript-ts-mode
     :ensure nil
     :defer t
     :hook ((typescript-ts-mode-hook . (lambda () (setq indent-tabs-mode nil))))
     :config
-    (add-to-list 'treesit-language-source-alist '(tsx "https://github.com/tree-sitter/tree-sitter-typescript"))
     (unbind-key "M-." typescript-ts-base-mode-map))
 #+end_src
 ** Bash
@@ -484,9 +517,7 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
   (use-package bash-ts-mode
     :ensure nil
     :defer t
-    :mode "\\.\\(sh\\|bash\\)\\'"
-    :config
-    (add-to-list 'treesit-language-source-alist '(bash "https://github.com/tree-sitter/tree-sitter-bash")))
+    :mode "\\.\\(sh\\|bash\\)\\'")
 #+end_src
 ** Markdown
 #+begin_src emacs-lisp
@@ -502,23 +533,17 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
   (use-package yaml-ts-mode
     :ensure nil
     :defer t
-    :mode "\\.ya?ml\\'"
-    :config
-    (add-to-list 'treesit-language-source-alist '(yaml "https://github.com/tree-sitter-grammars/tree-sitter-yaml")))
+    :mode "\\.ya?ml\\'")
 #+end_src
 ** Docker/Podman
 #+begin_src emacs-lisp
   (use-package dockerfile-ts-mode
     :ensure nil
     :defer t
-    :mode "\\(Docker\\|Container\\)file\\'"
-    :config
-    (add-to-list 'treesit-language-source-alist '(docker "https://github.com/camdencheek/tree-sitter-dockerfile")))
+    :mode "\\(Docker\\|Container\\)file\\'")
 #+end_src
 * CUSTOM PACKAGES
 #+begin_src emacs-lisp
-  (add-to-list 'load-path custom-module-directory)
-
   (require 'mutecipher-centered)
   (require 'mutecipher-ligatures)
 
