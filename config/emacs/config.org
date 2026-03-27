@@ -341,12 +341,12 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
 #+end_src
 ** EGLOT
 #+begin_src emacs-lisp
-  (use-package elgot
+  (use-package eglot
     :ensure nil
     :custom
-    (elgot-autoshutdown t)
-    (elgot-events-buffer-config '(:size 0 :format full))
-    (elgot-prefer-plaintext nil)
+    (eglot-autoshutdown t)
+    (eglot-events-buffer-config '(:size 0 :format full))
+    (eglot-prefer-plaintext nil)
     (jsonrpc-event-hook nil)
     :init
     (fset #'jsonrpc--log-event #'ignore)
