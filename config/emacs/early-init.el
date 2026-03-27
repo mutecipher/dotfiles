@@ -35,6 +35,11 @@
 ;; Don't log about lexical bindings
 (setq warning-suppress-types '((lexical-binding)))
 
+;; Redirect package installs out of dotfiles — must be set before package.el loads
+(setq package-user-dir
+      (expand-file-name "emacs/elpa/"
+                        (or (getenv "XDG_DATA_HOME") "~/.local/share/")))
+
 (provide 'early-init)
 
 ;; Configure package archives

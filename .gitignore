@@ -1,4 +1,2 @@
 config/nvim/lazy-lock.json
-config/emacs/cache/
-config/emacs/tree-sitter/
 config/emacs/config.el

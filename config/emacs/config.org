@@ -6,9 +6,12 @@
   (defvar font-face "MonoLisa Variable")
   (defvar font-face-nf "Symbols Nerd Font Mono")
 
-  (defvar cache-directory (expand-file-name "cache" user-emacs-directory))
-
   (defvar custom-module-directory (expand-file-name "lisp" user-emacs-directory))
+
+  ;; Load tidy module first so all path redirections are in place before
+  ;; any package configuration runs.
+  (add-to-list 'load-path custom-module-directory)
+  (require 'mutecipher-tidy)
 #+end_src
 * EMACS GENERAL
 ** EMACS
@@ -50,20 +53,17 @@ This section contains general configurations and tweaks to Emacs default behavio
     (history-length 300)
     (inhibit-startup-message t)
     (ibuffer-human-readable-size t)
-    (ielm-history-file-name (expand-file-name "ielm-history.eld" cache-directory))
     (kill-do-not-save-duplicates t)
     (create-lockfiles nil)
     (make-backup-files nil)
     (pixel-scroll-precision-mode t)
     (pixel-scroll-precision-use-momentum nil)
-    (project-list-file (expand-file-name "projects" cache-directory))
     (ring-bell-function 'ignore)
     (read-answer-short t)
     (recentf-max-saved-items 300)
     (recentf-max-menu-items 15)
     (recentf-auto-cleanup (if (daemonp) 300 'never))
     (recentf-exclude (list "^/\\(?:ssh\\|su\\|sudo\\)?:"))
-    (recentf-save-file (expand-file-name "recentf" cache-directory))
     (register-use-preview t)
     (remote-file-name-inhibit-delete-by-moving-to-trash t)
     (remote-file-name-inhibit-auto-save t)
@@ -78,8 +78,6 @@ This section contains general configurations and tweaks to Emacs default behavio
        register-alist                       ; macros
        mark-ring global-mark-ring           ; marks
        search-ring regexp-search-ring))     ; searches
-    (savehist-file (expand-file-name "history" cache-directory))
-    (save-place-file (expand-file-name "saveplace" cache-directory))
     (save-place-limit 600)
     (set-mark-command-repeat-pop t) ; So we can use C-u C-SPC C-SPC C-SPC... instead of C-u C-SPC C-u C-SPC...
     (split-width-threshold 170)     ; So vertical splits are preferred
@@ -88,15 +86,11 @@ This section contains general configurations and tweaks to Emacs default behavio
     (switch-to-buffer-obey-display-actions t)
     (tab-always-indent 'complete)
     (tab-width 4)
-    (transient-history-file (expand-file-name "transient/history.el" cache-directory))
-    (transient-levels-file (expand-file-name "transient/levels.el" cache-directory))
-    (transient-values-file (expand-file-name "transient/values.el" cache-directory))
     (treesit-font-lock-level 4)
     (truncate-lines t)
     (undo-limit (* 13 160000))
     (undo-strong-limit (* 13 240000))
     (undo-outer-limit (* 13 24000000))
-    (url-configuration-directory (expand-file-name "url" cache-directory))
     (use-dialog-box nil)
     (use-file-dialog nil)
     (use-package-hook-name-suffix nil)
@@ -105,7 +99,6 @@ This section contains general configurations and tweaks to Emacs default behavio
     (window-combination-resize t)
     (window-resize-pixelwise nil)
     :config
-    (setq custom-file (locate-user-emacs-file "custom-vars.el"))
     (load custom-file 'noerror 'nomessage)
 
     ;; Makes everything utf-8
@@ -124,11 +117,6 @@ This section contains general configurations and tweaks to Emacs default behavio
       (add-to-list 'default-frame-alist '(ns-transparent-titlebar t))
       (set-fontset-font t 'emoji (font-spec :family "Apple Color Emoji") nil 'append))
 
-
-    ;; Auto save configs
-    (make-directory (expand-file-name "auto-saves" cache-directory) t)
-    (setq auto-save-list-file-prefix (expand-file-name "auto-saves/sessions" cache-directory)
-  	auto-save-file-name-transformation `((".*" ,(expand-file-name "auto-saves" cache-directory) t)))
 
     ;; Line number mode configs
     (setq display-line-numbers-type 'relative)
@@ -207,15 +195,13 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (erc-server-reconnect-attempts 10)
     (erc-server-reconnect-timeout 3)
     (erc-fill-function 'erc-fill-wrap)
-    (erc-log-channels-directory (expand-file-name "cache/erc/logs" user-emacs-directory))
     (erc-save-buffer-on-quit t)
     (erc-save-queries-on-quit t)
     (erc-log-write-after-send t)
     (erc-log-write-after-insert t)
     (erc-spelling-dictionaries '(("Libera.Chat", "en_US")))
     :config
-    (make-directory (expand-file-name "cache/erc/logs" user-emacs-directory) t)
-
+    (make-directory erc-log-channels-directory t)
     (add-to-list 'erc-modules 'log)
     (erc-spelling-mode 1)
     :init
@@ -257,7 +243,6 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (dired-kill-when-opening-new-dired-buffer t)
     (dired-listing-switches "-aloghF")
     (dired-omit-files "^\\.")				; (C-x M-o) to toggle dired-omit-mode
-    (image-dired-dir (expand-file-name "cache/images" user-emacs-directory))
     :init
     (add-hook 'dired-mode-hook (lambda ()
 	             (dired-omit-mode 1))))
