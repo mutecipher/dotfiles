@@ -4,18 +4,20 @@ Config files that I use for my systems.
 
 ## Prerequisites
 
+- `git`
 - [oh-my-zsh](https://ohmyz.sh)
-- [Homebrew](https://brew.sh)
+- [Homebrew](https://brew.sh) (macOS only)
 
-## Setup
+## Install
 
-```shell
-# I typically run this from the $HOME directory
-git clone https://github.com/mutecipher/dotfiles $HOME/.dotfiles
-ln -s $HOME/.dotfiles/.gitconfig $HOME/.gitconfig
-ln -s $HOME/.dotfiles/.zshrc $HOME/.zshrc
-ln -s $HOME/.dotfiles/.zprofile HOME/.zprofile
-ln -s $HOME/.dotfiles/config/nvim $HOME/.config/nvim
-ln -s $HOME/.dotfiles/config/helix $HOME/.config/helix
-ln -s $HOME/.dotfiles/config/kitty $HOME/.config/kitty
+```sh
+curl -fsSL https://raw.githubusercontent.com/mutecipher/dotfiles/main/install.sh | sh
+```
+
+This clones the repo to `~/.dotfiles` (or pulls if it already exists) and symlinks everything. Existing files are backed up with a `.bak` suffix.
+
+## Re-running after updates
+
+```sh
+~/.dotfiles/setup.sh
 ```
