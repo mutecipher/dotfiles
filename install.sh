@@ -30,7 +30,7 @@ if [ -d "$DOTFILES/.git" ]; then
   git -C "$DOTFILES" pull --ff-only
 else
   info "Cloning dotfiles to $DOTFILES..."
-  git clone "$REPO" "$DOTFILES"
+  git clone --depth 1 "$REPO" "$DOTFILES"
 fi
 
 # ── run setup ─────────────────────────────────────────────────────────────────
