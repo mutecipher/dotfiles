@@ -15,47 +15,12 @@
   (require 'mutecipher-tidy)
 #+end_src
 * THEME
-Auto-switches between ~liminal-light~ and ~liminal-dark~ to follow macOS system appearance.
+Auto-switches between ~liminal-light~ and ~liminal-dark~ via ~mutecipher-appearance~.
 
 #+begin_src emacs-lisp
-  (add-to-list 'custom-theme-load-path
-               (expand-file-name "themes/" user-emacs-directory))
-
-  (defvar liminal--last-appearance nil
-    "Last appearance applied, so focus checks avoid redundant reloads.")
-
-  (defun liminal/apply-system-theme (appearance)
-    "Load the liminal variant matching APPEARANCE (\\='light or \\='dark)."
-    (unless (eq appearance liminal--last-appearance)
-      (setq liminal--last-appearance appearance)
-      (mapc #'disable-theme custom-enabled-themes)
-      (if (eq appearance 'dark)
-          (load-theme 'liminal-dark  t)
-        (load-theme 'liminal-light t))))
-
-  (defun liminal/detect-and-apply ()
-    "Query macOS for the current appearance and apply the matching theme."
-    (liminal/apply-system-theme
-     (if (string-match-p "Dark"
-                         (shell-command-to-string
-                          "defaults read -g AppleInterfaceStyle 2>/dev/null"))
-         'dark
-       'light)))
-
-  ;; Apply immediately during init.
-  (liminal/detect-and-apply)
-
-  ;; Ideal path: Emacs NS layer notifies us when appearance changes.
-  (when (boundp 'ns-system-appearance-change-functions)
-    (add-hook 'ns-system-appearance-change-functions #'liminal/apply-system-theme))
-
-  ;; Fallback: re-check when Emacs regains focus. Covers builds where the NS
-  ;; hook doesn't fire. The guard in liminal/apply-system-theme means this is
-  ;; a no-op unless the appearance has actually changed.
-  (add-function :after after-focus-change-function
-                (lambda ()
-                  (when (frame-focus-state)
-                    (liminal/detect-and-apply))))
+  (require 'mutecipher-appearance)
+  (add-to-list 'custom-theme-load-path (expand-file-name "themes/" user-emacs-directory))
+  (mutecipher-appearance-use-themes 'liminal-light 'liminal-dark)
 #+end_src
 * EMACS GENERAL
 ** EMACS
