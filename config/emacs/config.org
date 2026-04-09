@@ -674,15 +674,6 @@ Skips any language whose grammar is already available."
     :defer t
     :mode "\\.\\(sh\\|bash\\)\\'")
 #+end_src
-** Markdown
-#+begin_src emacs-lisp
-  (use-package markdown-ts-mode
-    :ensure nil
-    :defer t
-    :mode "\\.md\\'"
-    :config
-    (add-to-list 'major-mode-remap-alist '(markdown-mode . markdown-ts-mode)))
-#+end_src
 ** YAML
 #+begin_src emacs-lisp
   (use-package yaml-ts-mode
@@ -702,6 +693,7 @@ Skips any language whose grammar is already available."
   (require 'mutecipher-centered)
   (require 'mutecipher-ligatures)
   (require 'mutecipher-colorize)
+  (require 'mutecipher-markdown)
 
   (dolist (hook '(css-mode-hook
                   css-ts-mode-hook

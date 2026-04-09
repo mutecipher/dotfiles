@@ -97,7 +97,11 @@
    `(mutecipher-icon-green            ((t :foreground ,str)))
    `(mutecipher-icon-purple           ((t :foreground ,bi)))
    `(mutecipher-icon-orange           ((t :foreground ,ty)))
-   `(mutecipher-icon-dim              ((t :foreground ,fg-faint)))))
+   `(mutecipher-icon-dim              ((t :foreground ,fg-faint)))
+   ;; Markdown
+   `(mutecipher-markdown-code-block  ((t :background ,bg-sub :extend t)))
+   `(mutecipher-markdown-inline-code ((t :background ,bg-sub)))
+   `(mutecipher-markdown-table       ((t :foreground ,fg-dim)))))
 
 (provide-theme 'liminal-light)
 ;;; liminal-light-theme.el ends here
