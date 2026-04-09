@@ -28,12 +28,16 @@
       `((".*" ,(expand-file-name "auto-saves/" mutecipher/cache-dir) t)))
 
 ;; Persistence files
-(setq recentf-save-file         (expand-file-name "recentf"           mutecipher/cache-dir)
-      savehist-file             (expand-file-name "history"           mutecipher/cache-dir)
-      save-place-file           (expand-file-name "saveplace"         mutecipher/cache-dir)
-      project-list-file         (expand-file-name "projects"          mutecipher/cache-dir)
-      ielm-history-file-name    (expand-file-name "ielm-history.eld"  mutecipher/cache-dir)
-      url-configuration-directory (expand-file-name "url/"            mutecipher/cache-dir))
+(setq recentf-save-file           (expand-file-name "recentf"              mutecipher/cache-dir)
+      savehist-file               (expand-file-name "history"              mutecipher/cache-dir)
+      save-place-file             (expand-file-name "saveplace"            mutecipher/cache-dir)
+      bookmark-default-file       (expand-file-name "bookmarks"            mutecipher/cache-dir)
+      project-list-file           (expand-file-name "projects"             mutecipher/cache-dir)
+      abbrev-file-name            (expand-file-name "abbrev-defs"          mutecipher/cache-dir)
+      ielm-history-file-name      (expand-file-name "ielm-history.eld"     mutecipher/cache-dir)
+      tramp-persistency-file-name (expand-file-name "tramp-persistency.el" mutecipher/cache-dir)
+      nsm-settings-file           (expand-file-name "network-security.data" mutecipher/cache-dir)
+      url-configuration-directory (expand-file-name "url/"                 mutecipher/cache-dir))
 
 ;; Transient
 (setq transient-history-file (expand-file-name "transient/history.el" mutecipher/cache-dir)
