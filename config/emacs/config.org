@@ -378,6 +378,21 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :defer t
     :hook (before-save-hook . whitespace-cleanup))
 #+end_src
+** FONT-LOCK
+Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code comments.
+
+#+begin_src emacs-lisp
+  (defun mutecipher/highlight-todo-keywords ()
+    "Add font-lock rules for TODO-style comment keywords."
+    (font-lock-add-keywords
+     nil
+     '(("\\<\\(FIXME\\|TODO\\)\\(?:(\\w+)\\)?:"  0 'font-lock-warning-face prepend)
+       ("\\<\\(HACK\\|XXX\\)\\(?:(\\w+)\\)?:"    0 'font-lock-keyword-face prepend)
+       ("\\<\\(NOTE\\|INFO\\)\\(?:(\\w+)\\)?:"   0 'font-lock-doc-face     prepend))
+     t))
+
+  (add-hook 'prog-mode-hook #'mutecipher/highlight-todo-keywords)
+#+end_src
 ** GNUS
 ** MAN
 ** MINIBUFFER
@@ -516,6 +531,16 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
   	which-key-idle-secondary-delay 0.25
   	which-key-add-column-padding 1
   	which-key-max-description-length 40))
+#+end_src
+** WHICH-FUNC
+Shows the current function or method name in the mode line.
+
+#+begin_src emacs-lisp
+  (use-package which-func
+    :ensure nil
+    :hook (prog-mode-hook . which-function-mode)
+    :custom
+    (which-func-unknown ""))
 #+end_src
 ** WEBJUMP
 #+begin_src emacs-lisp
