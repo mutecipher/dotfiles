@@ -88,7 +88,16 @@
    ;; TODO keywords
    `(mutecipher-todo-keyword          ((t :background "#4a3810" :foreground "#e8c060" :weight bold)))
    `(mutecipher-hack-keyword          ((t :background "#26204a" :foreground "#b0a0e0" :weight bold)))
-   `(mutecipher-note-keyword          ((t :background "#183020" :foreground "#80c890" :weight bold)))))
+   `(mutecipher-note-keyword          ((t :background "#183020" :foreground "#80c890" :weight bold)))
+   ;; Icon colors
+   `(mutecipher-icon-red              ((t :foreground ,co)))
+   `(mutecipher-icon-yellow           ((t :foreground "#d0b060")))
+   `(mutecipher-icon-blue             ((t :foreground ,kw)))
+   `(mutecipher-icon-cyan             ((t :foreground "#70c0c0")))
+   `(mutecipher-icon-green            ((t :foreground ,str)))
+   `(mutecipher-icon-purple           ((t :foreground ,bi)))
+   `(mutecipher-icon-orange           ((t :foreground ,ty)))
+   `(mutecipher-icon-dim              ((t :foreground ,fg-faint)))))
 
 (provide-theme 'liminal-dark)
 ;;; liminal-dark-theme.el ends here
