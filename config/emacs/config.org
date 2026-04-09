@@ -128,6 +128,12 @@ This section contains general configurations and tweaks to Emacs default behavio
     (add-hook 'text-mode-hook #'completion-preview-mode)
     (add-hook 'erc-mode-hook #'completion-preview-mode)
 
+    ;; CamelCase word navigation
+    (add-hook 'prog-mode-hook #'subword-mode)
+
+    ;; Visual column ruler
+    (add-hook 'prog-mode-hook #'display-fill-column-indicator-mode)
+
     (select-frame-set-input-focus (selected-frame))
     (blink-cursor-mode 0)
     (recentf-mode 1)
@@ -323,10 +329,15 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
 #+begin_src emacs-lisp
   (use-package eglot
     :ensure nil
+    :hook
+    ((js-ts-mode-hook         . eglot-ensure)
+     (typescript-ts-mode-hook . eglot-ensure)
+     (tsx-ts-mode-hook        . eglot-ensure))
     :custom
     (eglot-autoshutdown t)
     (eglot-events-buffer-config '(:size 0 :format full))
     (eglot-prefer-plaintext nil)
+    (eglot-report-progress nil)
     (jsonrpc-event-hook nil)
     :init
     (fset #'jsonrpc--log-event #'ignore)
@@ -339,6 +350,18 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
   	("C-c l f" . eglot-format)))
 #+end_src
 ** FLYMAKE
+#+begin_src emacs-lisp
+  (use-package flymake
+    :ensure nil
+    :hook (prog-mode-hook . flymake-mode)
+    :bind (:map flymake-mode-map
+                ("M-n" . flymake-goto-next-error)
+                ("M-p" . flymake-goto-prev-error)
+                ("C-c ! l" . flymake-show-buffer-diagnostics))
+    :custom
+    (flymake-fringe-indicator-position 'right-fringe)
+    (flymake-no-changes-timeout 1.0))
+#+end_src
 ** FLYSPELL
 ** WHITESPACE
 #+begin_src emacs-lisp
@@ -351,6 +374,24 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
 ** MAN
 ** MINIBUFFER
 ** NEWSTICKER
+** HIDESHOW
+#+begin_src emacs-lisp
+  (use-package hideshow
+    :ensure nil
+    :hook (prog-mode-hook . hs-minor-mode)
+    :bind (:map hs-minor-mode-map
+                ("C-c h" . hs-toggle-hiding)
+                ("C-c H" . hs-hide-all)
+                ("C-c S" . hs-show-all)))
+#+end_src
+** IMENU
+#+begin_src emacs-lisp
+  (use-package imenu
+    :ensure nil
+    :bind ("C-c i" . imenu)
+    :custom
+    (imenu-auto-rescan t))
+#+end_src
 ** ELECTRIC-PAIR
 #+begin_src emacs-lisp
   (use-package electric-pair
@@ -502,8 +543,14 @@ Skips any language whose grammar is already available."
 
   (use-package typescript-ts-mode
     :ensure nil
-    :defer t
-    :hook ((typescript-ts-mode-hook . (lambda () (setq indent-tabs-mode nil))))
+    :mode ("\\.ts\\'" . typescript-ts-mode)
+    :mode ("\\.tsx\\'" . tsx-ts-mode)
+    :hook ((typescript-ts-mode-hook . (lambda ()
+                                        (setq indent-tabs-mode nil)
+                                        (add-hook 'before-save-hook #'eglot-format-buffer nil t)))
+           (tsx-ts-mode-hook        . (lambda ()
+                                        (setq indent-tabs-mode nil)
+                                        (add-hook 'before-save-hook #'eglot-format-buffer nil t))))
     :config
     (unbind-key "M-." typescript-ts-base-mode-map))
 #+end_src
