@@ -7,11 +7,55 @@
   (defvar font-face-nf "Symbols Nerd Font Mono")
 
   (defvar custom-module-directory (expand-file-name "lisp" user-emacs-directory))
+  (defvar org-notes-directory (expand-file-name ".org/" "~"))
 
   ;; Load tidy module first so all path redirections are in place before
   ;; any package configuration runs.
   (add-to-list 'load-path custom-module-directory)
   (require 'mutecipher-tidy)
+#+end_src
+* THEME
+Auto-switches between ~liminal-light~ and ~liminal-dark~ to follow macOS system appearance.
+
+#+begin_src emacs-lisp
+  (add-to-list 'custom-theme-load-path
+               (expand-file-name "themes/" user-emacs-directory))
+
+  (defvar liminal--last-appearance nil
+    "Last appearance applied, so focus checks avoid redundant reloads.")
+
+  (defun liminal/apply-system-theme (appearance)
+    "Load the liminal variant matching APPEARANCE (\\='light or \\='dark)."
+    (unless (eq appearance liminal--last-appearance)
+      (setq liminal--last-appearance appearance)
+      (mapc #'disable-theme custom-enabled-themes)
+      (if (eq appearance 'dark)
+          (load-theme 'liminal-dark  t)
+        (load-theme 'liminal-light t))))
+
+  (defun liminal/detect-and-apply ()
+    "Query macOS for the current appearance and apply the matching theme."
+    (liminal/apply-system-theme
+     (if (string-match-p "Dark"
+                         (shell-command-to-string
+                          "defaults read -g AppleInterfaceStyle 2>/dev/null"))
+         'dark
+       'light)))
+
+  ;; Apply immediately during init.
+  (liminal/detect-and-apply)
+
+  ;; Ideal path: Emacs NS layer notifies us when appearance changes.
+  (when (boundp 'ns-system-appearance-change-functions)
+    (add-hook 'ns-system-appearance-change-functions #'liminal/apply-system-theme))
+
+  ;; Fallback: re-check when Emacs regains focus. Covers builds where the NS
+  ;; hook doesn't fire. The guard in liminal/apply-system-theme means this is
+  ;; a no-op unless the appearance has actually changed.
+  (add-function :after after-focus-change-function
+                (lambda ()
+                  (when (frame-focus-state)
+                    (liminal/detect-and-apply))))
 #+end_src
 * EMACS GENERAL
 ** EMACS
@@ -114,7 +158,6 @@ This section contains general configurations and tweaks to Emacs default behavio
     ;; macOS tweaks
     (when (eq system-type 'darwin)
       (setq mac-command-modifier "meta")
-      (add-to-list 'default-frame-alist '(ns-transparent-titlebar t))
       (set-fontset-font t 'emoji (font-spec :family "Apple Color Emoji") nil 'append))
 
 
@@ -416,21 +459,64 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :ensure nil
     :defer t
     :mode ("\\.org\\'" . org-mode)
+    :bind
+    (("C-c c" . org-capture)
+     ("C-c a" . org-agenda)
+     ("C-c l" . org-store-link))
+    :custom
+    (org-directory org-notes-directory)
+    (org-default-notes-file (expand-file-name "inbox.org" org-notes-directory))
+    (org-agenda-files (list org-notes-directory))
+    (org-agenda-span 'week)
+    (org-agenda-start-on-weekday 1)       ; Monday
+    (org-agenda-skip-deadline-if-done t)
+    (org-agenda-skip-scheduled-if-done t)
+    (org-todo-keywords
+     '((sequence "TODO(t)" "NEXT(n)" "WAITING(w@/!)" "|" "DONE(d!)" "CANCELLED(c@)")))
+    (org-refile-targets
+     '((nil :maxlevel . 3)
+       (org-agenda-files :maxlevel . 2)))
+    (org-refile-use-outline-path 'file)
+    (org-refile-allow-creating-parent-nodes 'confirm)
+    (org-outline-path-complete-in-steps nil)
+    (org-tag-alist
+     '((:startgroup)
+       ("@home"    . ?h)
+       ("@work"    . ?w)
+       ("@errand"  . ?e)
+       (:endgroup)
+       ("note"     . ?n)
+       ("idea"     . ?i)
+       ("waiting"  . ?W)
+       ("recurring" . ?r)))
+    (org-capture-templates
+     `(("t" "Todo" entry
+        (file+headline ,(expand-file-name "inbox.org" org-notes-directory) "Inbox")
+        "* TODO %?\n:PROPERTIES:\n:CREATED: %U\n:END:\n"
+        :empty-lines 1)
+       ("n" "Note" entry
+        (file+headline ,(expand-file-name "notes.org" org-notes-directory) "Notes")
+        "* %? :note:\n:PROPERTIES:\n:CREATED: %U\n:END:\n"
+        :empty-lines 1)
+       ("j" "Journal" entry
+        (file+datetree ,(expand-file-name "journal.org" org-notes-directory))
+        "* %U %?\n"
+        :empty-lines 1)))
     :config
     (setopt org-export-backends '(ascii html icalendar latex odt md))
     (setq org-startup-folded t
-  	org-hide-leading-stars t
-  	org-auto-align-tags nil
-  	org-tags-column 0
-  	org-fold-catch-invisible-edits 'show-and-error
-  	org-special-ctrl-a/e t
-  	org-insert-heading-respect-content t
-  	org-hide-emphasis-markers t
-  	org-pretty-entities t
-  	org-use-sub-superscripts t
-  	org-log-done 'time
-  	org-confirm-babel-evaluate nil
-  	)
+          org-hide-leading-stars t
+          org-auto-align-tags nil
+          org-tags-column 0
+          org-fold-catch-invisible-edits 'show-and-error
+          org-special-ctrl-a/e t
+          org-insert-heading-respect-content t
+          org-hide-emphasis-markers t
+          org-pretty-entities t
+          org-use-sub-superscripts t
+          org-log-done 'time
+          org-log-into-drawer t
+          org-confirm-babel-evaluate nil)
     (org-babel-do-load-languages
      'org-babel-load-languages
      '((python . t)
@@ -588,6 +674,15 @@ Skips any language whose grammar is already available."
 #+begin_src emacs-lisp
   (require 'mutecipher-centered)
   (require 'mutecipher-ligatures)
+  (require 'mutecipher-colorize)
+
+  (dolist (hook '(css-mode-hook
+                  css-ts-mode-hook
+                  emacs-lisp-mode-hook
+                  html-mode-hook
+                  web-mode-hook
+                  org-mode-hook))
+    (add-hook hook #'mutecipher-colorize-mode))
 
   (provide 'init)
 #+end_src
