@@ -16,12 +16,22 @@
 ;; Always start maximized
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
+;; Match the initial frame colour to the system appearance so there is no
+;; white flash before the liminal theme loads in window-setup-hook.
+(let ((dark-p (string-match-p "Dark"
+                               (shell-command-to-string
+                                "defaults read -g AppleInterfaceStyle 2>/dev/null"))))
+  (add-to-list 'default-frame-alist `(background-color . ,(if dark-p "#1a1918" "#f3efea")))
+  (add-to-list 'default-frame-alist `(foreground-color . ,(if dark-p "#ddd8cf" "#282420")))
+  (add-to-list 'default-frame-alist `(ns-appearance    . ,(if dark-p 'dark 'light))))
+
 ;; Better window management
 (setq frame-resize-pixelwise t
       frame-inhibit-implied-resize t)
 
 (when (eq system-type 'darwin)
-  (setq ns-use-proxy-icon nil))
+  (setq ns-use-proxy-icon nil)
+  (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t)))
 
 (setq inhibit-compacting-font-caches t)
 
