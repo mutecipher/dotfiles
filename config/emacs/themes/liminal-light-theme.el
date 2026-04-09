@@ -84,7 +84,11 @@
    ;; Compilation
    `(compilation-error                ((t :foreground ,err)))
    `(compilation-warning              ((t :foreground ,wrn)))
-   `(compilation-info                 ((t :foreground ,ok)))))
+   `(compilation-info                 ((t :foreground ,ok)))
+   ;; TODO keywords
+   `(mutecipher-todo-keyword          ((t :background "#f0c860" :foreground "#3c2800" :weight bold)))
+   `(mutecipher-hack-keyword          ((t :background "#d8d0f0" :foreground "#2e206a" :weight bold)))
+   `(mutecipher-note-keyword          ((t :background "#c8e4cc" :foreground "#183820" :weight bold)))))
 
 (provide-theme 'liminal-light)
 ;;; liminal-light-theme.el ends here
