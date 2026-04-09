@@ -13,6 +13,7 @@
   ;; any package configuration runs.
   (add-to-list 'load-path custom-module-directory)
   (require 'mutecipher-tidy)
+  (require 'mutecipher-icons)
 
   ;; TODO keyword faces — defined here so themes can override them.
   (defface mutecipher-todo-keyword
@@ -554,6 +555,29 @@ Shows the current function or method name in the mode line.
     :hook (prog-mode-hook . which-function-mode)
     :custom
     (which-func-unknown ""))
+#+end_src
+** MODE-LINE
+Custom mode line with Nerd Font icon for the current buffer's file type or major mode.
+
+#+begin_src emacs-lisp
+  (setq-default mode-line-format
+    '("%e"
+      mode-line-front-space
+      (:propertize ("" mode-line-mule-info mode-line-client
+                       mode-line-modified mode-line-remote)
+                   display (min-width (5.0)))
+      " "
+      mode-line-buffer-identification
+      "   "
+      mode-line-position
+      "  "
+      (:eval (mutecipher/buffer-icon))
+      " "
+      mode-line-modes
+      (vc-mode ("  " vc-mode))
+      "  "
+      mode-line-misc-info
+      mode-line-end-spaces))
 #+end_src
 ** WEBJUMP
 #+begin_src emacs-lisp
