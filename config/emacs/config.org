@@ -581,17 +581,19 @@ Custom mode line with Nerd Font icon for the current buffer's file type or major
               (buffer-read-only    (propertize "\uf023 " 'face 'mutecipher-icon-dim))
               ((buffer-modified-p) (propertize "● "     'face 'mutecipher-icon-orange))
               (t                   "  ")))
+      (:eval (concat "("
+                     (propertize (car (split-string (string-trim (format-mode-line mode-name)) "/"))
+                                 'face 'bold)
+                     ")"))
+      "  "
       (:eval (when vc-mode
-               (let ((branch (string-trim-left vc-mode "[ Git@-]+")))
+               (let ((branch (string-trim-left vc-mode "[ Git@:-]+")))
                  (concat (propertize "\uf126" 'face 'mutecipher-icon-red)
                          " " branch))))
       "  "
-      (:eval (propertize (format-mode-line "%b") 'face 'bold))
-      "  "
       (:eval (mutecipher/buffer-icon))
       " "
-      (:eval (propertize (car (split-string (string-trim (format-mode-line mode-name)) "/"))
-                         'face 'bold))
+      (:eval (propertize (format-mode-line "%b") 'face 'bold))
       (:eval (when (and (fboundp 'eglot-managed-p) (eglot-managed-p))
                (concat " " (propertize "●" 'face 'mutecipher-icon-green))))
       (:eval (when which-function-mode
