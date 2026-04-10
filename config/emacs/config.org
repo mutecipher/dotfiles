@@ -554,34 +554,58 @@ Shows the current function or method name in the mode line.
     :ensure nil
     :hook (prog-mode-hook . which-function-mode)
     :custom
-    (which-func-unknown ""))
+    (which-func-unknown "")
+    (which-func-format nil))
 #+end_src
 ** MODE-LINE
 Custom mode line with Nerd Font icon for the current buffer's file type or major mode.
 
 #+begin_src emacs-lisp
+  (defun mutecipher/flymake-mode-line ()
+    "Return a mode line segment for flymake errors/warnings only, nil when clean."
+    (when (bound-and-true-p flymake-mode)
+      (let* ((diags (flymake-diagnostics))
+             (errs  (seq-count (lambda (d) (eq :error   (flymake-diagnostic-type d))) diags))
+             (warns (seq-count (lambda (d) (eq :warning (flymake-diagnostic-type d))) diags)))
+        (unless (and (zerop errs) (zerop warns))
+          (concat
+           (unless (zerop errs)
+             (concat " " (propertize (format "\uf057 %d" errs) 'face 'mutecipher-icon-red)))
+           (unless (zerop warns)
+             (concat " " (propertize (format "\uf071 %d" warns) 'face 'mutecipher-icon-yellow))))))))
+
   (setq-default mode-line-format
     '("%e"
-      mode-line-front-space
-      (:propertize ("" mode-line-mule-info mode-line-client
-                       mode-line-modified mode-line-remote)
-                   display (min-width (5.0)))
       " "
-      mode-line-buffer-identification
-      "   "
-      mode-line-position
+      (:eval (cond
+              (buffer-read-only    (propertize "\uf023 " 'face 'mutecipher-icon-dim))
+              ((buffer-modified-p) (propertize "● "     'face 'mutecipher-icon-orange))
+              (t                   "  ")))
+      (:eval (when vc-mode
+               (let ((branch (string-trim-left vc-mode "[ Git@-]+")))
+                 (concat (propertize "\uf126" 'face 'mutecipher-icon-red)
+                         " " branch))))
+      "  "
+      (:eval (propertize (format-mode-line "%b") 'face 'bold))
       "  "
       (:eval (mutecipher/buffer-icon))
       " "
-      mode-line-modes
-      (:eval (when vc-mode
-               (let ((branch (string-trim-left vc-mode "[ Git@-]+")))
+      (:eval (propertize (car (split-string (string-trim (format-mode-line mode-name)) "/"))
+                         'face 'bold))
+      (:eval (when (and (fboundp 'eglot-managed-p) (eglot-managed-p))
+               (concat " " (propertize "●" 'face 'mutecipher-icon-green))))
+      (:eval (when which-function-mode
+               (when-let ((fn (which-function)))
                  (concat "  "
-                         (propertize "\uf126" 'face 'mutecipher-icon-red)
-                         " " branch))))
+                         (propertize "\uf105" 'face 'mutecipher-icon-dim)
+                         " "
+                         (propertize fn 'face 'font-lock-function-name-face)))))
+      (:eval (when-let ((s (mutecipher/flymake-mode-line)))
+               (concat "  " s)))
+      mode-line-format-right-align
+      (:eval (format-mode-line "%l:%C"))
       "  "
-      mode-line-misc-info
-      mode-line-end-spaces))
+      mode-line-misc-info))
 #+end_src
 ** WEBJUMP
 #+begin_src emacs-lisp

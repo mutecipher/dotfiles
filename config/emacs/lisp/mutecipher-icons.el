@@ -99,9 +99,15 @@
     ("sh"      . ("\uf120" . mutecipher-icon-green))   ; nf-dev-terminal
     ("bash"    . ("\uf120" . mutecipher-icon-green))
     ("zsh"     . ("\uf120" . mutecipher-icon-green))
-    ;; Emacs Lisp
-    ("el"      . ("\uf121" . mutecipher-icon-purple))  ; nf-fa-code
-    ("elc"     . ("\uf121" . mutecipher-icon-purple))
+    ;; Lisp family
+    ("el"      . ("\U000f0627" . mutecipher-icon-purple))  ; nf-md-lambda
+    ("elc"     . ("\U000f0627" . mutecipher-icon-purple))
+    ("lisp"    . ("\U000f0627" . mutecipher-icon-purple))
+    ("lsp"     . ("\U000f0627" . mutecipher-icon-purple))
+    ("cl"      . ("\U000f0627" . mutecipher-icon-purple))
+    ("fasl"    . ("\U000f0627" . mutecipher-icon-purple))
+    ("scm"     . ("\U000f0627" . mutecipher-icon-purple))
+    ("ss"      . ("\U000f0627" . mutecipher-icon-purple))
     ;; Markup / Docs
     ("md"      . ("\ue73e" . mutecipher-icon-blue))    ; nf-dev-markdown
     ("org"     . ("\uf02d" . mutecipher-icon-green))   ; nf-fa-book
@@ -147,8 +153,10 @@
     (markdown-ts-mode      . ("\ue73e" . mutecipher-icon-blue))    ; nf-dev-markdown
     (markdown-mode         . ("\ue73e" . mutecipher-icon-blue))
     (org-mode              . ("\uf02d" . mutecipher-icon-green))   ; nf-fa-book
-    (emacs-lisp-mode       . ("\uf121" . mutecipher-icon-purple))  ; nf-fa-code
-    (lisp-interaction-mode . ("\uf121" . mutecipher-icon-purple))
+    (emacs-lisp-mode       . ("\U000f0627" . mutecipher-icon-purple))  ; nf-md-lambda
+    (lisp-interaction-mode . ("\U000f0627" . mutecipher-icon-purple))
+    (lisp-mode             . ("\U000f0627" . mutecipher-icon-purple))
+    (scheme-mode           . ("\U000f0627" . mutecipher-icon-purple))
     (dired-mode            . ("\uf07b" . mutecipher-icon-yellow))  ; nf-fa-folder_open
     (ibuffer-mode          . ("\uf0c9" . mutecipher-icon-dim))     ; nf-fa-list
     (erc-mode              . ("\uf086" . mutecipher-icon-blue))    ; nf-fa-comments
