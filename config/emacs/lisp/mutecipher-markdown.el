@@ -118,6 +118,19 @@ match data that font-lock relies on for subsequent highlight groups."
                   (t "\n"))))
       (propertize text 'face 'mutecipher-markdown-code-fence))))
 
+;;; Helper: strip invisible characters from strings
+
+(defun mutecipher-markdown--strip-invisible (str)
+  "Return a copy of STR with `invisible' characters removed.
+Text properties on visible characters are preserved."
+  (let (chunks (pos 0) (len (length str)))
+    (while (< pos len)
+      (let* ((inv  (get-text-property pos 'invisible str))
+             (next (next-single-property-change pos 'invisible str len)))
+        (unless inv (push (substring str pos next) chunks))
+        (setq pos next)))
+    (apply #'concat (nreverse chunks))))
+
 ;;; Matchers for inline markup
 
 (defun mutecipher-markdown--in-inline-code-p (pos)
@@ -378,7 +391,12 @@ CELL-FACE: face for cell content.  PIPE-FACE: face for │ chars."
              (w    (if (< i (length widths)) (aref widths i) (length cell)))
              (pad  (make-string (max 0 (- w (length cell))) ?\s)))
         (push pipe parts)
-        (push (propertize (concat " " cell pad " ") 'face cell-face) parts)))
+        (let ((segment (concat " " cell pad " ")))
+          ;; Fill in cell-face only where no face is set; inline formatting
+          ;; faces (mutecipher-markdown-inline-code, bold, etc.) are left
+          ;; untouched so their foreground/background aren't overridden.
+          (font-lock-fillin-text-property 0 (length segment) 'face cell-face segment)
+          (push segment parts))))
     (push pipe parts)
     (apply #'concat (nreverse parts))))
 
@@ -389,13 +407,19 @@ CELL-FACE: face for cell content.  PIPE-FACE: face for │ chars."
     (let (line-starts raw-lines)
       (while (looking-at "^|[^\n]*|[ \t]*$")
         (push (point) line-starts)
-        (push (buffer-substring-no-properties (point) (line-end-position)) raw-lines)
+        (push (buffer-substring (point) (line-end-position)) raw-lines)
         (forward-line 1))
       (when line-starts
         (let* ((starts    (nreverse line-starts))
                (lines     (nreverse raw-lines))
                (all-cells (mapcar #'mutecipher-markdown--parse-cells lines))
-               (widths    (mutecipher-markdown--col-widths all-cells))
+               ;; Strip invisible syntax markers (**, backticks, etc.) from cells;
+               ;; display strings don't honour the `invisible' property.
+               ;; Formatting faces (bold, inline-code) are preserved.
+               (vis-cells (mapcar (lambda (row)
+                                    (and row (mapcar #'mutecipher-markdown--strip-invisible row)))
+                                  all-cells))
+               (widths    (mutecipher-markdown--col-widths vis-cells))
                (syn       'mutecipher-markdown-syntax)
                (tbl       'mutecipher-markdown-table)
                (top       (mutecipher-markdown--box-line widths "┌" "┬" "┐" ?─ syn))
@@ -404,7 +428,7 @@ CELL-FACE: face for cell content.  PIPE-FACE: face for │ chars."
                (n         (length starts)))
           (seq-do-indexed
            (lambda (ls i)
-             (let* ((cells  (nth i all-cells))
+             (let* ((cells  (nth i vis-cells))
                     (sep-p  (mutecipher-markdown--sep-row-p cells))
                     (last-p (= i (1- n)))
                     ;; For the last row, extend overlay to cover the trailing newline so
@@ -432,6 +456,7 @@ CELL-FACE: face for cell content.  PIPE-FACE: face for │ chars."
   "Re-render all GFM tables in the current buffer using box-drawing overlays."
   (when (derived-mode-p 'mutecipher-markdown-mode)
     (mutecipher-markdown--clear-table-overlays)
+    (font-lock-ensure)
     (save-excursion
       (goto-char (point-min))
       (while (re-search-forward "^|" nil t)
