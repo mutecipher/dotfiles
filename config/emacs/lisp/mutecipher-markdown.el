@@ -70,7 +70,9 @@
 ;;; Language tag → file extension mapping (for icon lookup)
 
 (defvar mutecipher-markdown--lang-ext-alist
-  '(("bash"       . "sh")
+  '(;; All shell variants use the .sh terminal icon
+    ("sh"         . "sh")
+    ("bash"       . "sh")
     ("zsh"        . "sh")
     ("shell"      . "sh")
     ("emacs-lisp" . "el")
@@ -96,6 +98,9 @@
 Extracts the language tag and looks up its Nerd Font icon via
 `mutecipher/icon-for-file'.  Falls back to the language name alone.
 
+The icon's color face is reused for the language label so both render
+in the same color against the code-fence background.
+
 Uses `save-match-data' so internal regex calls do not corrupt the
 match data that font-lock relies on for subsequent highlight groups."
   (save-match-data
@@ -105,18 +110,21 @@ match data that font-lock relies on for subsequent highlight groups."
            (ext  (cdr (assoc (downcase lang) mutecipher-markdown--lang-ext-alist)))
            ;; Try by extension first, then by capitalised lang name (e.g. "Dockerfile")
            (icon (when (fboundp 'mutecipher/icon-for-file)
-                   (or (when ext
-                         (let ((s (mutecipher/icon-for-file (concat "x." ext))))
-                           (when s (substring-no-properties s))))
-                       (let ((s (mutecipher/icon-for-file (capitalize lang))))
-                         (when s (substring-no-properties s))))))
-           (text (cond
-                  ((and icon (not (string-empty-p lang)))
-                   (concat "  " icon " " lang "\n"))
-                  ((not (string-empty-p lang))
-                   (concat "  " lang "\n"))
-                  (t "\n"))))
-      (propertize text 'face 'mutecipher-markdown-code-fence))))
+                   (or (when ext (mutecipher/icon-for-file (concat "x." ext)))
+                       (mutecipher/icon-for-file (capitalize lang)))))
+           ;; Reuse the icon's color face for the label; code-fence provides the background
+           (color-face (when icon (get-text-property 0 'face icon)))
+           (label-face (if color-face
+                           `(,color-face mutecipher-markdown-code-fence)
+                         'mutecipher-markdown-code-fence)))
+      (cond
+       ((and icon (not (string-empty-p lang)))
+        (concat (propertize (substring-no-properties icon) 'face label-face)
+                (propertize (concat " " lang "\n") 'face label-face)))
+       ((not (string-empty-p lang))
+        (propertize (concat lang "\n") 'face 'mutecipher-markdown-code-fence))
+       (t
+        (propertize "\n" 'face 'mutecipher-markdown-code-fence))))))
 
 ;;; Helper: strip invisible characters from strings
 
