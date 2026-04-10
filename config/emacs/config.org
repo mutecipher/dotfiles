@@ -574,7 +574,11 @@ Custom mode line with Nerd Font icon for the current buffer's file type or major
       (:eval (mutecipher/buffer-icon))
       " "
       mode-line-modes
-      (vc-mode ("  " vc-mode))
+      (:eval (when vc-mode
+               (let ((branch (string-trim-left vc-mode "[ Git@-]+")))
+                 (concat "  "
+                         (propertize "\uf126" 'face 'mutecipher-icon-red)
+                         " " branch))))
       "  "
       mode-line-misc-info
       mode-line-end-spaces))
