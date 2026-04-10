@@ -93,8 +93,9 @@ This section contains general configurations and tweaks to Emacs default behavio
     (remote-file-name-inhibit-locks t)
     (remote-file-name-inhibit-auto-save-visited t)
     (resize-mini-windows 'grow-only)
-    (scroll-conservatively 8)
+    (scroll-conservatively 101)
     (scroll-margin 5)
+    (scroll-preserve-screen-position t)
     (savehist-save-minibuffer-history t)
     (savehist-additional-variables
      '(kill-ring                            ; clipboard
