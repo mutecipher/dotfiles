@@ -104,27 +104,35 @@ in the same color against the code-fence background.
 Uses `save-match-data' so internal regex calls do not corrupt the
 match data that font-lock relies on for subsequent highlight groups."
   (save-match-data
-    (let* ((lang (if (string-match "^```\\([[:alnum:]_+-]*\\)" fence-text)
-                     (match-string 1 fence-text)
-                   ""))
-           (ext  (cdr (assoc (downcase lang) mutecipher-markdown--lang-ext-alist)))
+    (let* (;; Preserve leading whitespace so indented blocks (e.g. inside lists)
+           ;; keep the label aligned with their code content.
+           (indent (progn (string-match "^\\([ \t]*\\)" fence-text)
+                          (match-string 1 fence-text)))
+           (lang   (if (string-match "^[ \t]*```\\([[:alnum:]_+-]*\\)" fence-text)
+                       (match-string 1 fence-text)
+                     ""))
+           (ext    (cdr (assoc (downcase lang) mutecipher-markdown--lang-ext-alist)))
            ;; Try by extension first, then by capitalised lang name (e.g. "Dockerfile")
-           (icon (when (fboundp 'mutecipher/icon-for-file)
-                   (or (when ext (mutecipher/icon-for-file (concat "x." ext)))
-                       (mutecipher/icon-for-file (capitalize lang)))))
+           (icon   (when (fboundp 'mutecipher/icon-for-file)
+                     (or (when ext (mutecipher/icon-for-file (concat "x." ext)))
+                         (mutecipher/icon-for-file (capitalize lang)))))
            ;; Reuse the icon's color face for the label; code-fence provides the background
            (color-face (when icon (get-text-property 0 'face icon)))
            (label-face (if color-face
                            `(,color-face mutecipher-markdown-code-fence)
-                         'mutecipher-markdown-code-fence)))
+                         'mutecipher-markdown-code-fence))
+           (indent-str (propertize indent 'face 'mutecipher-markdown-code-fence)))
       (cond
        ((and icon (not (string-empty-p lang)))
-        (concat (propertize (substring-no-properties icon) 'face label-face)
+        (concat indent-str
+                (propertize (substring-no-properties icon) 'face label-face)
                 (propertize (concat " " lang "\n") 'face label-face)))
        ((not (string-empty-p lang))
-        (propertize (concat lang "\n") 'face 'mutecipher-markdown-code-fence))
+        (concat indent-str
+                (propertize (concat lang "\n") 'face 'mutecipher-markdown-code-fence)))
        (t
-        (propertize "\n" 'face 'mutecipher-markdown-code-fence))))))
+        (concat indent-str
+                (propertize "\n" 'face 'mutecipher-markdown-code-fence)))))))
 
 ;;; Helper: strip invisible characters from strings
 
@@ -216,10 +224,10 @@ fully covered.  Sets `font-lock-multiline' on the matched region.
 Group 1: opening fence line including trailing newline.
 Group 2: code content.
 Group 3: closing fence line including trailing newline."
-  (when (re-search-forward "^```[^\n]*\n" limit t)
+  (when (re-search-forward "^[ \t]*```[^\n]*\n" limit t)
     (let ((open-start (match-beginning 0))
           (open-end   (match-end 0)))
-      (if (re-search-forward "^```[ \t]*\n?" nil t)
+      (if (re-search-forward "^[ \t]*```[ \t]*\n?" nil t)
           (progn
             (put-text-property open-start (match-end 0) 'font-lock-multiline t)
             (set-match-data
@@ -238,11 +246,11 @@ Group 3: closing fence line including trailing newline."
   (save-excursion
     (let (changed)
       (goto-char font-lock-beg)
-      (when (and (re-search-backward "^```" nil t)
+      (when (and (re-search-backward "^[ \t]*```" nil t)
                  (< (point) font-lock-beg))
         (setq font-lock-beg (point) changed t))
       (goto-char font-lock-end)
-      (when (and (re-search-forward "^```" nil t)
+      (when (and (re-search-forward "^[ \t]*```" nil t)
                  (> (match-end 0) font-lock-end))
         (setq font-lock-end (match-end 0) changed t))
       changed)))
