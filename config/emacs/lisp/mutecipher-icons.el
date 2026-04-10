@@ -24,7 +24,8 @@
                    (#xf000 . #xf2ff)    ; Font Awesome
                    (#xf300 . #xf375)    ; Font Logos
                    (#xf400 . #xf533)    ; Octicons
-                   (#xe0a0 . #xe0d7)))  ; Powerline Extra (extends existing)
+                   (#xe0a0 . #xe0d7)    ; Powerline Extra (extends existing)
+                   (#xf0000 . #xfffff))) ; Nerd Fonts v3 Material Design (supplementary PUA)
     (set-fontset-font t range
                       (font-spec :family "Symbols Nerd Font Mono")
                       nil 'prepend)))
@@ -95,9 +96,9 @@
     ("yml"     . ("\ue6a8" . mutecipher-icon-red))
     ("toml"    . ("\ue6b2" . mutecipher-icon-orange))  ; nf-seti-config
     ;; Shell
-    ("sh"      . ("\ue795" . mutecipher-icon-green))   ; nf-dev-terminal
-    ("bash"    . ("\ue795" . mutecipher-icon-green))
-    ("zsh"     . ("\ue795" . mutecipher-icon-green))
+    ("sh"      . ("\uf120" . mutecipher-icon-green))   ; nf-dev-terminal
+    ("bash"    . ("\uf120" . mutecipher-icon-green))
+    ("zsh"     . ("\uf120" . mutecipher-icon-green))
     ;; Emacs Lisp
     ("el"      . ("\uf121" . mutecipher-icon-purple))  ; nf-fa-code
     ("elc"     . ("\uf121" . mutecipher-icon-purple))
@@ -136,8 +137,8 @@
     (html-mode             . ("\ue736" . mutecipher-icon-orange))  ; nf-dev-html5
     (yaml-ts-mode          . ("\ue6a8" . mutecipher-icon-red))     ; nf-seti-yaml
     (yaml-mode             . ("\ue6a8" . mutecipher-icon-red))
-    (bash-ts-mode          . ("\ue795" . mutecipher-icon-green))   ; nf-dev-terminal
-    (sh-mode               . ("\ue795" . mutecipher-icon-green))
+    (bash-ts-mode          . ("\uf120" . mutecipher-icon-green))   ; nf-dev-terminal
+    (sh-mode               . ("\uf120" . mutecipher-icon-green))
     (dockerfile-ts-mode    . ("\ue7b0" . mutecipher-icon-blue))    ; nf-dev-docker
     (python-ts-mode        . ("\ue73c" . mutecipher-icon-blue))    ; nf-dev-python
     (python-mode           . ("\ue73c" . mutecipher-icon-blue))
