@@ -64,7 +64,8 @@ Derived from `special-mode', so the buffer is read-only and `q' quits."
       ;; Ensure there is a trailing newline so the last line is fontified.
       (unless (bolp) (insert "\n")))
     (mutecipher-hover-mode)
-    (font-lock-ensure)))
+    (font-lock-ensure)
+    (goto-char (point-min))))
 
 ;;;; Window display
 
