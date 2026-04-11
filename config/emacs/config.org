@@ -370,7 +370,8 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
   	("C-c l o" . eglot-code-actions-organize-imports)
   	("C-c l r" . eglot-rename)
   	("C-c l i" . eglot-inlay-hints-mode)
-  	("C-c l f" . eglot-format)))
+  	("C-c l f" . eglot-format)
+  	("C-c l k" . mutecipher/hover)))
 #+end_src
 ** FLYMAKE
 #+begin_src emacs-lisp
@@ -725,6 +726,7 @@ Skips any language whose grammar is already available."
   (require 'mutecipher-ligatures)
   (require 'mutecipher-colorize)
   (require 'mutecipher-markdown)
+  (require 'mutecipher-hover)
 
   (dolist (hook '(css-mode-hook
                   css-ts-mode-hook
