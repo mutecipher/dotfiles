@@ -134,9 +134,9 @@ This section contains general configurations and tweaks to Emacs default behavio
 
     ;; Set font faces
     (set-face-attribute 'default nil
-	        :family font-face
-	        :height 120
-	        :weight 'light)
+		:family font-face
+		:height 120
+		:weight 'light)
     (set-fontset-font t '(#xe0b0 . #xe0bf) (font-spec :family font-face-nf))
 
     ;; macOS tweaks
@@ -178,9 +178,9 @@ This section contains general configurations and tweaks to Emacs default behavio
     :config
     (setq epg-pinentry-mode 'loopback)
     (setq auth-sources
-  	(list (expand-file-name ".authinfo.gpg" user-emacs-directory)))
+	(list (expand-file-name ".authinfo.gpg" user-emacs-directory)))
     (setq user-full-name "Cory Hutchison"
-  	user-mail-address "cory@mutecipher.com"))
+	user-mail-address "cory@mutecipher.com"))
 #+end_src
 ** AUTOREVERT
 #+begin_src emacs-lisp
@@ -247,9 +247,9 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
   (use-package icomplete
     :ensure nil
     :bind (:map icomplete-minibuffer-map
-                ("C-n" . icomplete-forward-completions)
-                ("C-p" . icomplete-backward-completions)
-                ("C-j" . exit-minibuffer))     ; exit without forcing completion (e.g. multi-file-replace)
+		("C-n" . icomplete-forward-completions)
+		("C-p" . icomplete-backward-completions)
+		("C-j" . exit-minibuffer))     ; exit without forcing completion (e.g. multi-file-replace)
     :hook (after-init-hook . fido-vertical-mode)
     :custom
     (icomplete-delay-completions-threshold 0)
@@ -273,7 +273,7 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (dired-omit-files "^\\.")				; (C-x M-o) to toggle dired-omit-mode
     :init
     (add-hook 'dired-mode-hook (lambda ()
-	             (dired-omit-mode 1))))
+		     (dired-omit-mode 1))))
 #+end_src
 ** WDIRED
 #+begin_src emacs-lisp
@@ -304,13 +304,13 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :defer nil
     :config
     (setopt vc-git-diff-switches '("--patch-with-stat" "--histogram")
-  	  vc-git-log-switches '("--stat")
-  	  vc-git-log-edit-summary-target-len 50
-  	  vc-git-log-edit-summary-max-len 70
-  	  vc-git-print-log-follow t
-  	  vc-git-revision-complete-only-branches nil
-  	  vc-annotate-display-mode 'scale
-  	  vc-make-backup-files nil))
+	  vc-git-log-switches '("--stat")
+	  vc-git-log-edit-summary-target-len 50
+	  vc-git-log-edit-summary-max-len 70
+	  vc-git-print-log-follow t
+	  vc-git-revision-complete-only-branches nil
+	  vc-annotate-display-mode 'scale
+	  vc-make-backup-files nil))
 #+end_src
 ** SMERGE
 ** DIFF
@@ -320,7 +320,7 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :defer t
     :bind
     (:map diff-mode-map
-  	("M-o" . other-window))
+	("M-o" . other-window))
     :config
     (setq diff-default-read-only t)
     (setq diff-advance-after-apply-hunk t)
@@ -370,12 +370,12 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (fset #'jsonrpc--log-event #'ignore)
     :bind
     (:map eglot-mode-map
-  	("C-c e a" . eglot-code-actions)
-  	("C-c e o" . eglot-code-actions-organize-imports)
-  	("C-c e r" . eglot-rename)
-  	("C-c e i" . eglot-inlay-hints-mode)
-  	("C-c e f" . eglot-format)
-  	("C-c e k" . mutecipher/hover)))
+	("C-c e a" . eglot-code-actions)
+	("C-c e o" . eglot-code-actions-organize-imports)
+	("C-c e r" . eglot-rename)
+	("C-c e i" . eglot-inlay-hints-mode)
+	("C-c e f" . eglot-format)
+	("C-c e k" . mutecipher/hover)))
 #+end_src
 ** FLYMAKE
 #+begin_src emacs-lisp
@@ -383,9 +383,9 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :ensure nil
     :hook (prog-mode-hook . flymake-mode)
     :bind (:map flymake-mode-map
-                ("M-n" . flymake-goto-next-error)
-                ("M-p" . flymake-goto-prev-error)
-                ("C-c ! l" . flymake-show-buffer-diagnostics))
+		("M-n" . flymake-goto-next-error)
+		("M-p" . flymake-goto-prev-error)
+		("C-c ! l" . flymake-show-buffer-diagnostics))
     :custom
     (flymake-fringe-indicator-position 'right-fringe)
     (flymake-no-changes-timeout 1.0))
@@ -423,9 +423,9 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
     :ensure nil
     :hook (prog-mode-hook . hs-minor-mode)
     :bind (:map hs-minor-mode-map
-                ("C-c h" . hs-toggle-hiding)
-                ("C-c H" . hs-hide-all)
-                ("C-c S" . hs-show-all)))
+		("C-c h" . hs-toggle-hiding)
+		("C-c H" . hs-hide-all)
+		("C-c S" . hs-show-all)))
 #+end_src
 ** IMENU
 #+begin_src emacs-lisp
@@ -491,32 +491,32 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
        ("recurring" . ?r)))
     (org-capture-templates
      `(("t" "Todo" entry
-        (file+headline ,(expand-file-name "inbox.org" org-notes-directory) "Inbox")
-        "* TODO %?\n:PROPERTIES:\n:CREATED: %U\n:END:\n"
-        :empty-lines 1)
+	(file+headline ,(expand-file-name "inbox.org" org-notes-directory) "Inbox")
+	"* TODO %?\n:PROPERTIES:\n:CREATED: %U\n:END:\n"
+	:empty-lines 1)
        ("n" "Note" entry
-        (file+headline ,(expand-file-name "notes.org" org-notes-directory) "Notes")
-        "* %? :note:\n:PROPERTIES:\n:CREATED: %U\n:END:\n"
-        :empty-lines 1)
+	(file+headline ,(expand-file-name "notes.org" org-notes-directory) "Notes")
+	"* %? :note:\n:PROPERTIES:\n:CREATED: %U\n:END:\n"
+	:empty-lines 1)
        ("j" "Journal" entry
-        (file+datetree ,(expand-file-name "journal.org" org-notes-directory))
-        "* %U %?\n"
-        :empty-lines 1)))
+	(file+datetree ,(expand-file-name "journal.org" org-notes-directory))
+	"* %U %?\n"
+	:empty-lines 1)))
     :config
     (setopt org-export-backends '(ascii html icalendar latex odt md))
     (setq org-startup-folded t
-          org-hide-leading-stars t
-          org-auto-align-tags nil
-          org-tags-column 0
-          org-fold-catch-invisible-edits 'show-and-error
-          org-special-ctrl-a/e t
-          org-insert-heading-respect-content t
-          org-hide-emphasis-markers t
-          org-pretty-entities t
-          org-use-sub-superscripts t
-          org-log-done 'time
-          org-log-into-drawer t
-          org-confirm-babel-evaluate nil)
+	  org-hide-leading-stars t
+	  org-auto-align-tags nil
+	  org-tags-column 0
+	  org-fold-catch-invisible-edits 'show-and-error
+	  org-special-ctrl-a/e t
+	  org-insert-heading-respect-content t
+	  org-hide-emphasis-markers t
+	  org-pretty-entities t
+	  org-use-sub-superscripts t
+	  org-log-done 'time
+	  org-log-into-drawer t
+	  org-confirm-babel-evaluate nil)
     (org-babel-do-load-languages
      'org-babel-load-languages
      '((python . t)
@@ -533,7 +533,7 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
     :ensure nil
     :config
     (setq uniquify-buffer-name-style 'forward
-  	uniquify-strip-common-suffix t)
+	uniquify-strip-common-suffix t)
     (with-no-warnings
       (setq uniquify-after-kill-buffer-p t)))
 #+end_src
@@ -545,12 +545,12 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
     :hook (after-init-hook . which-key-mode)
     :config
     (setq which-key-separator " "
-  	which-key-prefix-prefix "... "
-  	which-key-max-display-columns 3
-  	which-key-idle-delay 1
-  	which-key-idle-secondary-delay 0.25
-  	which-key-add-column-padding 1
-  	which-key-max-description-length 40))
+	which-key-prefix-prefix "... "
+	which-key-max-display-columns 3
+	which-key-idle-delay 1
+	which-key-idle-secondary-delay 0.25
+	which-key-add-column-padding 1
+	which-key-max-description-length 40))
 #+end_src
 ** WHICH-FUNC
 Shows the current function or method name in the mode line.
@@ -571,45 +571,45 @@ Custom mode line with Nerd Font icon for the current buffer's file type or major
     "Return a mode line segment for flymake errors/warnings only, nil when clean."
     (when (bound-and-true-p flymake-mode)
       (let* ((diags (flymake-diagnostics))
-             (errs  (seq-count (lambda (d) (eq :error   (flymake-diagnostic-type d))) diags))
-             (warns (seq-count (lambda (d) (eq :warning (flymake-diagnostic-type d))) diags)))
-        (unless (and (zerop errs) (zerop warns))
-          (concat
-           (unless (zerop errs)
-             (concat " " (propertize (format "\uf057 %d" errs) 'face 'mutecipher-icon-red)))
-           (unless (zerop warns)
-             (concat " " (propertize (format "\uf071 %d" warns) 'face 'mutecipher-icon-yellow))))))))
+	     (errs  (seq-count (lambda (d) (eq :error   (flymake-diagnostic-type d))) diags))
+	     (warns (seq-count (lambda (d) (eq :warning (flymake-diagnostic-type d))) diags)))
+	(unless (and (zerop errs) (zerop warns))
+	  (concat
+	   (unless (zerop errs)
+	     (concat " " (propertize (format "\uf057 %d" errs) 'face 'mutecipher-icon-red)))
+	   (unless (zerop warns)
+	     (concat " " (propertize (format "\uf071 %d" warns) 'face 'mutecipher-icon-yellow))))))))
 
   (setq-default mode-line-format
     '("%e"
       " "
       (:eval (cond
-              (buffer-read-only    (propertize "\uf023 " 'face 'mutecipher-icon-dim))
-              ((buffer-modified-p) (propertize "● "     'face 'mutecipher-icon-orange))
-              (t                   "  ")))
+	      (buffer-read-only    (propertize "\uf023 " 'face 'mutecipher-icon-dim))
+	      ((buffer-modified-p) (propertize "● "     'face 'mutecipher-icon-orange))
+	      (t                   "  ")))
       (:eval (concat "("
-                     (propertize (car (split-string (string-trim (format-mode-line mode-name)) "/"))
-                                 'face 'bold)
-                     ")"))
+		     (propertize (car (split-string (string-trim (format-mode-line mode-name)) "/"))
+				 'face 'bold)
+		     ")"))
       "  "
       (:eval (when vc-mode
-               (let ((branch (string-trim-left vc-mode "[ Git@:-]+")))
-                 (concat (propertize "\uf126" 'face 'mutecipher-icon-red)
-                         " " branch))))
+	       (let ((branch (string-trim-left vc-mode "[ Git@:-]+")))
+		 (concat (propertize "\uf126" 'face 'mutecipher-icon-red)
+			 " " branch))))
       "  "
       (:eval (mutecipher/buffer-icon))
       " "
       (:eval (propertize (format-mode-line "%b") 'face 'bold))
       (:eval (when (and (fboundp 'eglot-managed-p) (eglot-managed-p))
-               (concat " " (propertize "●" 'face 'mutecipher-icon-green))))
+	       (concat " " (propertize "●" 'face 'mutecipher-icon-green))))
       (:eval (when which-function-mode
-               (when-let ((fn (which-function)))
-                 (concat "  "
-                         (propertize "\uf105" 'face 'mutecipher-icon-dim)
-                         " "
-                         (propertize fn 'face 'font-lock-function-name-face)))))
+	       (when-let ((fn (which-function)))
+		 (concat "  "
+			 (propertize "\uf105" 'face 'mutecipher-icon-dim)
+			 " "
+			 (propertize fn 'face 'font-lock-function-name-face)))))
       (:eval (when-let ((s (mutecipher/flymake-mode-line)))
-               (concat "  " s)))
+	       (concat "  " s)))
       mode-line-format-right-align
       (:eval (format-mode-line "%l:%C"))
       "  "
@@ -639,23 +639,23 @@ Grammar sources are declared eagerly so ~treesit-install-language-grammar~ alway
 
 #+begin_src emacs-lisp
   (setq treesit-language-source-alist
-        '((bash       . ("https://github.com/tree-sitter/tree-sitter-bash"))
-          (dockerfile . ("https://github.com/camdencheek/tree-sitter-dockerfile"))
-          (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript"))
-          (jsdoc      . ("https://github.com/tree-sitter/tree-sitter-jsdoc"))
-          (ruby       . ("https://github.com/tree-sitter/tree-sitter-ruby"))
-          (tsx        . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
-          (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src"))
-          (yaml       . ("https://github.com/tree-sitter-grammars/tree-sitter-yaml"))))
+	'((bash       . ("https://github.com/tree-sitter/tree-sitter-bash"))
+	  (dockerfile . ("https://github.com/camdencheek/tree-sitter-dockerfile"))
+	  (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript"))
+	  (jsdoc      . ("https://github.com/tree-sitter/tree-sitter-jsdoc"))
+	  (ruby       . ("https://github.com/tree-sitter/tree-sitter-ruby"))
+	  (tsx        . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
+	  (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src"))
+	  (yaml       . ("https://github.com/tree-sitter-grammars/tree-sitter-yaml"))))
 
   ;; Remap legacy modes to their tree-sitter equivalents.
   ;; This is the correct Emacs 29+ mechanism — takes priority over auto-mode-alist.
   (dolist (mapping '((sh-mode          . bash-ts-mode)
-                     (ruby-mode         . ruby-ts-mode)
-                     (js-mode           . js-ts-mode)
-                     (typescript-mode   . typescript-ts-mode)
-                     (yaml-mode         . yaml-ts-mode)
-                     (dockerfile-mode   . dockerfile-ts-mode)))
+		     (ruby-mode         . ruby-ts-mode)
+		     (js-mode           . js-ts-mode)
+		     (typescript-mode   . typescript-ts-mode)
+		     (yaml-mode         . yaml-ts-mode)
+		     (dockerfile-mode   . dockerfile-ts-mode)))
     (add-to-list 'major-mode-remap-alist mapping))
 
   (defun mutecipher/treesit-install-all-grammars ()
@@ -665,13 +665,13 @@ Skips any language whose grammar is already available."
     (let ((out-dir (expand-file-name "tree-sitter/" mutecipher/data-dir)))
       (make-directory out-dir t)
       (dolist (lang (mapcar #'car treesit-language-source-alist))
-        (if (treesit-language-available-p lang)
-            (message "Tree-sitter: %s already installed, skipping" lang)
-          ;; Emacs 30+ accepts an explicit out-dir argument; Emacs 29 does not.
-          (if (>= emacs-major-version 30)
-              (treesit-install-language-grammar lang out-dir)
-            (let ((user-emacs-directory mutecipher/data-dir))
-              (treesit-install-language-grammar lang)))))
+	(if (treesit-language-available-p lang)
+	    (message "Tree-sitter: %s already installed, skipping" lang)
+	  ;; Emacs 30+ accepts an explicit out-dir argument; Emacs 29 does not.
+	  (if (>= emacs-major-version 30)
+	      (treesit-install-language-grammar lang out-dir)
+	    (let ((user-emacs-directory mutecipher/data-dir))
+	      (treesit-install-language-grammar lang)))))
       (message "Tree-sitter grammars installed to %s" out-dir)))
 #+end_src
 ** Ruby
@@ -695,11 +695,11 @@ Skips any language whose grammar is already available."
     :mode ("\\.ts\\'" . typescript-ts-mode)
     :mode ("\\.tsx\\'" . tsx-ts-mode)
     :hook ((typescript-ts-mode-hook . (lambda ()
-                                        (setq indent-tabs-mode nil)
-                                        (add-hook 'before-save-hook #'eglot-format-buffer nil t)))
-           (tsx-ts-mode-hook        . (lambda ()
-                                        (setq indent-tabs-mode nil)
-                                        (add-hook 'before-save-hook #'eglot-format-buffer nil t))))
+					(setq indent-tabs-mode nil)
+					(add-hook 'before-save-hook #'eglot-format-buffer nil t)))
+	   (tsx-ts-mode-hook        . (lambda ()
+					(setq indent-tabs-mode nil)
+					(add-hook 'before-save-hook #'eglot-format-buffer nil t))))
     :config
     (unbind-key "M-." typescript-ts-base-mode-map))
 #+end_src
@@ -732,16 +732,21 @@ Skips any language whose grammar is already available."
   (require 'mutecipher-markdown)
   (require 'mutecipher-hover)
   (require 'mutecipher-acp)
+  (require 'mutecipher-vc-gutter)
+  (require 'mutecipher-flymake-inline)
+
+  (mutecipher-vc-gutter-global-mode 1)
+  (add-hook 'flymake-mode-hook #'mutecipher-flymake-inline-mode)
 
   (setq mutecipher-acp-agents
-        '(("claude" :command "claude-agent-acp" :args ())))
+	'(("claude" :command "claude-agent-acp" :args ())))
 
   (dolist (hook '(css-mode-hook
-                  css-ts-mode-hook
-                  emacs-lisp-mode-hook
-                  html-mode-hook
-                  web-mode-hook
-                  org-mode-hook))
+		  css-ts-mode-hook
+		  emacs-lisp-mode-hook
+		  html-mode-hook
+		  web-mode-hook
+		  org-mode-hook))
     (add-hook hook #'mutecipher-colorize-mode))
 
   (provide 'init)
