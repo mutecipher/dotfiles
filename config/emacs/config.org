@@ -366,12 +366,12 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (fset #'jsonrpc--log-event #'ignore)
     :bind
     (:map eglot-mode-map
-  	("C-c l a" . eglot-code-actions)
-  	("C-c l o" . eglot-code-actions-organize-imports)
-  	("C-c l r" . eglot-rename)
-  	("C-c l i" . eglot-inlay-hints-mode)
-  	("C-c l f" . eglot-format)
-  	("C-c l k" . mutecipher/hover)))
+  	("C-c e a" . eglot-code-actions)
+  	("C-c e o" . eglot-code-actions-organize-imports)
+  	("C-c e r" . eglot-rename)
+  	("C-c e i" . eglot-inlay-hints-mode)
+  	("C-c e f" . eglot-format)
+  	("C-c e k" . mutecipher/hover)))
 #+end_src
 ** FLYMAKE
 #+begin_src emacs-lisp
