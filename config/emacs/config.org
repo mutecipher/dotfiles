@@ -257,8 +257,10 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (icomplete-max-delay-chars 0)
     (icomplete-show-matches-on-no-input t)
     (icomplete-hide-common-prefix nil)
-    (icomplete-prospects-height 12)
+    (icomplete-prospects-height 8)
     (icomplete-scroll t)
+    (completion-auto-help nil)      ; fido-vertical makes *Completions* buffer redundant
+    (completion-show-help nil)      ; suppress "Click or type M-RET..." instruction lines
     (completion-category-overrides '((file (styles basic partial-completion flex)))))
 #+end_src
 ** DIRED
