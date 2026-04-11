@@ -53,6 +53,7 @@ This section contains general configurations and tweaks to Emacs default behavio
      ("C-z" . nil)
      ("C-x C-z" . nil)
      ("C-c A s" . mutecipher/acp-start)
+     ("C-c A l" . mutecipher/acp-resume)
      ("C-c A p" . mutecipher/acp-prompt)
      ("C-c A r" . mutecipher/acp-prompt-region)
      ("C-c A c" . mutecipher/acp-cancel))
