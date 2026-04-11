@@ -741,7 +741,8 @@ Skips any language whose grammar is already available."
   (add-hook 'flymake-mode-hook #'mutecipher-flymake-inline-mode)
 
   (setq mutecipher-acp-agents
-	'(("claude" :command "claude-agent-acp" :args ())))
+	'(("claude"  :command "claude-agent-acp" :args ())
+	  ("copilot" :command "copilot"          :args ("--acp"))))
 
   (dolist (hook '(css-mode-hook
 		  css-ts-mode-hook
