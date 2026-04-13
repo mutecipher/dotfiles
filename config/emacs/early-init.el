@@ -21,8 +21,8 @@
 (let ((dark-p (string-match-p "Dark"
                                (shell-command-to-string
                                 "defaults read -g AppleInterfaceStyle 2>/dev/null"))))
-  (add-to-list 'default-frame-alist `(background-color . ,(if dark-p "#1a1918" "#f3efea")))
-  (add-to-list 'default-frame-alist `(foreground-color . ,(if dark-p "#ddd8cf" "#282420")))
+  (add-to-list 'default-frame-alist `(background-color . ,(if dark-p "#1f1f24" "#ffffff")))
+  (add-to-list 'default-frame-alist `(foreground-color . ,(if dark-p "#ffffff" "#000000")))
   (add-to-list 'default-frame-alist `(ns-appearance    . ,(if dark-p 'dark 'light))))
 
 ;; Better window management
