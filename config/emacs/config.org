@@ -80,7 +80,6 @@ This section contains general configurations and tweaks to Emacs default behavio
     (help-window-select t)
     (history-length 300)
     (inhibit-startup-message t)
-    (ibuffer-human-readable-size t)
     (kill-do-not-save-duplicates t)
     (create-lockfiles nil)
     (make-backup-files nil)
@@ -286,6 +285,27 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :config
     (setq wdired-allow-to-change-permissions t)
     (setq wdired-create-parent-directories t))
+#+end_src
+** IBUFFER
+#+begin_src emacs-lisp
+  (use-package ibuffer
+    :ensure nil
+    :hook ((ibuffer-mode . ibuffer-auto-mode)
+           (ibuffer-mode . (lambda ()
+                             (ibuffer-switch-to-saved-filter-groups "default"))))
+    :custom
+    (ibuffer-show-empty-filter-groups nil)
+    (ibuffer-formats
+     '((mark modified read-only locked " "
+             (name 32 32 :left :elide) " "
+             (size 6 -1 :right) " "
+             (mode 14 14 :left :elide) " "
+             filename-and-process)))
+    (ibuffer-saved-filter-groups
+     '(("default"
+        ("Dired"   (mode . dired-mode))
+        ("Special" (name . "^\\*")))))
+    (ibuffer-human-readable-size t))
 #+end_src
 ** ESHELL
 ** ISEARCH
