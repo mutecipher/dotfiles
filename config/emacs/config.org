@@ -382,7 +382,8 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     :hook
     ((js-ts-mode-hook         . eglot-ensure)
      (typescript-ts-mode-hook . eglot-ensure)
-     (tsx-ts-mode-hook        . eglot-ensure))
+     (tsx-ts-mode-hook        . eglot-ensure)
+     (eglot-managed-mode-hook . eglot-inlay-hints-mode))
     :custom
     (eglot-autoshutdown t)
     (eglot-events-buffer-config '(:size 0 :format full))
@@ -688,6 +689,8 @@ Custom mode line with Nerd Font icon for the current buffer's file type or major
       (:eval (when-let ((s (mutecipher/flymake-mode-line)))
 	       (concat "  " s)))
       mode-line-format-right-align
+      (:eval (mutecipher-git-blame-mode-line-segment))
+      (:eval (when (mutecipher-git-blame-mode-line-segment) "  ·  "))
       (:eval (format-mode-line "%l:%C"))
       "  "
       mode-line-misc-info))
@@ -811,8 +814,10 @@ Skips any language whose grammar is already available."
   (require 'mutecipher-acp)
   (require 'mutecipher-vc-gutter)
   (require 'mutecipher-flymake-inline)
+  (require 'mutecipher-git-blame)
 
   (mutecipher-vc-gutter-global-mode 1)
+  (mutecipher-git-blame-global-mode 1)
   (add-hook 'flymake-mode-hook #'mutecipher-flymake-inline-mode)
 
   (setq mutecipher-acp-agents
