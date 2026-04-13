@@ -38,6 +38,24 @@ Example:
                 :value-type (plist :key-type symbol :value-type sexp))
   :group 'mutecipher-acp)
 
+(defcustom mutecipher-acp-org-responses t
+  "When non-nil, instruct the agent to respond in Org-mode syntax.
+Prepends `mutecipher-acp-org-system-prompt' to the first message of each
+new session and activates Org font-lock in the session buffer."
+  :type 'boolean
+  :group 'mutecipher-acp)
+
+(defcustom mutecipher-acp-org-system-prompt
+  "Format all your responses using Org-mode syntax:
+- Use *, **, *** for headings
+- Use #+begin_src LANG ... #+end_src for code blocks (always specify the language)
+- Use *bold*, /italic/, ~code~, =verbatim= for inline markup in prose
+- Use Org tables where appropriate: always include a space before and after each | separator, e.g. | col 1 | col 2 |, with a hline row of |---+---| after the header; do NOT use inline markup (*~=//) inside table cells as it breaks column alignment
+- Do NOT wrap the entire response in a src block; use prose with embedded blocks"
+  "System instruction prepended to the first prompt when `mutecipher-acp-org-responses' is enabled."
+  :type 'string
+  :group 'mutecipher-acp)
+
 ;;;; Faces
 
 (defface mutecipher-acp-user-face
@@ -243,21 +261,12 @@ not inside the process filter where interactive prompts are suppressed."
                              (mutecipher-acp--respond conn id (list :content content))
                              (when session
                                (mutecipher-acp--append
-                                (mutecipher-acp--session-id-for-session session)
+                                (plist-get session :id)
                                 (concat "  \u1f4c4 read: " abs-path "\n")
                                 'shadow)))
                          (error
                           (mutecipher-acp--respond-error conn id -32000
                                                          (error-message-string err))))))))))
-
-(defun mutecipher-acp--session-id-for-session (session)
-  "Return the session-id key for SESSION plist in `mutecipher-acp--sessions'."
-  (let (found-id)
-    (maphash (lambda (sid s)
-               (when (eq s session)
-                 (setq found-id sid)))
-             mutecipher-acp--sessions)
-    found-id))
 
 (defun mutecipher-acp--handle-fs-write (conn id params)
   "Handle an fs/write_text_file request from the agent.
@@ -291,7 +300,7 @@ Deferred via `run-at-time' so that `y-or-n-p' runs in the main event loop."
                              (mutecipher-acp--respond conn id (list))
                              (when session
                                (mutecipher-acp--append
-                                (mutecipher-acp--session-id-for-session session)
+                                (plist-get session :id)
                                 (concat "  \u270f wrote: " abs-path "\n")
                                 'shadow)))
                          (error
@@ -472,7 +481,7 @@ Handles strings, plists (JSON objects), and vectors."
            ((equal type "plan")
             (let* ((tasks (plist-get update :tasks))
                    (lines (if (and tasks (not (eq tasks :json-false)))
-                              (mapconcat (lambda (t) (concat "\u2022 " (or (plist-get t :title) "")))
+                              (mapconcat (lambda (task) (concat "\u2022 " (or (plist-get task :title) "")))
                                          tasks "\n")
                             "")))
               (mutecipher-acp--append session-id "\n[Plan]\n" 'bold)
@@ -586,6 +595,144 @@ Handles strings, plists (JSON objects), and vectors."
     ("^\\[Plan\\]$" (0 '(face bold) t)))
   "Font-lock keywords for ACP session buffers.")
 
+(defun mutecipher-acp--output-matcher (regexp)
+  "Return a font-lock matcher for REGEXP restricted to the output area.
+The returned function searches only up to the comint process mark, so
+org-style formatting (including invisible markers) never applies to the
+prompt/input region."
+  (lambda (limit)
+    (let* ((proc  (get-buffer-process (current-buffer)))
+           (pmark (and proc (process-mark proc)))
+           (ppos  (and pmark (marker-position pmark)))
+           (bound (if ppos (min limit ppos) limit)))
+      (when (< (point) bound)
+        (re-search-forward regexp bound t)))))
+
+(defun mutecipher-acp--table-pipe-matcher (limit)
+  "Font-lock matcher for | characters on Org table rows, up to LIMIT.
+Only matches in the output area (before the comint process mark)."
+  (let* ((proc  (get-buffer-process (current-buffer)))
+         (pmark (and proc (process-mark proc)))
+         (ppos  (and pmark (marker-position pmark)))
+         (bound (if ppos (min limit ppos) limit))
+         found)
+    (while (and (not found)
+                (< (point) bound)
+                (re-search-forward "|" bound t))
+      (when (save-excursion (beginning-of-line) (looking-at "|"))
+        (setq found t)))
+    found))
+
+(defconst mutecipher-acp--org-keywords
+  `(;; Headings: hide leading stars (org-hide-leading-stars), bold text
+    ;; "** Heading" → first * hidden, second * in shadow, text bold+tall
+    (,(mutecipher-acp--output-matcher "^\\(\\**\\)\\(\\*\\) \\(.*\\)$")
+     (1 '(face nil invisible mutecipher-acp-markup) t)
+     (2 'shadow t)
+     (3 '(face (:weight bold :height 1.1)) t))
+    ;; Bold *text* — hide markers (org-hide-emphasis-markers)
+    (,(mutecipher-acp--output-matcher "\\(\\*\\)\\([^*\n]+\\)\\(\\*\\)")
+     (1 '(face nil invisible mutecipher-acp-markup) t)
+     (2 'bold t)
+     (3 '(face nil invisible mutecipher-acp-markup) t))
+    ;; Italic /text/ — hide markers
+    (,(mutecipher-acp--output-matcher "\\(/\\)\\([^/\n]+\\)\\(/\\)")
+     (1 '(face nil invisible mutecipher-acp-markup) t)
+     (2 '(face (:slant italic)) t)
+     (3 '(face nil invisible mutecipher-acp-markup) t))
+    ;; Inline code ~text~ — hide markers
+    (,(mutecipher-acp--output-matcher "\\(~\\)\\([^~\n]+\\)\\(~\\)")
+     (1 '(face nil invisible mutecipher-acp-markup) t)
+     (2 'font-lock-constant-face t)
+     (3 '(face nil invisible mutecipher-acp-markup) t))
+    ;; Verbatim =text= — hide markers
+    (,(mutecipher-acp--output-matcher "\\(=\\)\\([^=\n]+\\)\\(=\\)")
+     (1 '(face nil invisible mutecipher-acp-markup) t)
+     (2 'font-lock-string-face t)
+     (3 '(face nil invisible mutecipher-acp-markup) t))
+    ;; src block delimiters
+    (,(mutecipher-acp--output-matcher "^#\\+begin_src\\b.*$") (0 'font-lock-comment-face t))
+    (,(mutecipher-acp--output-matcher "^#\\+end_src$")        (0 'font-lock-comment-face t))
+    ;; Other #+KEYWORD lines
+    (,(mutecipher-acp--output-matcher "^#\\+[A-Za-z_]+:?.*$") (0 'font-lock-preprocessor-face t))
+    ;; List items: - item or + item
+    (,(mutecipher-acp--output-matcher "^[ \t]*[-+] ")          (0 'font-lock-keyword-face t))
+    ;; Table hlines  |---+---|  (full row dimmed)
+    (,(mutecipher-acp--output-matcher "^|[-|+:]+|$")
+     (0 'shadow t))
+    ;; Table | separators — custom matcher walks each | on table lines
+    (mutecipher-acp--table-pipe-matcher (0 'shadow t)))
+  "Org-mode-inspired font-lock keywords for ACP session buffers.")
+
+(defun mutecipher-acp--fontify-block (lang beg end)
+  "Apply LANG's font-lock faces to region BEG..END in the current buffer.
+Uses a persistent scratch buffer to avoid reloading the major mode each call.
+Does not depend on org-src or org-element."
+  (let* ((mode-sym (let ((ts  (intern (concat lang "-ts-mode")))
+                         (leg (intern (concat lang "-mode"))))
+                     (cond
+                      ((and (fboundp ts)
+                            (fboundp 'treesit-language-available-p)
+                            (treesit-language-available-p (intern lang)))
+                       ts)
+                      ((fboundp leg) leg))))
+         (src-buf (current-buffer)))
+    (when mode-sym
+      (let ((code (buffer-substring-no-properties beg end)))
+        (with-current-buffer
+            (get-buffer-create (format " *acp-fontify:%s*" lang))
+          (erase-buffer)
+          (insert code " ")         ; trailing space avoids partial last token
+          (unless (eq major-mode mode-sym)
+            (ignore-errors (funcall mode-sym)))
+          (font-lock-ensure)
+          (let ((pos 1))
+            (while (< pos (point-max))
+              (let* ((next (or (next-single-property-change pos 'face) (point-max)))
+                     (face (get-text-property pos 'face)))
+                (when face
+                  (with-current-buffer src-buf
+                    (let ((inhibit-read-only t))
+                      (put-text-property (+ beg (1- pos))
+                                         (min (+ beg (1- next)) end)
+                                         'face face))))
+                (setq pos next)))))))))
+
+(defun mutecipher-acp--align-tables-in-region (beg end-marker)
+  "Align all Org tables between BEG and END-MARKER using `org-table-align'.
+END-MARKER is a marker so it tracks insertions made during alignment."
+  (when (require 'org-table nil t)
+    (let ((inhibit-read-only t))
+      (save-excursion
+        (goto-char beg)
+        (while (and (< (point) (marker-position end-marker))
+                    (re-search-forward "^|" (marker-position end-marker) t))
+          (beginning-of-line)
+          (ignore-errors (org-table-align))
+          (ignore-errors (goto-char (org-table-end)))
+          (forward-line 1))))))
+
+(defun mutecipher-acp--org-fontify-src-blocks (start end)
+  "Fontify #+begin_src...#+end_src blocks in region START to END.
+Registered as a jit-lock function in `mutecipher-acp-session-mode'.
+Only runs in the output area (before the comint process mark)."
+  (when-let* ((proc  (get-buffer-process (current-buffer)))
+              (pmark (process-mark proc))
+              (ppos  (marker-position pmark))
+              (_ (< start ppos)))
+    (let ((end (min end ppos)))
+      (save-excursion
+        (goto-char start)
+        (let ((scan-from (or (re-search-backward "^#\\+begin_src" nil t) start)))
+          (goto-char scan-from)
+          (while (re-search-forward "^#\\+begin_src \\(\\S-+\\)" end t)
+            (let* ((lang    (match-string-no-properties 1))
+                   (blk-beg (1+ (line-end-position)))
+                   (blk-end (and (re-search-forward "^#\\+end_src" end t)
+                                 (line-beginning-position))))
+              (when (and blk-end (< blk-beg blk-end))
+                (mutecipher-acp--fontify-block lang blk-beg blk-end)))))))))
+
 ;;;; Protocol helpers
 
 (defun mutecipher-acp--initialize (conn callback)
@@ -605,8 +752,9 @@ Handles strings, plists (JSON objects), and vectors."
    (lambda (result)
      (let* ((session-id (plist-get result :sessionId))
             (buf        (mutecipher-acp--get-or-create-buffer session-id agent-name))
-            (session    (list :conn conn :buffer buf :agent agent-name
+            (session    (list :id session-id :conn conn :buffer buf :agent agent-name
                               :cwd cwd
+                              :org-primed nil
                               :tool-calls (make-hash-table :test #'equal)
                               :commands nil)))
        (puthash session-id session mutecipher-acp--sessions)
@@ -619,9 +767,12 @@ Handles strings, plists (JSON objects), and vectors."
   "Resume SESSION-ID via session/load on CONN; call CALLBACK with (session-id buf)."
   ;; Create the session plist and buffer now so that replayed notifications
   ;; have somewhere to land before the success callback fires.
+  ;; :org-primed is intentionally nil here — the system prompt is re-sent on the
+  ;; first new message to re-establish Org formatting for the resumed conversation.
   (let* ((buf     (mutecipher-acp--get-or-create-buffer session-id agent-name))
-         (session (list :conn conn :buffer buf :agent agent-name
+         (session (list :id session-id :conn conn :buffer buf :agent agent-name
                         :cwd cwd
+                        :org-primed nil
                         :tool-calls (make-hash-table :test #'equal)
                         :commands nil)))
     (puthash session-id session mutecipher-acp--sessions)
@@ -716,6 +867,10 @@ S-RET inserts a newline.  C-c C-c cancels.  C-c C-k kills the session."
   ;; visual / font-lock
   (setq-local truncate-lines nil)
   (font-lock-add-keywords nil mutecipher-acp--session-keywords t)
+  (when mutecipher-acp-org-responses
+    (font-lock-add-keywords nil mutecipher-acp--org-keywords t)
+    (add-to-invisibility-spec 'mutecipher-acp-markup)
+    (jit-lock-register #'mutecipher-acp--org-fontify-src-blocks))
   ;; slash-command completion
   (add-hook 'completion-at-point-functions
             #'mutecipher-acp--commands-capf nil t)
@@ -815,22 +970,49 @@ then loads it via session/load."
 
 (defun mutecipher-acp--do-prompt (session-id text)
   "Send TEXT as a prompt for SESSION-ID."
-  (let* ((session (gethash session-id mutecipher-acp--sessions))
-         (conn    (plist-get session :conn)))
+  (let* ((session   (gethash session-id mutecipher-acp--sessions))
+         (conn      (plist-get session :conn))
+         (buf       (plist-get session :buffer))
+         (primed    (plist-get session :org-primed))
+         (full-text (if (and mutecipher-acp-org-responses (not primed))
+                        (progn
+                          (puthash session-id
+                                   (plist-put session :org-primed t)
+                                   mutecipher-acp--sessions)
+                          (concat mutecipher-acp-org-system-prompt "\n\n" text))
+                      text)))
     ;; Blank line separates user input (already shown in prompt area) from response
     (mutecipher-acp--append session-id "\n")
-    (mutecipher-acp--request
-     conn "session/prompt"
-     (list :sessionId session-id
-           :prompt (vector (list :type "text" :text text)))
-     :success-fn (lambda (_)
-                   (mutecipher-acp--append session-id "\n\n")
-                   (mutecipher-acp--emit-prompt session-id))
-     :error-fn   (lambda (err)
-                   (mutecipher-acp--append
-                    session-id
-                    (concat "\u2718 " (or (plist-get err :message) "request failed") "\n"))
-                   (mutecipher-acp--emit-prompt session-id)))))
+    ;; Capture response start after the opening newline so we can align tables later.
+    ;; Use a marker that stays fixed while response content is inserted before the pmark.
+    (let ((resp-start
+           (when (and mutecipher-acp-org-responses buf (buffer-live-p buf))
+             (with-current-buffer buf
+               (when-let* ((proc  (get-buffer-process buf))
+                           (pmark (process-mark proc)))
+                 (copy-marker pmark))))))
+      (mutecipher-acp--request
+       conn "session/prompt"
+       (list :sessionId session-id
+             :prompt (vector (list :type "text" :text full-text)))
+       :success-fn (lambda (_)
+                     (mutecipher-acp--append session-id "\n\n")
+                     ;; Align tables in the completed response region.
+                     (when (and resp-start (buffer-live-p buf))
+                       (with-current-buffer buf
+                         (when-let* ((proc  (get-buffer-process buf))
+                                     (end-m (copy-marker (process-mark proc))))
+                           (mutecipher-acp--align-tables-in-region
+                            (marker-position resp-start) end-m)
+                           (set-marker end-m nil)))
+                       (set-marker resp-start nil))
+                     (mutecipher-acp--emit-prompt session-id))
+       :error-fn   (lambda (err)
+                     (when resp-start (set-marker resp-start nil))
+                     (mutecipher-acp--append
+                      session-id
+                      (concat "\u2718 " (or (plist-get err :message) "request failed") "\n"))
+                     (mutecipher-acp--emit-prompt session-id))))))
 
 ;;;###autoload
 (defun mutecipher/acp-prompt (text)
