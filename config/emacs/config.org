@@ -548,6 +548,60 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
        (org . t)
        (shell . t))))
 #+end_src
+** BLOG
+Creates a new blog post file in =~/Documents/Blog/= with pre-filled Org metadata.
+Invoke with =C-c b n=.
+
+#+begin_src emacs-lisp
+  (defcustom mutecipher-blog-directory (expand-file-name "~/Documents/Blog/")
+    "Directory where blog post Org files are stored."
+    :type 'directory
+    :group 'mutecipher)
+
+  (defun mutecipher--blog-slugify (title)
+    "Convert TITLE to a URL-safe slug."
+    (thread-last title
+      (downcase)
+      (replace-regexp-in-string "[^a-z0-9]+" "-")
+      (replace-regexp-in-string "^-\\|-$" "")))
+
+  (defun mutecipher/new-blog-post (title)
+    "Create a new blog post Org file in `mutecipher-blog-directory'.
+Prompts for TITLE (required) then all supported metadata fields."
+    (interactive "sBlog post title: ")
+    (let* ((slug-derived  (mutecipher--blog-slugify title))
+           (date          (format-time-string "%Y-%m-%d"))
+           (filename      (format "%s-%s.org" date slug-derived))
+           (filepath      (expand-file-name filename mutecipher-blog-directory))
+           (desc          (read-string "Description (optional): "))
+           (tags-raw      (read-string "Tags, space-separated (optional): "))
+           (tags          (when (not (string-empty-p tags-raw))
+                            (concat ":"
+                                    (mapconcat #'identity (split-string tags-raw) ":")
+                                    ":")))
+           (image         (read-string "Hero image path or URL (optional): "))
+           (image-alt     (when (not (string-empty-p image))
+                            (read-string "Hero image alt text (optional): ")))
+           (slug-override (read-string (format "URL slug [%s]: " slug-derived)))
+           (slug          (if (string-empty-p slug-override) slug-derived slug-override))
+           (draft         (y-or-n-p "Save as draft? ")))
+      (unless (file-directory-p mutecipher-blog-directory)
+        (make-directory mutecipher-blog-directory t))
+      (find-file filepath)
+      (insert "#+TITLE:       " title "\n")
+      (insert "#+DATE:        " date "\n")
+      (insert "#+AUTHOR:      " (or user-full-name "") "\n")
+      (insert "#+DESCRIPTION: " desc "\n")
+      (insert "#+FILETAGS:    " (or tags "") "\n")
+      (insert "#+IMAGE:       " image "\n")
+      (insert "#+IMAGE_ALT:   " (or image-alt "") "\n")
+      (insert "#+SLUG:        " slug "\n")
+      (insert "#+DRAFT:       " (if draft "true" "false") "\n")
+      (insert "\n")
+      (save-buffer)))
+
+  (global-set-key (kbd "C-c b n") #'mutecipher/new-blog-post)
+#+end_src
 ** SPEEDBAR
 ** TIME
 ** UNIQUIFY
