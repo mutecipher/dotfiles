@@ -29,8 +29,6 @@
 	(if mutecipher/center-document-mode
 		(add-hook 'window-configuration-change-hook #'mutecipher/center-document--adjust-margins 'append 'local)
 	  (remove-hook 'window-configuration-change-hook #'mutecipher/center-document--adjust-margins 'local))
-	(mutecipher/center-document--adjust-margins))
-
-  (add-hook 'org-mode-hook #'mutecipher/center-document-mode))
+	(mutecipher/center-document--adjust-margins)))
 
 (provide 'mutecipher-centered)
