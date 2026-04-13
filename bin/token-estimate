@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# token-estimate: estimate Claude input tokens and cost for a list of files
+# Usage: token-estimate [--with-output] <file> [file ...]
+
+set -euo pipefail
+
+# Claude Sonnet costs per million tokens (USD)
+INPUT_COST_PER_MILLION=3.00
+OUTPUT_COST_PER_MILLION=15.00
+OUTPUT_RATIO=0.20  # assumed output as a fraction of input tokens
+
+with_output=false
+
+if [[ $# -eq 0 ]]; then
+  echo "Usage: token-estimate [--with-output] <file> [file ...]" >&2
+  exit 1
+fi
+
+if [[ "${1:-}" == "--with-output" ]]; then
+  with_output=true
+  shift
+fi
+
+if [[ $# -eq 0 ]]; then
+  echo "Usage: token-estimate [--with-output] <file> [file ...]" >&2
+  exit 1
+fi
+
+total_tokens=0
+
+printf "%-50s %10s\n" "FILE" "TOKENS"
+printf "%-50s %10s\n" "$(printf '%.0s-' {1..50})" "----------"
+
+for file in "$@"; do
+  if [[ ! -f "$file" ]]; then
+    printf "%-50s %10s\n" "$file" "(not found)"
+    continue
+  fi
+  chars=$(wc -c < "$file")
+  tokens=$(( chars / 4 ))
+  total_tokens=$(( total_tokens + tokens ))
+  printf "%-50s %10s\n" "$file" "$tokens"
+done
+
+printf "%-50s %10s\n" "$(printf '%.0s-' {1..50})" "----------"
+printf "%-50s %10d\n" "TOTAL INPUT TOKENS" "$total_tokens"
+
+awk -v tokens="$total_tokens" \
+    -v in_cost="$INPUT_COST_PER_MILLION" \
+    -v out_cost="$OUTPUT_COST_PER_MILLION" \
+    -v out_ratio="$OUTPUT_RATIO" \
+    -v with_output="$with_output" '
+BEGIN {
+  input_cost  = (tokens / 1000000) * in_cost
+  printf "%-50s %10s\n", "ESTIMATED COST (input)", sprintf("$%.4f", input_cost)
+
+  if (with_output == "true") {
+    out_tokens  = int(tokens * out_ratio)
+    output_cost = (out_tokens / 1000000) * out_cost
+    total_cost  = input_cost + output_cost
+    printf "%-50s %10s\n", "ESTIMATED OUTPUT TOKENS (~20% of input)", out_tokens
+    printf "%-50s %10s\n", "ESTIMATED COST (output)", sprintf("$%.4f", output_cost)
+    printf "%-50s %10s\n", "ESTIMATED COST (total)", sprintf("$%.4f", total_cost)
+  }
+}'
