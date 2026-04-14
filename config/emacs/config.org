@@ -225,6 +225,16 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (window-divider-default-bottom-width 1)
     :hook (after-init-hook . window-divider-mode))
 #+end_src
+** FRINGE
+Wider left fringe gives Flymake indicators breathing room and reduces the
+cramped-edge feeling nano-emacs avoids.
+
+#+begin_src emacs-lisp
+  (use-package fringe
+    :ensure nil
+    :config
+    (fringe-mode '(16 . 8)))
+#+end_src
 ** TAB-BAR
 ** ERC
 #+begin_src emacs-lisp
