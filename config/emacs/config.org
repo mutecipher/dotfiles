@@ -159,7 +159,7 @@ This section contains general configurations and tweaks to Emacs default behavio
 
     ;; macOS tweaks
     (when (eq system-type 'darwin)
-      (setq mac-command-modifier "meta")
+      (setq mac-command-modifier 'meta)
       (set-fontset-font t 'emoji (font-spec :family "Apple Color Emoji") nil 'append))
 
 
@@ -270,15 +270,13 @@ cramped-edge feeling nano-emacs avoids.
     (erc-save-queries-on-quit t)
     (erc-log-write-after-send t)
     (erc-log-write-after-insert t)
-    (erc-spelling-dictionaries '(("Libera.Chat", "en_US")))
+    (erc-spelling-dictionaries '(("Libera.Chat" "en_US")))
     :config
     (make-directory erc-log-channels-directory t)
     (add-to-list 'erc-modules 'log)
     (erc-spelling-mode 1)
-    :init
-    (with-eval-after-load 'erc
-      (when (< emacs-major-version 31)
-	(add-to-list 'erc-modules 'scrolltobottom))))
+    (when (< emacs-major-version 31)
+      (add-to-list 'erc-modules 'scrolltobottom)))
 #+end_src
 ** ICOMPLETE
 #+begin_src emacs-lisp
@@ -565,20 +563,19 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
 	"* %U %?\n"
 	:empty-lines 1)))
     :config
-    (setopt org-export-backends '(ascii html icalendar latex odt md))
-    (setq org-startup-folded t
-	  org-hide-leading-stars t
-	  org-auto-align-tags nil
-	  org-tags-column 0
-	  org-fold-catch-invisible-edits 'show-and-error
-	  org-special-ctrl-a/e t
-	  org-insert-heading-respect-content t
-	  org-hide-emphasis-markers t
-	  org-pretty-entities t
-	  org-use-sub-superscripts t
-	  org-log-done 'time
-	  org-log-into-drawer t
-	  org-confirm-babel-evaluate nil)
+    (setopt org-export-backends '(ascii html icalendar latex odt md)
+	    org-hide-leading-stars t
+	    org-auto-align-tags nil
+	    org-tags-column 0
+	    org-fold-catch-invisible-edits 'show-and-error
+	    org-special-ctrl-a/e t
+	    org-insert-heading-respect-content t
+	    org-hide-emphasis-markers t
+	    org-pretty-entities t
+	    org-use-sub-superscripts t
+	    org-log-done 'time
+	    org-log-into-drawer t
+	    org-confirm-babel-evaluate nil)
     (org-babel-do-load-languages
      'org-babel-load-languages
      '((python . t)
@@ -615,12 +612,12 @@ Prompts for TITLE (required) then all supported metadata fields."
            (filepath      (expand-file-name filename mutecipher-blog-directory))
            (desc          (read-string "Description (optional): "))
            (tags-raw      (read-string "Tags, space-separated (optional): "))
-           (tags          (when (not (string-empty-p tags-raw))
+           (tags          (unless (string-empty-p tags-raw)
                             (concat ":"
                                     (mapconcat #'identity (split-string tags-raw) ":")
                                     ":")))
            (image         (read-string "Hero image path or URL (optional): "))
-           (image-alt     (when (not (string-empty-p image))
+           (image-alt     (unless (string-empty-p image)
                             (read-string "Hero image alt text (optional): ")))
            (slug-override (read-string (format "URL slug [%s]: " slug-derived)))
            (slug          (if (string-empty-p slug-override) slug-derived slug-override))
