@@ -149,6 +149,7 @@ This section contains general configurations and tweaks to Emacs default behavio
     (setq display-line-numbers-type 'relative)
     (add-hook 'prog-mode-hook #'display-line-numbers-mode)
     (add-hook 'text-mode-hook #'display-line-numbers-mode)
+    (add-hook 'text-mode-hook (lambda () (setq-local line-spacing 0.10)))
 
     ;; Completion previews
     (add-hook 'prog-mode-hook #'completion-preview-mode)
@@ -556,7 +557,8 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
        (js . t)
        (emacs-lisp . t)
        (org . t)
-       (shell . t))))
+       (shell . t)))
+    (add-hook 'org-mode-hook (lambda () (setq-local line-spacing 0.15))))
 #+end_src
 ** BLOG
 Creates a new blog post file in =~/Documents/Blog/= with pre-filled Org metadata.
