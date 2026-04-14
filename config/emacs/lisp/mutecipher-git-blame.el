@@ -114,21 +114,23 @@ The symbol `none' means the remote was fetched but could not be parsed.")
 (defun mutecipher-git-blame--format (data)
   "Return a propertized mode-line string from blame plist DATA.
 When a remote URL can be derived, the segment is clickable (mouse-1)."
-  (let* ((text (format "%s %s (%s)"
-                       (plist-get data :author)
-                       (plist-get data :email)
-                       (mutecipher-git-blame--relative-time (plist-get data :time))))
-         (url  (mutecipher-git-blame--commit-url (plist-get data :sha)))
-         (str  (propertize text 'face 'font-lock-comment-face)))
+  (let* ((author   (plist-get data :author))
+         (email    (plist-get data :email))
+         (time     (mutecipher-git-blame--relative-time (plist-get data :time)))
+         (first    (car (split-string author)))
+         (text     (format "%s · %s" first time))
+         (tooltip  (format "%s %s · %s" author email time))
+         (url      (mutecipher-git-blame--commit-url (plist-get data :sha)))
+         (str      (propertize text 'face 'font-lock-comment-face)))
     (if url
         (let ((map (make-sparse-keymap)))
           (define-key map [mode-line mouse-1]
             (lambda () (interactive) (browse-url url)))
           (propertize str
                       'mouse-face  'mode-line-highlight
-                      'help-echo   (format "mouse-1: open commit in browser\n%s" url)
+                      'help-echo   (format "mouse-1: open commit in browser\n%s\n%s" tooltip url)
                       'local-map   map))
-      str)))
+      (propertize str 'help-echo tooltip))))
 
 ;;;; Per-line cache
 
