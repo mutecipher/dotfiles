@@ -16,7 +16,6 @@
 
 (require 'cl-lib)
 (require 'json)
-(require 'comint)
 
 ;;;; Customization
 
@@ -321,43 +320,35 @@ Each plist has :conn, :buffer, :agent, :cwd, :tool-calls, :commands.")
 
 ;;;; Session buffer management
 
+(defun mutecipher-acp--id-prefix (session-id)
+  "Return the first 8 characters of SESSION-ID for display."
+  (substring session-id 0 (min 8 (length session-id))))
+
 (defun mutecipher-acp--buffer-name (agent-name session-id)
   "Return buffer name for AGENT-NAME and SESSION-ID."
-  (format "*ACP: %s [%s]*"
-          agent-name
-          (substring session-id 0 (min 8 (length session-id)))))
+  (format "*ACP: %s [%s]*" agent-name (mutecipher-acp--id-prefix session-id)))
 
 (defun mutecipher-acp--get-or-create-buffer (session-id agent-name)
-  "Return (or create) the comint session buffer for SESSION-ID / AGENT-NAME."
+  "Return (or create) the session buffer for SESSION-ID / AGENT-NAME."
   (let* ((name (mutecipher-acp--buffer-name agent-name session-id))
          (buf  (get-buffer-create name)))
     (with-current-buffer buf
       (unless (derived-mode-p 'mutecipher-acp-session-mode)
         (mutecipher-acp-session-mode)
-        (setq mutecipher-acp--session-id session-id)
-        ;; Start anchor after mode init so comint's buffer-locals are set first
-        (mutecipher-acp--start-anchor buf)))
+        (setq mutecipher-acp--session-id session-id)))
     buf))
 
 (defun mutecipher-acp--append (session-id text &optional face)
-  "Append TEXT to SESSION-ID's buffer before the process mark, then advance it.
-This keeps the comint prompt at the bottom of the buffer.
-Scrolls any visible window to the end."
+  "Append TEXT to SESSION-ID's buffer at the end.
+Scrolls all visible windows to the end."
   (when-let ((session (gethash session-id mutecipher-acp--sessions)))
     (let ((buf (plist-get session :buffer)))
       (when (buffer-live-p buf)
         (with-current-buffer buf
-          (let* ((proc  (get-buffer-process buf))
-                 (pmark (and proc (process-mark proc)))
-                 (inhibit-read-only t))
-            (if (and pmark (marker-position pmark))
-                (save-excursion
-                  (goto-char pmark)
-                  (insert (if face (propertize text 'face face) text))
-                  (set-marker pmark (point)))
-              (goto-char (point-max))
-              (insert (if face (propertize text 'face face) text)))))
-        (when-let ((win (get-buffer-window buf t)))
+          (let ((inhibit-read-only t))
+            (goto-char (point-max))
+            (insert (if face (propertize text 'face face) text))))
+        (dolist (win (get-buffer-window-list buf nil t))
           (with-selected-window win
             (goto-char (point-max))))))))
 
@@ -488,13 +479,16 @@ Handles strings, plists (JSON objects), and vectors."
               (mutecipher-acp--append session-id "\n[Plan]\n" 'bold)
               (mutecipher-acp--append session-id (concat lines "\n"))))
            ((equal type "session_info_update")
-            (let* ((title   (plist-get update :title))
-                   (session (gethash session-id mutecipher-acp--sessions))
-                   (buf     (and session (plist-get session :buffer))))
+            (let* ((title     (plist-get update :title))
+                   (session   (gethash session-id mutecipher-acp--sessions))
+                   (buf       (and session (plist-get session :buffer)))
+                   (input-buf (and session (plist-get session :input-buffer))))
               (when (and title buf (buffer-live-p buf))
                 (with-current-buffer buf
-                  (rename-buffer
-                   (format "*ACP: %s*" title) t))
+                  (rename-buffer (format "*ACP: %s*" title) t))
+                (when (buffer-live-p input-buf)
+                  (with-current-buffer input-buf
+                    (rename-buffer (format "*ACP-input: %s*" title) t)))
                 (puthash session-id
                          (plist-put session :title title)
                          mutecipher-acp--sessions))))
@@ -597,29 +591,16 @@ Handles strings, plists (JSON objects), and vectors."
   "Font-lock keywords for ACP session buffers.")
 
 (defun mutecipher-acp--output-matcher (regexp)
-  "Return a font-lock matcher for REGEXP restricted to the output area.
-The returned function searches only up to the comint process mark, so
-org-style formatting (including invisible markers) never applies to the
-prompt/input region."
+  "Return a font-lock matcher for REGEXP in the output buffer."
   (lambda (limit)
-    (let* ((proc  (get-buffer-process (current-buffer)))
-           (pmark (and proc (process-mark proc)))
-           (ppos  (and pmark (marker-position pmark)))
-           (bound (if ppos (min limit ppos) limit)))
-      (when (< (point) bound)
-        (re-search-forward regexp bound t)))))
+    (re-search-forward regexp limit t)))
 
 (defun mutecipher-acp--table-pipe-matcher (limit)
-  "Font-lock matcher for | characters on Org table rows, up to LIMIT.
-Only matches in the output area (before the comint process mark)."
-  (let* ((proc  (get-buffer-process (current-buffer)))
-         (pmark (and proc (process-mark proc)))
-         (ppos  (and pmark (marker-position pmark)))
-         (bound (if ppos (min limit ppos) limit))
-         found)
+  "Font-lock matcher for | characters on Org table rows, up to LIMIT."
+  (let (found)
     (while (and (not found)
-                (< (point) bound)
-                (re-search-forward "|" bound t))
+                (< (point) limit)
+                (re-search-forward "|" limit t))
       (when (save-excursion (beginning-of-line) (looking-at "|"))
         (setq found t)))
     found))
@@ -715,24 +696,18 @@ END-MARKER is a marker so it tracks insertions made during alignment."
 
 (defun mutecipher-acp--org-fontify-src-blocks (start end)
   "Fontify #+begin_src...#+end_src blocks in region START to END.
-Registered as a jit-lock function in `mutecipher-acp-session-mode'.
-Only runs in the output area (before the comint process mark)."
-  (when-let* ((proc  (get-buffer-process (current-buffer)))
-              (pmark (process-mark proc))
-              (ppos  (marker-position pmark))
-              (_ (< start ppos)))
-    (let ((end (min end ppos)))
-      (save-excursion
-        (goto-char start)
-        (let ((scan-from (or (re-search-backward "^#\\+begin_src" nil t) start)))
-          (goto-char scan-from)
-          (while (re-search-forward "^#\\+begin_src \\(\\S-+\\)" end t)
-            (let* ((lang    (match-string-no-properties 1))
-                   (blk-beg (1+ (line-end-position)))
-                   (blk-end (and (re-search-forward "^#\\+end_src" end t)
-                                 (line-beginning-position))))
-              (when (and blk-end (< blk-beg blk-end))
-                (mutecipher-acp--fontify-block lang blk-beg blk-end)))))))))
+Registered as a jit-lock function in `mutecipher-acp-session-mode'."
+  (save-excursion
+    (goto-char start)
+    (let ((scan-from (or (re-search-backward "^#\\+begin_src" nil t) start)))
+      (goto-char scan-from)
+      (while (re-search-forward "^#\\+begin_src \\(\\S-+\\)" end t)
+        (let* ((lang    (match-string-no-properties 1))
+               (blk-beg (1+ (line-end-position)))
+               (blk-end (and (re-search-forward "^#\\+end_src" end t)
+                             (line-beginning-position))))
+          (when (and blk-end (< blk-beg blk-end))
+            (mutecipher-acp--fontify-block lang blk-beg blk-end)))))))
 
 ;;;; Protocol helpers
 
@@ -755,6 +730,7 @@ Only runs in the output area (before the comint process mark)."
             (buf        (mutecipher-acp--get-or-create-buffer session-id agent-name))
             (session    (list :id session-id :conn conn :buffer buf :agent agent-name
                               :cwd cwd
+                              :input-buffer nil
                               :org-primed nil
                               :thinking-ov nil
                               :thinking-timer nil
@@ -775,6 +751,7 @@ Only runs in the output area (before the comint process mark)."
   (let* ((buf     (mutecipher-acp--get-or-create-buffer session-id agent-name))
          (session (list :id session-id :conn conn :buffer buf :agent agent-name
                         :cwd cwd
+                        :input-buffer nil
                         :org-primed nil
                         :thinking-ov nil
                         :thinking-timer nil
@@ -791,44 +768,6 @@ Only runs in the output area (before the comint process mark)."
                             (plist-get err :message))))))
 
 ;;;; Major modes
-
-;;; comint helpers
-
-(defun mutecipher-acp--start-anchor (buf)
-  "Start a do-nothing anchor process in BUF for comint's process-mark machinery.
-The process never writes to BUF — its filter is `ignore'.  It exists solely
-to satisfy `get-buffer-process' and provide a live `process-mark'."
-  (with-current-buffer buf
-    (let ((proc (make-process
-                 :name "acp-shell-anchor"
-                 :buffer buf
-                 :command '("cat")
-                 :connection-type 'pipe
-                 :noquery t
-                 :coding 'utf-8-unix)))
-      (set-process-filter proc #'ignore)
-      (set-process-sentinel proc #'ignore)
-      (set-marker (process-mark proc) (point-max))
-      proc)))
-
-(defun mutecipher-acp--comint-sender (_proc input)
-  "comint-input-sender for ACP session buffers.
-Routes INPUT to `mutecipher-acp--do-prompt'; does not send to the anchor process.
-comint has already added INPUT to the history ring before calling this."
-  (let ((text (string-trim input)))
-    (unless (string-empty-p text)
-      (mutecipher-acp--do-prompt mutecipher-acp--session-id text))))
-
-(defun mutecipher-acp--newline-in-input ()
-  "Insert a newline in the comint input region without sending."
-  (interactive)
-  (let ((proc (get-buffer-process (current-buffer))))
-    (when (and proc (>= (point) (marker-position (process-mark proc))))
-      (insert "\n"))))
-
-(defun mutecipher-acp--emit-prompt (session-id)
-  "Insert a \"> \" prompt at the process mark in SESSION-ID's buffer."
-  (mutecipher-acp--append session-id "> "))
 
 ;;; Slash-command completion
 
@@ -856,29 +795,19 @@ Activates when the current line begins with \"/\"."
                           (desc (plist-get cmd :description)))
                 (concat "  " desc)))))))
 
-;;; Session buffer mode
+;;; Session output buffer mode
 
-(define-derived-mode mutecipher-acp-session-mode comint-mode "ACP"
-  "Unified ACP session buffer: streams agent output above a comint prompt.
-Type at the \"> \" prompt and press RET to send.  M-p/M-n cycle history.
-S-RET inserts a newline.  C-c C-c cancels.  C-c C-k kills the session."
-  ;; comint wiring
-  (setq-local comint-prompt-regexp "^> ")
-  (setq-local comint-use-prompt-regexp t)
-  (setq-local comint-input-sender #'mutecipher-acp--comint-sender)
-  (setq-local comint-process-echoes nil)
-  (when (fboundp 'comint-fontify-input-mode)
-    (comint-fontify-input-mode -1))
-  ;; visual / font-lock
+(define-derived-mode mutecipher-acp-session-mode special-mode "ACP"
+  "Read-only output buffer for an ACP session.
+Content streams in from the agent; input is handled by a paired
+`mutecipher-acp-input-mode' buffer pinned below this window."
   (setq-local truncate-lines nil)
+  (setq-local cursor-type nil)
   (font-lock-add-keywords nil mutecipher-acp--session-keywords t)
   (when mutecipher-acp-org-responses
     (font-lock-add-keywords nil mutecipher-acp--org-keywords t)
     (add-to-invisibility-spec 'mutecipher-acp-markup)
     (jit-lock-register #'mutecipher-acp--org-fontify-src-blocks))
-  ;; slash-command completion
-  (add-hook 'completion-at-point-functions
-            #'mutecipher-acp--commands-capf nil t)
   (visual-line-mode 1)
   (font-lock-mode 1)
   (setq-local mode-line-format
@@ -890,17 +819,105 @@ S-RET inserts a newline.  C-c C-c cancels.  C-c C-k kills the session."
                 "  "
                 (:eval (and mutecipher-acp--session-id
                             (propertize
-                             (substring mutecipher-acp--session-id 0 8)
+                             (mutecipher-acp--id-prefix mutecipher-acp--session-id)
                              'face 'shadow))))))
 
-(define-key mutecipher-acp-session-mode-map (kbd "RET")        #'comint-send-input)
-(define-key mutecipher-acp-session-mode-map (kbd "<return>")   #'comint-send-input)
-(define-key mutecipher-acp-session-mode-map (kbd "S-RET")      #'mutecipher-acp--newline-in-input)
-(define-key mutecipher-acp-session-mode-map (kbd "S-<return>") #'mutecipher-acp--newline-in-input)
-(define-key mutecipher-acp-session-mode-map (kbd "M-J")        #'mutecipher-acp--newline-in-input)
-(define-key mutecipher-acp-session-mode-map (kbd "C-c C-c")    #'mutecipher/acp-cancel)
-(define-key mutecipher-acp-session-mode-map (kbd "C-c C-k")    #'mutecipher/acp-kill-session)
-(define-key mutecipher-acp-session-mode-map (kbd "C-c C-o")    #'mutecipher/acp-set-config)
+(define-key mutecipher-acp-session-mode-map (kbd "C-c C-c") #'mutecipher/acp-cancel)
+(define-key mutecipher-acp-session-mode-map (kbd "C-c C-k") #'mutecipher/acp-kill-session)
+(define-key mutecipher-acp-session-mode-map (kbd "C-c C-o") #'mutecipher/acp-set-config)
+
+;;; Input buffer mode
+
+(defvar-local mutecipher-acp--resize-last-size     nil
+  "Last `buffer-size' seen by `mutecipher-acp--resize-input'; used to skip no-op resizes.")
+(defvar-local mutecipher-acp--input-history       (make-ring 50)
+  "Per-session input history ring for `mutecipher-acp-input-mode' buffers.")
+(defvar-local mutecipher-acp--input-history-index nil
+  "Current position in `mutecipher-acp--input-history', or nil when at the fresh prompt.")
+
+(define-derived-mode mutecipher-acp-input-mode fundamental-mode "ACP-Input"
+  "Dynamically-resizing input buffer paired with an ACP session output buffer.
+RET sends the buffer contents as a prompt.  S-RET / M-J insert a newline.
+M-p / M-n cycle the input history.  C-c C-c cancels; C-c C-k kills the session."
+  (setq-local header-line-format
+              (propertize "  > " 'face 'mutecipher-acp-user-face))
+  (setq-local mode-line-format nil)
+  (visual-line-mode 1)
+  (add-hook 'post-command-hook #'mutecipher-acp--resize-input nil t)
+  (add-hook 'completion-at-point-functions
+            #'mutecipher-acp--commands-capf nil t))
+
+(defun mutecipher-acp--resize-input ()
+  "Grow or shrink the input window to fit the buffer content (1–12 lines)."
+  (when-let ((win (get-buffer-window (current-buffer))))
+    (let ((size (buffer-size)))
+      (unless (eq size mutecipher-acp--resize-last-size)
+        (setq mutecipher-acp--resize-last-size size)
+        (let ((window-min-height 1))
+          (fit-window-to-buffer win 12 1))))))
+
+(defun mutecipher-acp--input-send ()
+  "Send the input buffer contents as a prompt to the ACP session."
+  (interactive)
+  (let ((text (string-trim (buffer-string))))
+    (unless (string-empty-p text)
+      (ring-insert mutecipher-acp--input-history text)
+      (setq mutecipher-acp--input-history-index nil)
+      (erase-buffer)
+      (mutecipher-acp--do-prompt mutecipher-acp--session-id text))))
+
+(defun mutecipher-acp--input-history-prev ()
+  "Replace buffer contents with the previous input history entry."
+  (interactive)
+  (let ((len (ring-length mutecipher-acp--input-history)))
+    (when (> len 0)
+      (setq mutecipher-acp--input-history-index
+            (if mutecipher-acp--input-history-index
+                (min (1+ mutecipher-acp--input-history-index) (1- len))
+              0))
+      (erase-buffer)
+      (insert (ring-ref mutecipher-acp--input-history
+                        mutecipher-acp--input-history-index)))))
+
+(defun mutecipher-acp--input-history-next ()
+  "Replace buffer contents with the next input history entry, or clear the buffer."
+  (interactive)
+  (cond
+   ((null mutecipher-acp--input-history-index))
+   ((= mutecipher-acp--input-history-index 0)
+    (setq mutecipher-acp--input-history-index nil)
+    (erase-buffer))
+   (t
+    (cl-decf mutecipher-acp--input-history-index)
+    (erase-buffer)
+    (insert (ring-ref mutecipher-acp--input-history
+                      mutecipher-acp--input-history-index)))))
+
+(let ((map mutecipher-acp-input-mode-map))
+  (define-key map (kbd "RET")        #'mutecipher-acp--input-send)
+  (define-key map (kbd "<return>")   #'mutecipher-acp--input-send)
+  (define-key map (kbd "S-RET")      #'newline)
+  (define-key map (kbd "S-<return>") #'newline)
+  (define-key map (kbd "M-J")        #'newline)
+  (define-key map (kbd "M-p")        #'mutecipher-acp--input-history-prev)
+  (define-key map (kbd "M-n")        #'mutecipher-acp--input-history-next)
+  (define-key map (kbd "C-c C-c")    #'mutecipher/acp-cancel)
+  (define-key map (kbd "C-c C-k")    #'mutecipher/acp-kill-session)
+  (define-key map (kbd "C-c C-o")    #'mutecipher/acp-set-config))
+
+(defun mutecipher-acp--input-buffer-name (session-id)
+  "Return the input buffer name for SESSION-ID."
+  ;; No leading space — this buffer appears in the frame title when focused.
+  (format "*ACP-input:%s*" (mutecipher-acp--id-prefix session-id)))
+
+(defun mutecipher-acp--get-or-create-input-buffer (session-id)
+  "Return (or create) the input buffer for SESSION-ID."
+  (let ((buf (get-buffer-create (mutecipher-acp--input-buffer-name session-id))))
+    (with-current-buffer buf
+      (unless (derived-mode-p 'mutecipher-acp-input-mode)
+        (mutecipher-acp-input-mode)
+        (setq mutecipher-acp--session-id session-id)))
+    buf))
 
 ;;;; Public interactive commands
 
@@ -968,41 +985,51 @@ then loads it via session/load."
           (message "ACP session/list failed: %s" (plist-get err :message))))))))
 
 (defun mutecipher-acp--open-pane (session-id buf _agent-name)
-  "Display the unified comint session BUF for SESSION-ID full-frame."
-  (pop-to-buffer-same-window buf)
-  (goto-char (point-max))
-  (mutecipher-acp--emit-prompt session-id))
+  "Display output BUF (top) with a pinned, auto-resizing input buffer (bottom).
+The input window starts at 1 line and grows with the user's text."
+  (let* ((input-buf (mutecipher-acp--get-or-create-input-buffer session-id)))
+    ;; Store input buffer on the session plist so kill-session can find it.
+    (when-let ((session (gethash session-id mutecipher-acp--sessions)))
+      (puthash session-id
+               (plist-put session :input-buffer input-buf)
+               mutecipher-acp--sessions))
+    (pop-to-buffer-same-window buf)
+    (goto-char (point-max))
+    (let* ((window-min-height 1)
+           (input-win (split-window-below -2)))
+      (set-window-buffer input-win input-buf)
+      (set-window-dedicated-p input-win t)
+      (select-window input-win))))
 
 (defconst mutecipher-acp--spinner-frames ["⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏"]
   "Braille spinner frames for the thinking indicator.")
 
 (defun mutecipher-acp--show-thinking (session-id)
-  "Show an animated thinking indicator at the process mark for SESSION-ID."
+  "Show an animated thinking indicator at the end of SESSION-ID's buffer."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
               (buf     (plist-get session :buffer))
               (_       (buffer-live-p buf)))
     (with-current-buffer buf
-      (when-let* ((proc   (get-buffer-process buf))
-                  (pos    (marker-position (process-mark proc))))
-        (let* ((nframes (length mutecipher-acp--spinner-frames))
-               (ov      (make-overlay pos pos buf t nil))
-               (frame   0)
-               (timer   (run-at-time
-                         0 0.1
-                         (lambda ()
-                           (when (overlay-buffer ov)
-                             (overlay-put
-                              ov 'before-string
-                              (propertize
-                               (concat "  "
-                                       (aref mutecipher-acp--spinner-frames (% frame nframes))
-                                       " thinking...\n")
-                               'face 'mutecipher-acp-thought-face))
-                             (cl-incf frame)))))
-               (updated (plist-put session :thinking-ov ov)))
-          (puthash session-id
-                   (plist-put updated :thinking-timer timer)
-                   mutecipher-acp--sessions))))))
+      (let* ((pos     (point-max))
+             (nframes (length mutecipher-acp--spinner-frames))
+             (ov      (make-overlay pos pos buf t nil))
+             (frame   0)
+             (timer   (run-at-time
+                       0 0.1
+                       (lambda ()
+                         (when (overlay-buffer ov)
+                           (overlay-put
+                            ov 'before-string
+                            (propertize
+                             (concat "  "
+                                     (aref mutecipher-acp--spinner-frames (% frame nframes))
+                                     " thinking...\n")
+                             'face 'mutecipher-acp-thought-face))
+                           (cl-incf frame)))))
+             (updated (plist-put session :thinking-ov ov)))
+        (puthash session-id
+                 (plist-put updated :thinking-timer timer)
+                 mutecipher-acp--sessions)))))
 
 (defun mutecipher-acp--clear-thinking (session-id)
   "Cancel the thinking spinner and remove its overlay for SESSION-ID."
@@ -1029,17 +1056,14 @@ then loads it via session/load."
                                    mutecipher-acp--sessions)
                           (concat mutecipher-acp-org-system-prompt "\n\n" text))
                       text)))
-    ;; Blank line separates user input (already shown in prompt area) from response
+    (mutecipher-acp--append session-id (concat "> " text "\n") 'mutecipher-acp-user-face)
     (mutecipher-acp--append session-id "\n")
     (mutecipher-acp--show-thinking session-id)
-    ;; Capture response start after the opening newline so we can align tables later.
-    ;; Use a marker that stays fixed while response content is inserted before the pmark.
+    ;; Capture response start so we can align tables over the completed response.
     (let ((resp-start
            (when (and mutecipher-acp-org-responses buf (buffer-live-p buf))
              (with-current-buffer buf
-               (when-let* ((proc  (get-buffer-process buf))
-                           (pmark (process-mark proc)))
-                 (copy-marker pmark))))))
+               (copy-marker (point-max))))))
       (mutecipher-acp--request
        conn "session/prompt"
        (list :sessionId session-id
@@ -1050,20 +1074,17 @@ then loads it via session/load."
                      ;; Align tables in the completed response region.
                      (when (and resp-start (buffer-live-p buf))
                        (with-current-buffer buf
-                         (when-let* ((proc  (get-buffer-process buf))
-                                     (end-m (copy-marker (process-mark proc))))
+                         (let ((end-m (copy-marker (point-max))))
                            (mutecipher-acp--align-tables-in-region
                             (marker-position resp-start) end-m)
                            (set-marker end-m nil)))
-                       (set-marker resp-start nil))
-                     (mutecipher-acp--emit-prompt session-id))
+                       (set-marker resp-start nil)))
        :error-fn   (lambda (err)
                      (mutecipher-acp--clear-thinking session-id)
                      (when resp-start (set-marker resp-start nil))
                      (mutecipher-acp--append
                       session-id
-                      (concat "\u2718 " (or (plist-get err :message) "request failed") "\n"))
-                     (mutecipher-acp--emit-prompt session-id))))))
+                      (concat "\u2718 " (or (plist-get err :message) "request failed") "\n")))))))
 
 ;;;###autoload
 (defun mutecipher/acp-prompt (text)
@@ -1100,15 +1121,16 @@ then loads it via session/load."
 
 ;;;###autoload
 (defun mutecipher/acp-kill-session ()
-  "Kill the current ACP session and its buffer."
+  "Kill the current ACP session and its output and input buffers."
   (interactive)
   (let ((session-id (or mutecipher-acp--session-id
                         (mutecipher-acp--pick-session))))
     (unless session-id
       (user-error "ACP: no active session"))
-    (let* ((session (gethash session-id mutecipher-acp--sessions))
-           (conn    (plist-get session :conn))
-           (buf     (plist-get session :buffer)))
+    (let* ((session   (gethash session-id mutecipher-acp--sessions))
+           (conn      (plist-get session :conn))
+           (buf       (plist-get session :buffer))
+           (input-buf (plist-get session :input-buffer)))
       ;; Notify the agent before tearing down locally
       (mutecipher-acp--request
        conn "session/cancel"
@@ -1117,10 +1139,8 @@ then loads it via session/load."
        :error-fn   (lambda (_) nil))
       (mutecipher-acp--clear-thinking session-id)
       (remhash session-id mutecipher-acp--sessions)
-      (when (buffer-live-p buf)
-        (let ((anchor (get-buffer-process buf)))
-          (when anchor (delete-process anchor)))
-        (kill-buffer buf))
+      (when (buffer-live-p buf)       (kill-buffer buf))
+      (when (buffer-live-p input-buf) (kill-buffer input-buf))
       (message "ACP: session %s killed" session-id))))
 
 ;;;###autoload
