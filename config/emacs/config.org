@@ -1,8 +1,15 @@
 #+title: Emacs Configuration
 #+author: Cory Hutchison
+#+options: toc:3 num:nil
+
+This file is the single source of truth for this Emacs setup. Read it top to bottom for boot order: early variables and paths run first, then UI and editing conveniences, then navigation and completion, version control, programming support, Org, utilities, and finally local =lisp/= modules. Code blocks are Emacs Lisp; tangling (if you use it) should mirror that order so hooks and =require= calls see the dependencies they expect.
 
 * CORE
+Everything in this chapter loads or defines shared state that later sections rely on: font names, module paths, faces themes can override, and baseline =use-package= / built-in tweaks. Treat it as the “prelude” before optional UI and language-specific packages.
+
 ** VARIABLES
+Names and paths used throughout the config, plus early =require= of tidy and icon helpers so redirected data directories exist before packages write cache or state. Also defines TODO-style faces and neutral “liminal” semantic faces so themes and font-lock stay consistent instead of hard-coding colors in each block.
+
 #+begin_src emacs-lisp
   (defvar font-face "MonoLisa Variable")
   (defvar font-face-nf "Symbols Nerd Font Mono")
@@ -48,7 +55,7 @@
     "Draw attention — errors, warnings, critical state.")
 #+end_src
 ** EMACS
-This section contains general configurations and tweaks to Emacs default behaviour to be more modern/intuitive/etc.
+Global defaults that shape every session: key bindings, scrolling, selection, encoding, history persistence, window splits, font setup, and hooks for line numbers, completion previews, and subword navigation.
 
 #+begin_src emacs-lisp
   (use-package emacs
@@ -181,6 +188,8 @@ This section contains general configurations and tweaks to Emacs default behavio
     (winner-mode))
 #+end_src
 ** AUTH-SOURCE
+GPG-backed credentials and identity strings: where to find =~/.emacs.d/.authinfo.gpg=, how =epg= talks to pinentry, and default =user-full-name= / =user-mail-address= for packages that fill templates or mail headers.
+
 #+begin_src emacs-lisp
   (use-package auth-source
     :ensure nil
@@ -193,6 +202,8 @@ This section contains general configurations and tweaks to Emacs default behavio
 	user-mail-address "cory@mutecipher.com"))
 #+end_src
 ** AUTOREVERT
+Reload buffers when the file changes on disk (and optionally non-file buffers), with conservative settings for remote files so TRAMP stays responsive.
+
 #+begin_src emacs-lisp
   (use-package autorevert
     :ensure nil
@@ -204,6 +215,8 @@ This section contains general configurations and tweaks to Emacs default behavio
     (global-auto-revert-non-file-buffers t))
 #+end_src
 ** UNIQUIFY
+Disambiguate buffer names when several files share the same basename (for example =foo/a.el= and =bar/a.el=) by showing directory context in the mode line and buffer list.
+
 #+begin_src emacs-lisp
   (use-package uniquify
     :ensure nil
@@ -214,6 +227,8 @@ This section contains general configurations and tweaks to Emacs default behavio
       (setq uniquify-after-kill-buffer-p t)))
 #+end_src
 * UI
+Visual layer: theme switching with the system appearance, chrome (fringes, window dividers), and discoverability (=which-key=, =which-func=). Nothing here is language-specific; it shapes how every buffer looks and how the mode line summarizes context.
+
 ** THEME
 Auto-switches between ~liminal-light~ and ~liminal-dark~ via ~mutecipher-appearance~.
 
@@ -223,8 +238,7 @@ Auto-switches between ~liminal-light~ and ~liminal-dark~ via ~mutecipher-appeara
   (mutecipher-appearance-use-themes 'liminal-light 'liminal-dark)
 #+end_src
 ** FRINGE
-Wider left fringe gives Flymake indicators breathing room and reduces the
-cramped-edge feeling nano-emacs avoids.
+Asymmetric fringes — 16 px left, 8 px right — giving Flymake and gutter indicators room without crowding the buffer edge.
 
 #+begin_src emacs-lisp
   (use-package fringe
@@ -233,6 +247,8 @@ cramped-edge feeling nano-emacs avoids.
     (fringe-mode '(16 . 8)))
 #+end_src
 ** WINDOW
+Thin pixel dividers between windows so tiled layouts read clearly without stealing space from text.
+
 #+begin_src emacs-lisp
   (use-package frame
     :ensure nil
@@ -243,6 +259,8 @@ cramped-edge feeling nano-emacs avoids.
     :hook (after-init-hook . window-divider-mode))
 #+end_src
 ** WHICH-KEY
+After a prefix key, show a pop-up grid of possible continuations and short descriptions so rarely used key sequences stay discoverable without memorizing the manual.
+
 #+begin_src emacs-lisp
   (use-package which-key
     :ensure nil
@@ -269,7 +287,11 @@ Shows the current function or method name in the mode line.
     (which-func-format nil))
 #+end_src
 * EDITING
+Small modes that affect text entry and buffer hygiene: paired delimiter insertion, paren highlighting, trailing whitespace, folding, incremental search, and comment keyword highlighting. Together they reduce friction in day-to-day typing without pulling in third-party editing frameworks.
+
 ** ELECTRIC-PAIR
+Automatically insert closing delimiters and keep brackets balanced in programming modes.
+
 #+begin_src emacs-lisp
   (use-package electric-pair
     :ensure nil
@@ -277,6 +299,8 @@ Shows the current function or method name in the mode line.
     :hook (after-init-hook . electric-pair-mode))
 #+end_src
 ** PAREN
+Highlight the opening and closing delimiter around point (with optional off-screen context) so deeply nested forms stay readable.
+
 #+begin_src emacs-lisp
   (use-package paren
     :ensure nil
@@ -287,6 +311,8 @@ Shows the current function or method name in the mode line.
     (show-paren-context-when-offscreen t))
 #+end_src
 ** WHITESPACE
+Run =whitespace-cleanup= before every save to strip trailing whitespace and normalise mixed indentation.
+
 #+begin_src emacs-lisp
   (use-package whitespace
     :ensure nil
@@ -294,6 +320,8 @@ Shows the current function or method name in the mode line.
     :hook (before-save-hook . whitespace-cleanup))
 #+end_src
 ** HIDESHOW
+Code folding for balanced blocks (functions, classes, regions) with key bindings to hide or reveal sections without leaving the buffer.
+
 #+begin_src emacs-lisp
   (use-package hideshow
     :ensure nil
@@ -304,6 +332,8 @@ Shows the current function or method name in the mode line.
 		("C-c S" . hs-show-all)))
 #+end_src
 ** ISEARCH
+Incremental search defaults: lazy match counts in the prompt, flexible whitespace matching, and a quick way to copy the search target.
+
 #+begin_src emacs-lisp
   (use-package isearch
     :ensure nil
@@ -331,7 +361,11 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
   (add-hook 'prog-mode-hook #'mutecipher/highlight-todo-keywords)
 #+end_src
 * NAVIGATION
+Buffers and commands for moving through the filesystem, renaming in bulk, listing buffers with filters, and jumping to outline headings inside a file.
+
 ** DIRED
+Directory editing with sensible defaults: human-oriented listing flags, omit dotfiles by default, reuse windows sensibly, and auto-refresh when the directory changes.
+
 #+begin_src emacs-lisp
   (use-package dired
     :ensure nil
@@ -346,6 +380,8 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
 		     (dired-omit-mode 1))))
 #+end_src
 ** WDIRED
+Editable Dired: turn the file listing into a writable buffer to rename many files at once, with optional permission edits and parent-directory creation.
+
 #+begin_src emacs-lisp
   (use-package wdired
     :ensure nil
@@ -355,6 +391,8 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
     (setq wdired-create-parent-directories t))
 #+end_src
 ** IBUFFER
+Richer replacement for =list-buffers=: sortable columns, saved filter groups (here “Dired” vs “Special”), and automatic updates while the buffer stays open.
+
 #+begin_src emacs-lisp
   (use-package ibuffer
     :ensure nil
@@ -376,6 +414,8 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
     (ibuffer-human-readable-size t))
 #+end_src
 ** IMENU
+Jump to definitions or headings inside the current buffer using the mode’s imenu index (functions, sections, etc.), with periodic rescanning so the index stays current.
+
 #+begin_src emacs-lisp
   (use-package imenu
     :ensure nil
@@ -384,6 +424,8 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
     (imenu-auto-rescan t))
 #+end_src
 * COMPLETION
+Minibuffer completion UX: vertical =fido= / =icomplete= style listing, fast key navigation through candidates, and file completion styles tuned for partial paths.
+
 ** ICOMPLETE
 #+begin_src emacs-lisp
   (use-package icomplete
@@ -406,7 +448,11 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
     (completion-category-overrides '((file (styles basic partial-completion flex)))))
 #+end_src
 * VERSION CONTROL
+Built-in Git integration via =vc=, plus diff and ediff buffers tuned for review workflows (read-only hunks, follow renames in logs, sensible split layouts).
+
 ** VC
+Tweak how =vc-git= formats diffs and logs, cap summary lengths for commit messages, and disable redundant backup files when using version control.
+
 #+begin_src emacs-lisp
   (use-package vc
     :ensure nil
@@ -422,6 +468,8 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
 	  vc-make-backup-files nil))
 #+end_src
 ** DIFF
+=diff-mode= defaults for reading patches: syntax-aware fontification, advancing after apply, and a key binding to hop windows while resolving merges.
+
 #+begin_src emacs-lisp
   (use-package diff-mode
     :ensure nil
@@ -437,6 +485,8 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
     (setq diff-font-lock-prettify t))
 #+end_src
 ** EDIFF
+Side-by-side structural comparison of two or three files or buffers, with a plain window layout and horizontal splits by default for wide screens.
+
 #+begin_src emacs-lisp
   (use-package ediff
     :ensure nil
@@ -450,7 +500,11 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
     (setq ediff-show-clashes-only t))
 #+end_src
 * LSP & CODE
+Language-server protocol (=eglot=), on-the-fly diagnostics (=flymake=), echo-area documentation (=eldoc=), and tree-sitter grammars plus major modes for the languages you edit most often.
+
 ** ELDOC
+Show symbol documentation in the echo area or a dedicated buffer without cluttering the minibuffer; prefers composed strategies so multiple backends can cooperate.
+
 #+begin_src emacs-lisp
   (use-package eldoc
     :ensure nil
@@ -462,6 +516,8 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
     (global-eldoc-mode))
 #+end_src
 ** EGLOT
+Start the LSP client automatically in JS/TS buffers, keep noise low (no progress spam, no huge event logs), and bind common refactor actions under =C-c e …=.
+
 #+begin_src emacs-lisp
   (use-package eglot
     :ensure nil
@@ -488,6 +544,8 @@ Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code c
 	("C-c e k" . mutecipher/hover)))
 #+end_src
 ** FLYMAKE
+Background syntax and style checks with fringe indicators on the right and keys to step through diagnostics or open the full list for the buffer.
+
 #+begin_src emacs-lisp
   (use-package flymake
     :ensure nil
@@ -541,6 +599,8 @@ Skips any language whose grammar is already available."
       (message "Tree-sitter grammars installed to %s" out-dir)))
 #+end_src
 *** Ruby
+File associations for Ruby using the tree-sitter major mode on typical project entry files (=*.rb=, =Rakefile=, =Gemfile=).
+
 #+begin_src emacs-lisp
   (use-package ruby-ts-mode
     :ensure nil
@@ -549,6 +609,8 @@ Skips any language whose grammar is already available."
     :mode "Gemfile\\'")
 #+end_src
 *** JavaScript/TypeScript
+=js-ts-mode= and =typescript-ts-mode= / =tsx-ts-mode= with spaces-only indentation and format-on-save hooks where =eglot= can format the buffer.
+
 #+begin_src emacs-lisp
   (use-package js-ts-mode
     :ensure nil
@@ -570,6 +632,8 @@ Skips any language whose grammar is already available."
     (unbind-key "M-." typescript-ts-base-mode-map))
 #+end_src
 *** Bash
+Shell scripts with tree-sitter parsing for =*.sh= and =*.bash=.
+
 #+begin_src emacs-lisp
   (use-package bash-ts-mode
     :ensure nil
@@ -577,6 +641,8 @@ Skips any language whose grammar is already available."
     :mode "\\.\\(sh\\|bash\\)\\'")
 #+end_src
 *** YAML
+Configuration files in YAML with tree-sitter highlighting and indentation.
+
 #+begin_src emacs-lisp
   (use-package yaml-ts-mode
     :ensure nil
@@ -584,6 +650,8 @@ Skips any language whose grammar is already available."
     :mode "\\.ya?ml\\'")
 #+end_src
 *** Docker/Podman
+Container build recipes for =Dockerfile=, =Containerfile=, and similar names using the Dockerfile tree-sitter grammar.
+
 #+begin_src emacs-lisp
   (use-package dockerfile-ts-mode
     :ensure nil
@@ -591,7 +659,11 @@ Skips any language whose grammar is already available."
     :mode "\\(Docker\\|Container\\)file\\'")
 #+end_src
 * ORG
+Note-taking, capture, agenda, and export: directory layout under =~/.org/=, workflow keywords and tags, Babel languages, and a small command for starting blog posts with consistent front matter.
+
 ** ORG
+Agenda span, refile targets, capture templates (inbox, notes, journal), export backends, and editing ergonomics (folding, tags, emphasis). Org loads lazily but installs global keys for capture, agenda, and storing links.
+
 #+begin_src emacs-lisp
   (use-package org
     :ensure nil
@@ -664,8 +736,7 @@ Skips any language whose grammar is already available."
     (add-hook 'org-mode-hook (lambda () (setq-local line-spacing 0.15))))
 #+end_src
 ** BLOG
-Creates a new blog post file in =~/Documents/Blog/= with pre-filled Org metadata.
-Invoke with =C-c b n=.
+Creates a new blog post file in =~/Documents/Blog/= with pre-filled Org metadata; invoke with =C-c b n=.
 
 #+begin_src emacs-lisp
   (defcustom mutecipher-blog-directory (expand-file-name "~/Documents/Blog/")
@@ -718,7 +789,11 @@ Prompts for TITLE (required) then all supported metadata fields."
   (global-set-key (kbd "C-c b n") #'mutecipher/new-blog-post)
 #+end_src
 * TOOLS
+Miscellaneous major modes and commands that do not fit the earlier chapters: running builds, env files, IRC, quick web search, and per-project indentation from =.editorconfig=.
+
 ** COMPILATION
+=*compilation*= buffer behavior: kill reruns cleanly, follow output as it streams, and interpret ANSI color sequences from modern CLI tools.
+
 #+begin_src emacs-lisp
   (use-package compile
     :ensure nil
@@ -730,7 +805,7 @@ Prompts for TITLE (required) then all supported metadata fields."
     (add-hook 'compilation-filter-hook #'ansi-color-compilation-filter))
 #+end_src
 ** CONF
-Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
+Activate =conf-mode= for dotenv files so KEY=value syntax is highlighted rather than treated as plain text.
 
 #+begin_src emacs-lisp
   (use-package conf-mode
@@ -740,6 +815,8 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (add-to-list 'auto-mode-alist '("\\.env\\'" . conf-mode)))
 #+end_src
 ** ERC
+IRC client defaults for Libera.Chat: quiet join/part noise, logging, spelling, wrapped fills, and a small set of auto-joined channels when you connect.
+
 #+begin_src emacs-lisp
   (use-package erc
     :ensure nil
@@ -764,6 +841,8 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
       (add-to-list 'erc-modules 'scrolltobottom)))
 #+end_src
 ** WEBJUMP
+Prompt-driven “jump to URL or search”: here wired to DuckDuckGo on =C-x /= for quick lookups from Emacs.
+
 #+begin_src emacs-lisp
   (use-package webjump
     :ensure nil
@@ -774,6 +853,8 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
      '(("DuckDuckGo" . [simple-query "www.duckduckgo.com" "www.duckduckgo.com/?q=" ""]))))
 #+end_src
 ** EDITORCONFIG
+Respect project =.editorconfig= files for indent width, final newlines, and trimming; delegates trimming to =whitespace-mode= when appropriate.
+
 #+begin_src emacs-lisp
   (use-package editorconfig
     :ensure nil
@@ -782,6 +863,8 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (setq editorconfig-trim-whitespaces-mode 'whitespace))
 #+end_src
 * CUSTOM MODULES
+Local =lisp/= extensions shipped with this repo: centered writing, ligatures, colorized buffers, markdown helpers, hover UI, agent control protocol, VC gutter, inline flymake, git blame, and modeline. This block turns on global modes and registers hooks; see each =mutecipher-*.el= file for implementation detail.
+
 #+begin_src emacs-lisp
   (require 'mutecipher-centered)
   (require 'mutecipher-ligatures)
