@@ -13,8 +13,6 @@
 ;; Having a single VC backend speeds up boot time
 (setq vc-handled-backends '(Git))
 
-;; Always start maximized
-(add-to-list 'default-frame-alist '(fullscreen . maximized))
 
 ;; Padding between frame edge and window content
 (add-to-list 'default-frame-alist '(internal-border-width . 16))
