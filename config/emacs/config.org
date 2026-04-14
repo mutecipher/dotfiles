@@ -1,7 +1,8 @@
 #+title: Emacs Configuration
 #+author: Cory Hutchison
 
-* VARIABLES
+* CORE
+** VARIABLES
 #+begin_src emacs-lisp
   (defvar font-face "MonoLisa Variable")
   (defvar font-face-nf "Symbols Nerd Font Mono")
@@ -46,15 +47,6 @@
     '((t :inherit error))
     "Draw attention — errors, warnings, critical state.")
 #+end_src
-* THEME
-Auto-switches between ~liminal-light~ and ~liminal-dark~ via ~mutecipher-appearance~.
-
-#+begin_src emacs-lisp
-  (require 'mutecipher-appearance)
-  (add-to-list 'custom-theme-load-path (expand-file-name "themes/" user-emacs-directory))
-  (mutecipher-appearance-use-themes 'liminal-light 'liminal-dark)
-#+end_src
-* EMACS GENERAL
 ** EMACS
 This section contains general configurations and tweaks to Emacs default behaviour to be more modern/intuitive/etc.
 
@@ -188,7 +180,6 @@ This section contains general configurations and tweaks to Emacs default behavio
     (save-place-mode 1)
     (winner-mode))
 #+end_src
-** ABBREV
 ** AUTH-SOURCE
 #+begin_src emacs-lisp
   (use-package auth-source
@@ -212,36 +203,24 @@ This section contains general configurations and tweaks to Emacs default behavio
     (auto-revert-avoid-polling t)
     (global-auto-revert-non-file-buffers t))
 #+end_src
-** CONF
-Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
+** UNIQUIFY
+#+begin_src emacs-lisp
+  (use-package uniquify
+    :ensure nil
+    :config
+    (setq uniquify-buffer-name-style 'forward
+	uniquify-strip-common-suffix t)
+    (with-no-warnings
+      (setq uniquify-after-kill-buffer-p t)))
+#+end_src
+* UI
+** THEME
+Auto-switches between ~liminal-light~ and ~liminal-dark~ via ~mutecipher-appearance~.
 
 #+begin_src emacs-lisp
-  (use-package conf-mode
-    :ensure nil
-    :mode ("\\.env\\..*\\'" "\\.env\\'")
-    :init
-    (add-to-list 'auto-mode-alist '("\\.env\\'" . conf-mode)))
-#+end_src
-** COMPILATION
-#+begin_src emacs-lisp
-  (use-package compile
-    :ensure nil
-    :custom
-    (compilation-always-kill t)
-    (compilation-scroll-output t)
-    (ansi-color-for-compilation-mode t)
-    :config
-    (add-hook 'compilation-filter-hook #'ansi-color-compilation-filter))
-#+end_src
-** WINDOW
-#+begin_src emacs-lisp
-  (use-package frame
-    :ensure nil
-    :custom
-    (window-divider-default-places 'right-only)
-    (window-divider-default-right-width 1)
-    (window-divider-default-bottom-width 1)
-    :hook (after-init-hook . window-divider-mode))
+  (require 'mutecipher-appearance)
+  (add-to-list 'custom-theme-load-path (expand-file-name "themes/" user-emacs-directory))
+  (mutecipher-appearance-use-themes 'liminal-light 'liminal-dark)
 #+end_src
 ** FRINGE
 Wider left fringe gives Flymake indicators breathing room and reduces the
@@ -253,52 +232,105 @@ cramped-edge feeling nano-emacs avoids.
     :config
     (fringe-mode '(16 . 8)))
 #+end_src
-** TAB-BAR
-** ERC
+** WINDOW
 #+begin_src emacs-lisp
-  (use-package erc
+  (use-package frame
+    :ensure nil
+    :custom
+    (window-divider-default-places 'right-only)
+    (window-divider-default-right-width 1)
+    (window-divider-default-bottom-width 1)
+    :hook (after-init-hook . window-divider-mode))
+#+end_src
+** WHICH-KEY
+#+begin_src emacs-lisp
+  (use-package which-key
     :ensure nil
     :defer t
-    :custom
-    (erc-join-buffer 'window)
-    (erc-hide-list '("JOIN" "PART" "QUIT"))
-    (erc-autojoin-channels-alist '((".*\\.libera\\.chat" "#emacs" "#guix" "#guile" "#fsf")))
-    (erc-server-reconnect-attempts 10)
-    (erc-server-reconnect-timeout 3)
-    (erc-fill-function 'erc-fill-wrap)
-    (erc-save-buffer-on-quit t)
-    (erc-save-queries-on-quit t)
-    (erc-log-write-after-send t)
-    (erc-log-write-after-insert t)
-    (erc-spelling-dictionaries '(("Libera.Chat" "en_US")))
+    :hook (after-init-hook . which-key-mode)
     :config
-    (make-directory erc-log-channels-directory t)
-    (add-to-list 'erc-modules 'log)
-    (erc-spelling-mode 1)
-    (when (< emacs-major-version 31)
-      (add-to-list 'erc-modules 'scrolltobottom)))
+    (setq which-key-separator " "
+	which-key-prefix-prefix "... "
+	which-key-max-display-columns 3
+	which-key-idle-delay 1
+	which-key-idle-secondary-delay 0.25
+	which-key-add-column-padding 1
+	which-key-max-description-length 40))
 #+end_src
-** ICOMPLETE
+** WHICH-FUNC
+Shows the current function or method name in the mode line.
+
 #+begin_src emacs-lisp
-  (use-package icomplete
+  (use-package which-func
     :ensure nil
-    :bind (:map icomplete-minibuffer-map
-		("C-n" . icomplete-forward-completions)
-		("C-p" . icomplete-backward-completions)
-		("C-j" . exit-minibuffer))     ; exit without forcing completion (e.g. multi-file-replace)
-    :hook (after-init-hook . fido-vertical-mode)
+    :hook (prog-mode-hook . which-function-mode)
     :custom
-    (icomplete-delay-completions-threshold 0)
-    (icomplete-compute-delay 0)
-    (icomplete-max-delay-chars 0)
-    (icomplete-show-matches-on-no-input t)
-    (icomplete-hide-common-prefix nil)
-    (icomplete-prospects-height 8)
-    (icomplete-scroll t)
-    (completion-auto-help nil)      ; fido-vertical makes *Completions* buffer redundant
-    (completion-show-help nil)      ; suppress "Click or type M-RET..." instruction lines
-    (completion-category-overrides '((file (styles basic partial-completion flex)))))
+    (which-func-unknown "")
+    (which-func-format nil))
 #+end_src
+* EDITING
+** ELECTRIC-PAIR
+#+begin_src emacs-lisp
+  (use-package electric-pair
+    :ensure nil
+    :defer t
+    :hook (after-init-hook . electric-pair-mode))
+#+end_src
+** PAREN
+#+begin_src emacs-lisp
+  (use-package paren
+    :ensure nil
+    :hook (after-init-hook . show-paren-mode)
+    :custom
+    (show-paren-delay 0)
+    (show-paren-style 'mixed)
+    (show-paren-context-when-offscreen t))
+#+end_src
+** WHITESPACE
+#+begin_src emacs-lisp
+  (use-package whitespace
+    :ensure nil
+    :defer t
+    :hook (before-save-hook . whitespace-cleanup))
+#+end_src
+** HIDESHOW
+#+begin_src emacs-lisp
+  (use-package hideshow
+    :ensure nil
+    :hook (prog-mode-hook . hs-minor-mode)
+    :bind (:map hs-minor-mode-map
+		("C-c h" . hs-toggle-hiding)
+		("C-c H" . hs-hide-all)
+		("C-c S" . hs-show-all)))
+#+end_src
+** ISEARCH
+#+begin_src emacs-lisp
+  (use-package isearch
+    :ensure nil
+    :config
+    (setq isearch-lazy-count t)
+    (setq lazy-count-prefix-format "(%s/%s) ")
+    (setq lazy-count-suffix-format nil)
+    (setq search-whitespace-regex ".*?")
+
+    (define-key isearch-mode-map (kbd "M-w") 'isearch-copy-selected-word))
+#+end_src
+** FONT-LOCK
+Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code comments.
+
+#+begin_src emacs-lisp
+  (defun mutecipher/highlight-todo-keywords ()
+    "Add font-lock rules for TODO-style keywords."
+    (font-lock-add-keywords
+     nil
+     '(("\\<\\(?:FIXME\\|TODO\\)\\(?:(\\w+)\\)?:"  0 'mutecipher-todo-keyword prepend)
+       ("\\<\\(?:HACK\\|XXX\\)\\(?:(\\w+)\\)?:"    0 'mutecipher-hack-keyword  prepend)
+       ("\\<\\(?:NOTE\\|INFO\\)\\(?:(\\w+)\\)?:"   0 'mutecipher-note-keyword  prepend))
+     t))
+
+  (add-hook 'prog-mode-hook #'mutecipher/highlight-todo-keywords)
+#+end_src
+* NAVIGATION
 ** DIRED
 #+begin_src emacs-lisp
   (use-package dired
@@ -343,19 +375,37 @@ cramped-edge feeling nano-emacs avoids.
         ("Special" (name . "^\\*")))))
     (ibuffer-human-readable-size t))
 #+end_src
-** ESHELL
-** ISEARCH
+** IMENU
 #+begin_src emacs-lisp
-  (use-package isearch
+  (use-package imenu
     :ensure nil
-    :config
-    (setq isearch-lazy-count t)
-    (setq lazy-count-prefix-format "(%s/%s) ")
-    (setq lazy-count-suffix-format nil)
-    (setq search-whitespace-regex ".*?")
-
-    (define-key isearch-mode-map (kbd "M-w") 'isearch-copy-selected-word))
+    :bind ("C-c i" . imenu)
+    :custom
+    (imenu-auto-rescan t))
 #+end_src
+* COMPLETION
+** ICOMPLETE
+#+begin_src emacs-lisp
+  (use-package icomplete
+    :ensure nil
+    :bind (:map icomplete-minibuffer-map
+		("C-n" . icomplete-forward-completions)
+		("C-p" . icomplete-backward-completions)
+		("C-j" . exit-minibuffer))     ; exit without forcing completion (e.g. multi-file-replace)
+    :hook (after-init-hook . fido-vertical-mode)
+    :custom
+    (icomplete-delay-completions-threshold 0)
+    (icomplete-compute-delay 0)
+    (icomplete-max-delay-chars 0)
+    (icomplete-show-matches-on-no-input t)
+    (icomplete-hide-common-prefix nil)
+    (icomplete-prospects-height 8)
+    (icomplete-scroll t)
+    (completion-auto-help nil)      ; fido-vertical makes *Completions* buffer redundant
+    (completion-show-help nil)      ; suppress "Click or type M-RET..." instruction lines
+    (completion-category-overrides '((file (styles basic partial-completion flex)))))
+#+end_src
+* VERSION CONTROL
 ** VC
 #+begin_src emacs-lisp
   (use-package vc
@@ -371,7 +421,6 @@ cramped-edge feeling nano-emacs avoids.
 	  vc-annotate-display-mode 'scale
 	  vc-make-backup-files nil))
 #+end_src
-** SMERGE
 ** DIFF
 #+begin_src emacs-lisp
   (use-package diff-mode
@@ -400,6 +449,7 @@ cramped-edge feeling nano-emacs avoids.
     (setq ediff-make-buffers-readonly-at-startup nil)
     (setq ediff-show-clashes-only t))
 #+end_src
+* LSP & CODE
 ** ELDOC
 #+begin_src emacs-lisp
   (use-package eldoc
@@ -450,69 +500,97 @@ cramped-edge feeling nano-emacs avoids.
     (flymake-fringe-indicator-position 'right-fringe)
     (flymake-no-changes-timeout 1.0))
 #+end_src
-** FLYSPELL
-** WHITESPACE
-#+begin_src emacs-lisp
-  (use-package whitespace
-    :ensure nil
-    :defer t
-    :hook (before-save-hook . whitespace-cleanup))
-#+end_src
-** FONT-LOCK
-Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code comments.
+** TREESITTER
+Grammar sources are declared eagerly so ~treesit-install-language-grammar~ always has recipes available, regardless of which modes have been activated.
 
 #+begin_src emacs-lisp
-  (defun mutecipher/highlight-todo-keywords ()
-    "Add font-lock rules for TODO-style keywords."
-    (font-lock-add-keywords
-     nil
-     '(("\\<\\(?:FIXME\\|TODO\\)\\(?:(\\w+)\\)?:"  0 'mutecipher-todo-keyword prepend)
-       ("\\<\\(?:HACK\\|XXX\\)\\(?:(\\w+)\\)?:"    0 'mutecipher-hack-keyword  prepend)
-       ("\\<\\(?:NOTE\\|INFO\\)\\(?:(\\w+)\\)?:"   0 'mutecipher-note-keyword  prepend))
-     t))
+  (setq treesit-language-source-alist
+	'((bash       . ("https://github.com/tree-sitter/tree-sitter-bash"))
+	  (dockerfile . ("https://github.com/camdencheek/tree-sitter-dockerfile"))
+	  (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript"))
+	  (jsdoc      . ("https://github.com/tree-sitter/tree-sitter-jsdoc"))
+	  (ruby       . ("https://github.com/tree-sitter/tree-sitter-ruby"))
+	  (tsx        . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
+	  (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src"))
+	  (yaml       . ("https://github.com/tree-sitter-grammars/tree-sitter-yaml"))))
 
-  (add-hook 'prog-mode-hook #'mutecipher/highlight-todo-keywords)
+  ;; Remap legacy modes to their tree-sitter equivalents.
+  ;; This is the correct Emacs 29+ mechanism — takes priority over auto-mode-alist.
+  (dolist (mapping '((sh-mode          . bash-ts-mode)
+		     (ruby-mode         . ruby-ts-mode)
+		     (js-mode           . js-ts-mode)
+		     (typescript-mode   . typescript-ts-mode)
+		     (yaml-mode         . yaml-ts-mode)
+		     (dockerfile-mode   . dockerfile-ts-mode)))
+    (add-to-list 'major-mode-remap-alist mapping))
+
+  (defun mutecipher/treesit-install-all-grammars ()
+    "Install missing grammars from `treesit-language-source-alist' to `mutecipher/data-dir'.
+Skips any language whose grammar is already available."
+    (interactive)
+    (let ((out-dir (expand-file-name "tree-sitter/" mutecipher/data-dir)))
+      (make-directory out-dir t)
+      (dolist (lang (mapcar #'car treesit-language-source-alist))
+	(if (treesit-language-available-p lang)
+	    (message "Tree-sitter: %s already installed, skipping" lang)
+	  ;; Emacs 30+ accepts an explicit out-dir argument; Emacs 29 does not.
+	  (if (>= emacs-major-version 30)
+	      (treesit-install-language-grammar lang out-dir)
+	    (let ((user-emacs-directory mutecipher/data-dir))
+	      (treesit-install-language-grammar lang)))))
+      (message "Tree-sitter grammars installed to %s" out-dir)))
 #+end_src
-** GNUS
-** MAN
-** MINIBUFFER
-** NEWSTICKER
-** HIDESHOW
+*** Ruby
 #+begin_src emacs-lisp
-  (use-package hideshow
+  (use-package ruby-ts-mode
     :ensure nil
-    :hook (prog-mode-hook . hs-minor-mode)
-    :bind (:map hs-minor-mode-map
-		("C-c h" . hs-toggle-hiding)
-		("C-c H" . hs-hide-all)
-		("C-c S" . hs-show-all)))
+    :mode "\\.rb\\'"
+    :mode "Rakefile\\'"
+    :mode "Gemfile\\'")
 #+end_src
-** IMENU
+*** JavaScript/TypeScript
 #+begin_src emacs-lisp
-  (use-package imenu
+  (use-package js-ts-mode
     :ensure nil
-    :bind ("C-c i" . imenu)
-    :custom
-    (imenu-auto-rescan t))
+    :mode "\\.jsx?\\'"
+    :defer t
+    :hook ((js-ts-mode-hook . (lambda () (setq indent-tabs-mode nil)))))
+
+  (use-package typescript-ts-mode
+    :ensure nil
+    :mode ("\\.ts\\'" . typescript-ts-mode)
+    :mode ("\\.tsx\\'" . tsx-ts-mode)
+    :hook ((typescript-ts-mode-hook . (lambda ()
+					(setq indent-tabs-mode nil)
+					(add-hook 'before-save-hook #'eglot-format-buffer nil t)))
+	   (tsx-ts-mode-hook        . (lambda ()
+					(setq indent-tabs-mode nil)
+					(add-hook 'before-save-hook #'eglot-format-buffer nil t))))
+    :config
+    (unbind-key "M-." typescript-ts-base-mode-map))
 #+end_src
-** ELECTRIC-PAIR
+*** Bash
 #+begin_src emacs-lisp
-  (use-package electric-pair
+  (use-package bash-ts-mode
     :ensure nil
     :defer t
-    :hook (after-init-hook . electric-pair-mode))
+    :mode "\\.\\(sh\\|bash\\)\\'")
 #+end_src
-** PAREN
+*** YAML
 #+begin_src emacs-lisp
-  (use-package paren
+  (use-package yaml-ts-mode
     :ensure nil
-    :hook (after-init-hook . show-paren-mode)
-    :custom
-    (show-paren-delay 0)
-    (show-paren-style 'mixed)
-    (show-paren-context-when-offscreen t))
+    :defer t
+    :mode "\\.ya?ml\\'")
 #+end_src
-** PROCED
+*** Docker/Podman
+#+begin_src emacs-lisp
+  (use-package dockerfile-ts-mode
+    :ensure nil
+    :defer t
+    :mode "\\(Docker\\|Container\\)file\\'")
+#+end_src
+* ORG
 ** ORG
 #+begin_src emacs-lisp
   (use-package org
@@ -639,95 +717,51 @@ Prompts for TITLE (required) then all supported metadata fields."
 
   (global-set-key (kbd "C-c b n") #'mutecipher/new-blog-post)
 #+end_src
-** SPEEDBAR
-** TIME
-** UNIQUIFY
+* TOOLS
+** COMPILATION
 #+begin_src emacs-lisp
-  (use-package uniquify
+  (use-package compile
     :ensure nil
+    :custom
+    (compilation-always-kill t)
+    (compilation-scroll-output t)
+    (ansi-color-for-compilation-mode t)
     :config
-    (setq uniquify-buffer-name-style 'forward
-	uniquify-strip-common-suffix t)
-    (with-no-warnings
-      (setq uniquify-after-kill-buffer-p t)))
+    (add-hook 'compilation-filter-hook #'ansi-color-compilation-filter))
 #+end_src
-** WHICH-KEY
+** CONF
+Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
+
 #+begin_src emacs-lisp
-  (use-package which-key
+  (use-package conf-mode
+    :ensure nil
+    :mode ("\\.env\\..*\\'" "\\.env\\'")
+    :init
+    (add-to-list 'auto-mode-alist '("\\.env\\'" . conf-mode)))
+#+end_src
+** ERC
+#+begin_src emacs-lisp
+  (use-package erc
     :ensure nil
     :defer t
-    :hook (after-init-hook . which-key-mode)
-    :config
-    (setq which-key-separator " "
-	which-key-prefix-prefix "... "
-	which-key-max-display-columns 3
-	which-key-idle-delay 1
-	which-key-idle-secondary-delay 0.25
-	which-key-add-column-padding 1
-	which-key-max-description-length 40))
-#+end_src
-** WHICH-FUNC
-Shows the current function or method name in the mode line.
-
-#+begin_src emacs-lisp
-  (use-package which-func
-    :ensure nil
-    :hook (prog-mode-hook . which-function-mode)
     :custom
-    (which-func-unknown "")
-    (which-func-format nil))
-#+end_src
-** MODE-LINE
-Custom mode line with Nerd Font icon for the current buffer's file type or major mode.
-
-#+begin_src emacs-lisp
-  (defun mutecipher/flymake-mode-line ()
-    "Return a mode line segment for flymake errors/warnings only, nil when clean."
-    (when (bound-and-true-p flymake-mode)
-      (let* ((diags (flymake-diagnostics))
-	     (errs  (seq-count (lambda (d) (eq :error   (flymake-diagnostic-type d))) diags))
-	     (warns (seq-count (lambda (d) (eq :warning (flymake-diagnostic-type d))) diags)))
-	(unless (and (zerop errs) (zerop warns))
-	  (concat
-	   (unless (zerop errs)
-	     (concat " " (propertize (format "\uf057 %d" errs) 'face 'mutecipher-icon-red)))
-	   (unless (zerop warns)
-	     (concat " " (propertize (format "\uf071 %d" warns) 'face 'mutecipher-icon-yellow))))))))
-
-  (setq-default mode-line-format
-    '("%e"
-      " "
-      (:eval (cond
-	      (buffer-read-only    (propertize "\uf023 " 'face 'mutecipher-icon-dim))
-	      ((buffer-modified-p) (propertize "● "     'face 'mutecipher-icon-orange))
-	      (t                   "  ")))
-      (:eval (concat "("
-		     (car (split-string (string-trim (format-mode-line mode-name)) "/"))
-		     ")"))
-      "  "
-      (:eval (when vc-mode
-	       (let ((branch (string-trim-left vc-mode "[ Git@:-]+")))
-		 (concat (propertize "\uf126" 'face 'liminal-faded)
-			 " "
-			 (propertize branch 'face 'liminal-faded)))))
-      "  "
-      (:eval (propertize (substring-no-properties (mutecipher/buffer-icon)) 'face 'liminal-faded))
-      " "
-      (:eval (propertize (format-mode-line "%b") 'face 'bold))
-      (:eval (when (and (fboundp 'eglot-managed-p) (eglot-managed-p))
-	       (concat " " (propertize "●" 'face 'mutecipher-icon-green))))
-      (:eval (when-let ((s (mutecipher/flymake-mode-line)))
-	       (concat "  " s)))
-      mode-line-format-right-align
-      (:eval (mutecipher-git-blame-mode-line-segment))
-      (:eval (when (mutecipher-git-blame-mode-line-segment) "  ·  "))
-      (:eval (when (derived-mode-p 'text-mode 'org-mode)
-	       (concat (propertize (format "%dw" (count-words (point-min) (point-max)))
-				   'face 'shadow)
-		       "  ·  ")))
-      (:eval (propertize (format-mode-line "%l:%C") 'face 'shadow))
-      "  "
-      (:eval (propertize (format-mode-line mode-line-misc-info) 'face 'shadow))))
+    (erc-join-buffer 'window)
+    (erc-hide-list '("JOIN" "PART" "QUIT"))
+    (erc-autojoin-channels-alist '((".*\\.libera\\.chat" "#emacs" "#guix" "#guile" "#fsf")))
+    (erc-server-reconnect-attempts 10)
+    (erc-server-reconnect-timeout 3)
+    (erc-fill-function 'erc-fill-wrap)
+    (erc-save-buffer-on-quit t)
+    (erc-save-queries-on-quit t)
+    (erc-log-write-after-send t)
+    (erc-log-write-after-insert t)
+    (erc-spelling-dictionaries '(("Libera.Chat" "en_US")))
+    :config
+    (make-directory erc-log-channels-directory t)
+    (add-to-list 'erc-modules 'log)
+    (erc-spelling-mode 1)
+    (when (< emacs-major-version 31)
+      (add-to-list 'erc-modules 'scrolltobottom)))
 #+end_src
 ** WEBJUMP
 #+begin_src emacs-lisp
@@ -738,7 +772,6 @@ Custom mode line with Nerd Font icon for the current buffer's file type or major
     :custom
     (webjump-sites
      '(("DuckDuckGo" . [simple-query "www.duckduckgo.com" "www.duckduckgo.com/?q=" ""]))))
-
 #+end_src
 ** EDITORCONFIG
 #+begin_src emacs-lisp
@@ -748,97 +781,7 @@ Custom mode line with Nerd Font icon for the current buffer's file type or major
     :init
     (setq editorconfig-trim-whitespaces-mode 'whitespace))
 #+end_src
-* TREESITTER
-Grammar sources are declared eagerly so ~treesit-install-language-grammar~ always has recipes available, regardless of which modes have been activated.
-
-#+begin_src emacs-lisp
-  (setq treesit-language-source-alist
-	'((bash       . ("https://github.com/tree-sitter/tree-sitter-bash"))
-	  (dockerfile . ("https://github.com/camdencheek/tree-sitter-dockerfile"))
-	  (javascript . ("https://github.com/tree-sitter/tree-sitter-javascript"))
-	  (jsdoc      . ("https://github.com/tree-sitter/tree-sitter-jsdoc"))
-	  (ruby       . ("https://github.com/tree-sitter/tree-sitter-ruby"))
-	  (tsx        . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "tsx/src"))
-	  (typescript . ("https://github.com/tree-sitter/tree-sitter-typescript" "master" "typescript/src"))
-	  (yaml       . ("https://github.com/tree-sitter-grammars/tree-sitter-yaml"))))
-
-  ;; Remap legacy modes to their tree-sitter equivalents.
-  ;; This is the correct Emacs 29+ mechanism — takes priority over auto-mode-alist.
-  (dolist (mapping '((sh-mode          . bash-ts-mode)
-		     (ruby-mode         . ruby-ts-mode)
-		     (js-mode           . js-ts-mode)
-		     (typescript-mode   . typescript-ts-mode)
-		     (yaml-mode         . yaml-ts-mode)
-		     (dockerfile-mode   . dockerfile-ts-mode)))
-    (add-to-list 'major-mode-remap-alist mapping))
-
-  (defun mutecipher/treesit-install-all-grammars ()
-    "Install missing grammars from `treesit-language-source-alist' to `mutecipher/data-dir'.
-Skips any language whose grammar is already available."
-    (interactive)
-    (let ((out-dir (expand-file-name "tree-sitter/" mutecipher/data-dir)))
-      (make-directory out-dir t)
-      (dolist (lang (mapcar #'car treesit-language-source-alist))
-	(if (treesit-language-available-p lang)
-	    (message "Tree-sitter: %s already installed, skipping" lang)
-	  ;; Emacs 30+ accepts an explicit out-dir argument; Emacs 29 does not.
-	  (if (>= emacs-major-version 30)
-	      (treesit-install-language-grammar lang out-dir)
-	    (let ((user-emacs-directory mutecipher/data-dir))
-	      (treesit-install-language-grammar lang)))))
-      (message "Tree-sitter grammars installed to %s" out-dir)))
-#+end_src
-** Ruby
-#+begin_src emacs-lisp
-  (use-package ruby-ts-mode
-    :ensure nil
-    :mode "\\.rb\\'"
-    :mode "Rakefile\\'"
-    :mode "Gemfile\\'")
-#+end_src
-** JavaScript/TypeScript
-#+begin_src emacs-lisp
-  (use-package js-ts-mode
-    :ensure nil
-    :mode "\\.jsx?\\'"
-    :defer t
-    :hook ((js-ts-mode-hook . (lambda () (setq indent-tabs-mode nil)))))
-
-  (use-package typescript-ts-mode
-    :ensure nil
-    :mode ("\\.ts\\'" . typescript-ts-mode)
-    :mode ("\\.tsx\\'" . tsx-ts-mode)
-    :hook ((typescript-ts-mode-hook . (lambda ()
-					(setq indent-tabs-mode nil)
-					(add-hook 'before-save-hook #'eglot-format-buffer nil t)))
-	   (tsx-ts-mode-hook        . (lambda ()
-					(setq indent-tabs-mode nil)
-					(add-hook 'before-save-hook #'eglot-format-buffer nil t))))
-    :config
-    (unbind-key "M-." typescript-ts-base-mode-map))
-#+end_src
-** Bash
-#+begin_src emacs-lisp
-  (use-package bash-ts-mode
-    :ensure nil
-    :defer t
-    :mode "\\.\\(sh\\|bash\\)\\'")
-#+end_src
-** YAML
-#+begin_src emacs-lisp
-  (use-package yaml-ts-mode
-    :ensure nil
-    :defer t
-    :mode "\\.ya?ml\\'")
-#+end_src
-** Docker/Podman
-#+begin_src emacs-lisp
-  (use-package dockerfile-ts-mode
-    :ensure nil
-    :defer t
-    :mode "\\(Docker\\|Container\\)file\\'")
-#+end_src
-* CUSTOM PACKAGES
+* CUSTOM MODULES
 #+begin_src emacs-lisp
   (require 'mutecipher-centered)
   (require 'mutecipher-ligatures)
@@ -849,6 +792,7 @@ Skips any language whose grammar is already available."
   (require 'mutecipher-vc-gutter)
   (require 'mutecipher-flymake-inline)
   (require 'mutecipher-git-blame)
+  (require 'mutecipher-modeline)
 
   (mutecipher-vc-gutter-global-mode 1)
   (mutecipher-git-blame-global-mode 1)
