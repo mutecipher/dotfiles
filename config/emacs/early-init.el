@@ -16,6 +16,9 @@
 ;; Always start maximized
 (add-to-list 'default-frame-alist '(fullscreen . maximized))
 
+;; Padding between frame edge and window content
+(add-to-list 'default-frame-alist '(internal-border-width . 16))
+
 ;; Match the initial frame colour to the system appearance so there is no
 ;; white flash before the liminal theme loads in window-setup-hook.
 (let ((dark-p (string-match-p "Dark"

@@ -215,6 +215,15 @@ Let's us ensure that ~.env~ and ~.env.development~, etc. files are loaded.
     (add-hook 'compilation-filter-hook #'ansi-color-compilation-filter))
 #+end_src
 ** WINDOW
+#+begin_src emacs-lisp
+  (use-package frame
+    :ensure nil
+    :custom
+    (window-divider-default-places 'right-only)
+    (window-divider-default-right-width 1)
+    (window-divider-default-bottom-width 1)
+    :hook (after-init-hook . window-divider-mode))
+#+end_src
 ** TAB-BAR
 ** ERC
 #+begin_src emacs-lisp

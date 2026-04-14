@@ -28,6 +28,9 @@
    `(cursor                           ((t :background ,fg)))
    `(fringe                           ((t :background ,bg :foreground ,fg-faint)))
    `(vertical-border                  ((t :foreground ,bg-sub)))
+   `(window-divider                   ((t :foreground ,bg-sub)))
+   `(window-divider-first-pixel       ((t :foreground ,bg-sub)))
+   `(window-divider-last-pixel        ((t :foreground ,bg-sub)))
    `(fill-column-indicator            ((t :foreground ,fg-faint)))
    `(shadow                           ((t :foreground ,fg-faint)))
    ;; Line numbers
