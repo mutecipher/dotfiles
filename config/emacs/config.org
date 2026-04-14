@@ -681,6 +681,11 @@ Agenda span, refile targets, capture templates (inbox, notes, journal), export b
     (org-agenda-start-on-weekday 1)       ; Monday
     (org-agenda-skip-deadline-if-done t)
     (org-agenda-skip-scheduled-if-done t)
+    (org-ellipsis " ▾")
+    (org-startup-indented t)
+    (org-fontify-whole-heading-line t)
+    (org-fontify-done-headline t)
+    (org-fontify-quote-and-verse-blocks t)
     (org-todo-keywords
      '((sequence "TODO(t)" "NEXT(n)" "WAITING(w@/!)" "|" "DONE(d!)" "CANCELLED(c@)")))
     (org-refile-targets
@@ -733,7 +738,20 @@ Agenda span, refile targets, capture templates (inbox, notes, journal), export b
        (emacs-lisp . t)
        (org . t)
        (shell . t)))
-    (add-hook 'org-mode-hook (lambda () (setq-local line-spacing 0.15))))
+    (add-hook 'org-mode-hook (lambda () (setq-local line-spacing 0.15)))
+
+    ;; Prose ergonomics
+    (defun mutecipher/org-prettify-checkboxes ()
+      "Replace plain-text checkboxes with Unicode glyphs."
+      (setq-local prettify-symbols-alist
+                  '(("[ ]" . "☐")
+                    ("[X]" . "☑")
+                    ("[-]" . "◈"))))
+
+    (add-hook 'org-mode-hook #'mutecipher/org-prettify-checkboxes)
+    (add-hook 'org-mode-hook #'prettify-symbols-mode)
+    (add-hook 'org-mode-hook #'visual-line-mode)
+    (add-hook 'org-mode-hook (lambda () (display-line-numbers-mode -1))))
 #+end_src
 ** BLOG
 Creates a new blog post file in =~/Documents/Blog/= with pre-filled Org metadata; invoke with =C-c b n=.
