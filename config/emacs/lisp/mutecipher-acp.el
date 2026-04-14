@@ -402,6 +402,7 @@ Handles strings, plists (JSON objects), and vectors."
      ((equal method "session/update")
       (when session-id
         (let ((type (plist-get update :sessionUpdate)))
+          (mutecipher-acp--clear-thinking session-id)
           (cond
            ((equal type "agent_message_chunk")
             (mutecipher-acp--append
@@ -755,6 +756,8 @@ Only runs in the output area (before the comint process mark)."
             (session    (list :id session-id :conn conn :buffer buf :agent agent-name
                               :cwd cwd
                               :org-primed nil
+                              :thinking-ov nil
+                              :thinking-timer nil
                               :tool-calls (make-hash-table :test #'equal)
                               :commands nil)))
        (puthash session-id session mutecipher-acp--sessions)
@@ -773,6 +776,8 @@ Only runs in the output area (before the comint process mark)."
          (session (list :id session-id :conn conn :buffer buf :agent agent-name
                         :cwd cwd
                         :org-primed nil
+                        :thinking-ov nil
+                        :thinking-timer nil
                         :tool-calls (make-hash-table :test #'equal)
                         :commands nil)))
     (puthash session-id session mutecipher-acp--sessions)
@@ -968,6 +973,49 @@ then loads it via session/load."
   (goto-char (point-max))
   (mutecipher-acp--emit-prompt session-id))
 
+(defconst mutecipher-acp--spinner-frames ["⠋" "⠙" "⠹" "⠸" "⠼" "⠴" "⠦" "⠧" "⠇" "⠏"]
+  "Braille spinner frames for the thinking indicator.")
+
+(defun mutecipher-acp--show-thinking (session-id)
+  "Show an animated thinking indicator at the process mark for SESSION-ID."
+  (when-let* ((session (gethash session-id mutecipher-acp--sessions))
+              (buf     (plist-get session :buffer))
+              (_       (buffer-live-p buf)))
+    (with-current-buffer buf
+      (when-let* ((proc   (get-buffer-process buf))
+                  (pos    (marker-position (process-mark proc))))
+        (let* ((nframes (length mutecipher-acp--spinner-frames))
+               (ov      (make-overlay pos pos buf t nil))
+               (frame   0)
+               (timer   (run-at-time
+                         0 0.1
+                         (lambda ()
+                           (when (overlay-buffer ov)
+                             (overlay-put
+                              ov 'before-string
+                              (propertize
+                               (concat "  "
+                                       (aref mutecipher-acp--spinner-frames (% frame nframes))
+                                       " thinking...\n")
+                               'face 'mutecipher-acp-thought-face))
+                             (cl-incf frame)))))
+               (updated (plist-put session :thinking-ov ov)))
+          (puthash session-id
+                   (plist-put updated :thinking-timer timer)
+                   mutecipher-acp--sessions))))))
+
+(defun mutecipher-acp--clear-thinking (session-id)
+  "Cancel the thinking spinner and remove its overlay for SESSION-ID."
+  (when-let* ((session (gethash session-id mutecipher-acp--sessions)))
+    (when-let ((timer (plist-get session :thinking-timer)))
+      (cancel-timer timer))
+    (when-let ((ov (plist-get session :thinking-ov)))
+      (delete-overlay ov))
+    (let ((updated (plist-put session :thinking-ov nil)))
+      (puthash session-id
+               (plist-put updated :thinking-timer nil)
+               mutecipher-acp--sessions))))
+
 (defun mutecipher-acp--do-prompt (session-id text)
   "Send TEXT as a prompt for SESSION-ID."
   (let* ((session   (gethash session-id mutecipher-acp--sessions))
@@ -983,6 +1031,7 @@ then loads it via session/load."
                       text)))
     ;; Blank line separates user input (already shown in prompt area) from response
     (mutecipher-acp--append session-id "\n")
+    (mutecipher-acp--show-thinking session-id)
     ;; Capture response start after the opening newline so we can align tables later.
     ;; Use a marker that stays fixed while response content is inserted before the pmark.
     (let ((resp-start
@@ -996,6 +1045,7 @@ then loads it via session/load."
        (list :sessionId session-id
              :prompt (vector (list :type "text" :text full-text)))
        :success-fn (lambda (_)
+                     (mutecipher-acp--clear-thinking session-id)
                      (mutecipher-acp--append session-id "\n\n")
                      ;; Align tables in the completed response region.
                      (when (and resp-start (buffer-live-p buf))
@@ -1008,6 +1058,7 @@ then loads it via session/load."
                        (set-marker resp-start nil))
                      (mutecipher-acp--emit-prompt session-id))
        :error-fn   (lambda (err)
+                     (mutecipher-acp--clear-thinking session-id)
                      (when resp-start (set-marker resp-start nil))
                      (mutecipher-acp--append
                       session-id
@@ -1064,6 +1115,7 @@ then loads it via session/load."
        (list :sessionId session-id)
        :success-fn (lambda (_) nil)
        :error-fn   (lambda (_) nil))
+      (mutecipher-acp--clear-thinking session-id)
       (remhash session-id mutecipher-acp--sessions)
       (when (buffer-live-p buf)
         (let ((anchor (get-buffer-process buf)))
