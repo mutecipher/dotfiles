@@ -31,10 +31,14 @@
                    ")"))
     "  "
     (:eval (when vc-mode
-             (let ((branch (string-trim-left vc-mode "[ Git@:-]+")))
+             (let* ((branch  (string-trim-left vc-mode "[ Git@:-]+"))
+                    (max-len (min 20 (max 6 (- (window-width) 85))))
+                    (display (if (> (length branch) max-len)
+                                 (concat (substring branch 0 (1- max-len)) "…")
+                               branch)))
                (concat (propertize "\uf126" 'face 'liminal-faded)
                        " "
-                       (propertize branch 'face 'liminal-faded)))))
+                       (propertize display 'face 'liminal-faded)))))
     "  "
     (:eval (propertize (substring-no-properties (mutecipher/buffer-icon)) 'face 'liminal-faded))
     " "
