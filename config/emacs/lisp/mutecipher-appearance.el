@@ -1,7 +1,10 @@
-;;; mutecipher-appearance.el --- System appearance detection and hooks  -*- lexical-binding: t -*-
+;;; mutecipher-appearance.el --- System appearance detection, hooks, liminal base faces  -*- lexical-binding: t -*-
 ;;
 ;; Provides a hook that fires whenever the system light/dark appearance changes,
 ;; so other modules can react without knowing about the detection machinery.
+;; Also defines the semantic base faces (`liminal-faded', `liminal-salient',
+;; `liminal-strong', `liminal-popout') that the liminal theme pair and
+;; downstream consumers can inherit from.
 ;;
 ;; Quickstart — theme switching in two lines:
 ;;
@@ -17,6 +20,36 @@
 ;; To override detection on an unsupported platform, set
 ;; `mutecipher-appearance-detect-function' to any zero-argument function
 ;; that returns `light' or `dark'.
+
+;;; Semantic base faces for the liminal theme pair
+;;
+;; Inherit from these when configuring faces for new packages rather than
+;; hard-coding colors; themes supply the concrete look.
+
+(defgroup liminal-theme nil
+  "Semantic base faces for the liminal theme pair."
+  :group 'faces
+  :prefix "liminal-")
+
+(defface liminal-faded
+  '((t :inherit shadow))
+  "Reduced emphasis — comments, line numbers, inactive UI."
+  :group 'liminal-theme)
+
+(defface liminal-salient
+  '((t :inherit link :underline nil))
+  "Important but not urgent — keywords, links, salient values."
+  :group 'liminal-theme)
+
+(defface liminal-strong
+  '((t :weight bold))
+  "Strong emphasis — identifiers, headings."
+  :group 'liminal-theme)
+
+(defface liminal-popout
+  '((t :inherit error))
+  "Draw attention — errors, warnings, critical state."
+  :group 'liminal-theme)
 
 ;;; Hooks and state
 

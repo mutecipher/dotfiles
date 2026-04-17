@@ -8,7 +8,7 @@ This file is the single source of truth for this Emacs setup. Read it top to bot
 Everything in this chapter loads or defines shared state that later sections rely on: font names, module paths, faces themes can override, and baseline =use-package= / built-in tweaks. Treat it as the “prelude” before optional UI and language-specific packages.
 
 ** VARIABLES
-Names and paths used throughout the config, plus early =require= of tidy and icon helpers so redirected data directories exist before packages write cache or state. Also defines TODO-style faces and neutral “liminal” semantic faces so themes and font-lock stay consistent instead of hard-coding colors in each block.
+Names and paths used throughout the config, plus early =require= of tidy and icon helpers so redirected data directories exist before packages write cache or state.
 
 #+begin_src emacs-lisp
   (defvar font-face "MonoLisa Variable")
@@ -22,37 +22,6 @@ Names and paths used throughout the config, plus early =require= of tidy and ico
   (add-to-list 'load-path custom-module-directory)
   (require 'mutecipher-tidy)
   (require 'mutecipher-icons)
-
-  ;; TODO keyword faces — defined here so themes can override them.
-  (defface mutecipher-todo-keyword
-    '((t :weight bold))
-    "Face for high-priority keywords: TODO, FIXME.")
-
-  (defface mutecipher-hack-keyword
-    '((t :weight bold))
-    "Face for cautionary keywords: HACK, XXX.")
-
-  (defface mutecipher-note-keyword
-    '((t :weight bold))
-    "Face for informational keywords: NOTE, INFO.")
-
-  ;; Semantic base faces for the liminal theme — inherit from these when
-  ;; configuring faces for new packages rather than hard-coding colors.
-  (defface liminal-faded
-    '((t :inherit shadow))
-    "Reduced emphasis — comments, line numbers, inactive UI.")
-
-  (defface liminal-salient
-    '((t :inherit link :underline nil))
-    "Important but not urgent — keywords, links, salient values.")
-
-  (defface liminal-strong
-    '((t :weight bold))
-    "Strong emphasis — identifiers, headings.")
-
-  (defface liminal-popout
-    '((t :inherit error))
-    "Draw attention — errors, warnings, critical state.")
 #+end_src
 ** EMACS
 Global defaults that shape every session: key bindings, scrolling, selection, encoding, history persistence, window splits, font setup, and hooks for line numbers, completion previews, and subword navigation.
@@ -346,20 +315,7 @@ Incremental search defaults: lazy match counts in the prompt, flexible whitespac
     (define-key isearch-mode-map (kbd "M-w") 'isearch-copy-selected-word))
 #+end_src
 ** FONT-LOCK
-Highlight ~TODO~, ~FIXME~, ~HACK~, ~NOTE~, and similar keywords in source code comments.
-
-#+begin_src emacs-lisp
-  (defun mutecipher/highlight-todo-keywords ()
-    "Add font-lock rules for TODO-style keywords."
-    (font-lock-add-keywords
-     nil
-     '(("\\<\\(?:FIXME\\|TODO\\)\\(?:(\\w+)\\)?:"  0 'mutecipher-todo-keyword prepend)
-       ("\\<\\(?:HACK\\|XXX\\)\\(?:(\\w+)\\)?:"    0 'mutecipher-hack-keyword  prepend)
-       ("\\<\\(?:NOTE\\|INFO\\)\\(?:(\\w+)\\)?:"   0 'mutecipher-note-keyword  prepend))
-     t))
-
-  (add-hook 'prog-mode-hook #'mutecipher/highlight-todo-keywords)
-#+end_src
+TODO-style comment highlighting lives in =lisp/mutecipher-todo-keywords.el= and is attached to =prog-mode-hook= alongside the other module activations.
 * NAVIGATION
 Buffers and commands for moving through the filesystem, renaming in bulk, listing buffers with filters, and jumping to outline headings inside a file.
 
@@ -581,23 +537,9 @@ Grammar sources are declared eagerly so ~treesit-install-language-grammar~ alway
 		     (yaml-mode         . yaml-ts-mode)
 		     (dockerfile-mode   . dockerfile-ts-mode)))
     (add-to-list 'major-mode-remap-alist mapping))
-
-  (defun mutecipher/treesit-install-all-grammars ()
-    "Install missing grammars from `treesit-language-source-alist' to `mutecipher/data-dir'.
-Skips any language whose grammar is already available."
-    (interactive)
-    (let ((out-dir (expand-file-name "tree-sitter/" mutecipher/data-dir)))
-      (make-directory out-dir t)
-      (dolist (lang (mapcar #'car treesit-language-source-alist))
-	(if (treesit-language-available-p lang)
-	    (message "Tree-sitter: %s already installed, skipping" lang)
-	  ;; Emacs 30+ accepts an explicit out-dir argument; Emacs 29 does not.
-	  (if (>= emacs-major-version 30)
-	      (treesit-install-language-grammar lang out-dir)
-	    (let ((user-emacs-directory mutecipher/data-dir))
-	      (treesit-install-language-grammar lang)))))
-      (message "Tree-sitter grammars installed to %s" out-dir)))
 #+end_src
+
+The interactive command =mutecipher/treesit-install-all-grammars= (used to fetch any missing grammars into =mutecipher/data-dir=) lives in =lisp/mutecipher-treesit.el=.
 *** Ruby
 File associations for Ruby using the tree-sitter major mode on typical project entry files (=*.rb=, =Rakefile=, =Gemfile=).
 
@@ -754,57 +696,10 @@ Agenda span, refile targets, capture templates (inbox, notes, journal), export b
     (add-hook 'org-mode-hook (lambda () (display-line-numbers-mode -1))))
 #+end_src
 ** BLOG
-Creates a new blog post file in =~/Documents/Blog/= with pre-filled Org metadata; invoke with =C-c b n=.
+Creates a new blog post file in =~/Documents/Blog/= with pre-filled Org metadata; invoke with =C-c b n=. Implementation lives in =lisp/mutecipher-blog.el=.
 
 #+begin_src emacs-lisp
-  (defcustom mutecipher-blog-directory (expand-file-name "~/Documents/Blog/")
-    "Directory where blog post Org files are stored."
-    :type 'directory
-    :group 'mutecipher)
-
-  (defun mutecipher--blog-slugify (title)
-    "Convert TITLE to a URL-safe slug."
-    (thread-last title
-      (downcase)
-      (replace-regexp-in-string "[^a-z0-9]+" "-")
-      (replace-regexp-in-string "^-\\|-$" "")))
-
-  (defun mutecipher/new-blog-post (title)
-    "Create a new blog post Org file in `mutecipher-blog-directory'.
-Prompts for TITLE (required) then all supported metadata fields."
-    (interactive "sBlog post title: ")
-    (let* ((slug-derived  (mutecipher--blog-slugify title))
-           (date          (format-time-string "%Y-%m-%d"))
-           (filename      (format "%s-%s.org" date slug-derived))
-           (filepath      (expand-file-name filename mutecipher-blog-directory))
-           (desc          (read-string "Description (optional): "))
-           (tags-raw      (read-string "Tags, space-separated (optional): "))
-           (tags          (unless (string-empty-p tags-raw)
-                            (concat ":"
-                                    (mapconcat #'identity (split-string tags-raw) ":")
-                                    ":")))
-           (image         (read-string "Hero image path or URL (optional): "))
-           (image-alt     (unless (string-empty-p image)
-                            (read-string "Hero image alt text (optional): ")))
-           (slug-override (read-string (format "URL slug [%s]: " slug-derived)))
-           (slug          (if (string-empty-p slug-override) slug-derived slug-override))
-           (draft         (y-or-n-p "Save as draft? ")))
-      (unless (file-directory-p mutecipher-blog-directory)
-        (make-directory mutecipher-blog-directory t))
-      (find-file filepath)
-      (insert "#+TITLE:       " title "\n")
-      (insert "#+DATE:        " date "\n")
-      (insert "#+AUTHOR:      " (or user-full-name "") "\n")
-      (insert "#+DESCRIPTION: " desc "\n")
-      (insert "#+FILETAGS:    " (or tags "") "\n")
-      (insert "#+IMAGE:       " image "\n")
-      (insert "#+IMAGE_ALT:   " (or image-alt "") "\n")
-      (insert "#+SLUG:        " slug "\n")
-      (insert "#+DRAFT:       " (if draft "true" "false") "\n")
-      (insert "\n")
-      (save-buffer)))
-
-  (global-set-key (kbd "C-c b n") #'mutecipher/new-blog-post)
+  (global-set-key (kbd "C-c b n") #'mutecipher/blog-new-post)
 #+end_src
 * TOOLS
 Miscellaneous major modes and commands that do not fit the earlier chapters: running builds, env files, IRC, quick web search, and per-project indentation from =.editorconfig=.
@@ -893,11 +788,15 @@ Local =lisp/= extensions shipped with this repo: centered writing, ligatures, co
   (require 'mutecipher-vc-gutter)
   (require 'mutecipher-flymake-inline)
   (require 'mutecipher-git-blame)
+  (require 'mutecipher-todo-keywords)
+  (require 'mutecipher-blog)
+  (require 'mutecipher-treesit)
   (require 'mutecipher-modeline)
 
   (mutecipher-vc-gutter-global-mode 1)
   (mutecipher-git-blame-global-mode 1)
   (add-hook 'flymake-mode-hook #'mutecipher-flymake-inline-mode)
+  (add-hook 'prog-mode-hook #'mutecipher/highlight-todo-keywords)
 
   (setq mutecipher-acp-agents
 	'(("claude"  :command "claude-agent-acp" :args ())
