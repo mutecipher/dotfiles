@@ -49,7 +49,8 @@
 ;; Redirect package installs out of dotfiles — must be set before package.el loads
 (setq package-user-dir
       (expand-file-name "emacs/elpa/"
-                        (or (getenv "XDG_DATA_HOME") "~/.local/share/")))
+                        (or (getenv "XDG_DATA_HOME")
+                            (expand-file-name ".local/share/" (getenv "HOME")))))
 
 (provide 'early-init)
 

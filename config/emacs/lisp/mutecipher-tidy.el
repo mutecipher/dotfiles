@@ -7,11 +7,13 @@
 ;; correct from the moment Emacs starts processing init.
 
 (defvar mutecipher/cache-dir
-  (expand-file-name "emacs/" (or (getenv "XDG_CACHE_HOME") "~/.cache/"))
+  (expand-file-name "emacs/" (or (getenv "XDG_CACHE_HOME")
+                                 (expand-file-name ".cache/" (getenv "HOME"))))
   "Directory for volatile/ephemeral data (recentf, history, auto-saves, etc.).")
 
 (defvar mutecipher/data-dir
-  (expand-file-name "emacs/" (or (getenv "XDG_DATA_HOME") "~/.local/share/"))
+  (expand-file-name "emacs/" (or (getenv "XDG_DATA_HOME")
+                                 (expand-file-name ".local/share/" (getenv "HOME"))))
   "Directory for persistent data (tree-sitter grammars, etc.).")
 
 (dolist (dir (list mutecipher/cache-dir mutecipher/data-dir))

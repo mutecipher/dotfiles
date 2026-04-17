@@ -15,7 +15,7 @@ Names and paths used throughout the config, plus early =require= of tidy and ico
   (defvar font-face-nf "Symbols Nerd Font Mono")
 
   (defvar custom-module-directory (expand-file-name "lisp" user-emacs-directory))
-  (defvar org-notes-directory (expand-file-name ".org/" "~"))
+  (defvar org-notes-directory (expand-file-name ".org/" (getenv "HOME")))
 
   ;; Load tidy module first so all path redirections are in place before
   ;; any package configuration runs.
