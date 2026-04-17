@@ -88,10 +88,10 @@
    `(compilation-error                ((t :foreground ,err)))
    `(compilation-warning              ((t :foreground ,wrn)))
    `(compilation-info                 ((t :foreground ,ok)))
-   ;; TODO keywords
-   `(mutecipher-todo-keyword          ((t :background "#263050" :foreground "#7db8e8" :weight bold)))
-   `(mutecipher-hack-keyword          ((t :background "#2e1f4a" :foreground "#cda1ff" :weight bold)))
-   `(mutecipher-note-keyword          ((t :background "#1a3038" :foreground "#83c9bc" :weight bold)))
+   ;; TODO keywords — amber = action, coral = danger, cyan = info
+   `(mutecipher-todo-keyword          ((t :background "#3d2e18" :foreground ,wrn :weight bold)))
+   `(mutecipher-hack-keyword          ((t :background "#3a1f1c" :foreground ,err :weight bold)))
+   `(mutecipher-note-keyword          ((t :background "#1e2e45" :foreground ,kw  :weight bold)))
    ;; Icon colors
    `(mutecipher-icon-red              ((t :foreground ,co)))
    `(mutecipher-icon-yellow           ((t :foreground "#d9c668")))
