@@ -366,15 +366,18 @@ Each plist has :conn, :buffer, :agent, :cwd, :tool-calls, :commands.")
     buf))
 
 (defun mutecipher-acp--append (session-id text &optional face)
-  "Append TEXT to SESSION-ID's buffer at the end.
-Scrolls all visible windows to the end."
+  "Append TEXT to SESSION-ID's buffer, scrolling visible windows to the end.
+With FACE, propertize TEXT and mark `acp-raw' to shield it from Org font-lock."
   (when-let ((session (gethash session-id mutecipher-acp--sessions)))
     (let ((buf (plist-get session :buffer)))
       (when (buffer-live-p buf)
         (with-current-buffer buf
           (let ((inhibit-read-only t))
             (goto-char (point-max))
-            (insert (if face (propertize text 'face face) text))))
+            (let ((start (point)))
+              (insert (if face (propertize text 'face face) text))
+              (when face
+                (put-text-property start (point) 'acp-raw t)))))
         (dolist (win (get-buffer-window-list buf nil t))
           (with-selected-window win
             (goto-char (point-max))))))))
@@ -651,17 +654,28 @@ Handles strings, plists (JSON objects), and vectors."
   "Font-lock keywords for ACP session buffers.")
 
 (defun mutecipher-acp--output-matcher (regexp)
-  "Return a font-lock matcher for REGEXP in the output buffer."
+  "Return a font-lock matcher for REGEXP in the output buffer.
+Matches that overlap a region marked with the `acp-raw' text property
+are skipped so tool-call lines, diffs, and other structured content are
+not re-interpreted as Org markup."
   (lambda (limit)
-    (re-search-forward regexp limit t)))
+    (let (found)
+      (while (and (not found)
+                  (re-search-forward regexp limit t))
+        (unless (text-property-any (match-beginning 0) (match-end 0)
+                                   'acp-raw t)
+          (setq found t)))
+      found)))
 
 (defun mutecipher-acp--table-pipe-matcher (limit)
-  "Font-lock matcher for | characters on Org table rows, up to LIMIT."
+  "Font-lock matcher for | characters on Org table rows, up to LIMIT.
+Skips pipes in regions marked with the `acp-raw' text property."
   (let (found)
     (while (and (not found)
                 (< (point) limit)
                 (re-search-forward "|" limit t))
-      (when (save-excursion (beginning-of-line) (looking-at "|"))
+      (when (and (save-excursion (beginning-of-line) (looking-at "|"))
+                 (not (get-text-property (match-beginning 0) 'acp-raw)))
         (setq found t)))
     found))
 
