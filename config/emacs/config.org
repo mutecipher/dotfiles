@@ -11,6 +11,10 @@ Everything in this chapter loads or defines shared state that later sections rel
 Names and paths used throughout the config, plus early =require= of tidy and icon helpers so redirected data directories exist before packages write cache or state.
 
 #+begin_src emacs-lisp
+  ;; Set before any use-package form so :hook (foo-hook . bar) works under both
+  ;; sequential load and byte-compilation (where all forms are expanded up front).
+  (setq use-package-hook-name-suffix nil)
+
   (defvar font-face "MonoLisa Variable")
   (defvar font-face-nf "Symbols Nerd Font Mono")
 
@@ -107,7 +111,6 @@ Global defaults that shape every session: key bindings, scrolling, selection, en
     (undo-outer-limit (* 13 24000000))
     (use-dialog-box nil)
     (use-file-dialog nil)
-    (use-package-hook-name-suffix nil)
     (use-short-answers t)
     (visible-bell nil)
     (window-combination-resize t)
@@ -189,11 +192,10 @@ Disambiguate buffer names when several files share the same basename (for exampl
 #+begin_src emacs-lisp
   (use-package uniquify
     :ensure nil
-    :config
-    (setq uniquify-buffer-name-style 'forward
-	uniquify-strip-common-suffix t)
-    (with-no-warnings
-      (setq uniquify-after-kill-buffer-p t)))
+    :custom
+    (uniquify-buffer-name-style 'forward)
+    (uniquify-strip-common-suffix t)
+    (uniquify-after-kill-buffer-p t))
 #+end_src
 * UI
 Visual layer: theme switching with the system appearance, chrome (fringes, window dividers), and discoverability (=which-key=, =which-func=). Nothing here is language-specific; it shapes how every buffer looks and how the mode line summarizes context.
@@ -306,13 +308,13 @@ Incremental search defaults: lazy match counts in the prompt, flexible whitespac
 #+begin_src emacs-lisp
   (use-package isearch
     :ensure nil
-    :config
-    (setq isearch-lazy-count t)
-    (setq lazy-count-prefix-format "(%s/%s) ")
-    (setq lazy-count-suffix-format nil)
-    (setq search-whitespace-regex ".*?")
-
-    (define-key isearch-mode-map (kbd "M-w") 'isearch-copy-selected-word))
+    :custom
+    (isearch-lazy-count t)
+    (lazy-count-prefix-format "(%s/%s) ")
+    (lazy-count-suffix-format nil)
+    (search-whitespace-regex ".*?")
+    :bind (:map isearch-mode-map
+		("M-w" . isearch-copy-selected-word)))
 #+end_src
 ** FONT-LOCK
 TODO-style comment highlighting lives in =lisp/mutecipher-todo-keywords.el= and is attached to =prog-mode-hook= alongside the other module activations.
@@ -433,12 +435,12 @@ Tweak how =vc-git= formats diffs and logs, cap summary lengths for commit messag
     :bind
     (:map diff-mode-map
 	("M-o" . other-window))
-    :config
-    (setq diff-default-read-only t)
-    (setq diff-advance-after-apply-hunk t)
-    (setq diff-update-on-the-fly t)
-    (setq diff-font-lock-syntax 'hunk-also)
-    (setq diff-font-lock-prettify t))
+    :custom
+    (diff-default-read-only t)
+    (diff-advance-after-apply-hunk t)
+    (diff-update-on-the-fly t)
+    (diff-font-lock-syntax 'hunk-also)
+    (diff-font-lock-prettify t))
 #+end_src
 ** EDIFF
 Side-by-side structural comparison of two or three files or buffers, with a plain window layout and horizontal splits by default for wide screens.
@@ -447,13 +449,12 @@ Side-by-side structural comparison of two or three files or buffers, with a plai
   (use-package ediff
     :ensure nil
     :commands (ediff-buffers ediff-files ediff-buffers3 ediff-files3)
-    :init
-    (setq ediff-split-window-function 'split-window-horizontally)
-    (setq ediff-window-setup-function 'ediff-setup-windows-plain)
-    :config
-    (setq ediff-keep-variants nil)
-    (setq ediff-make-buffers-readonly-at-startup nil)
-    (setq ediff-show-clashes-only t))
+    :custom
+    (ediff-split-window-function 'split-window-horizontally)
+    (ediff-window-setup-function 'ediff-setup-windows-plain)
+    (ediff-keep-variants nil)
+    (ediff-make-buffers-readonly-at-startup nil)
+    (ediff-show-clashes-only t))
 #+end_src
 * LSP & CODE
 Language-server protocol (=eglot=), on-the-fly diagnostics (=flymake=), echo-area documentation (=eldoc=), and tree-sitter grammars plus major modes for the languages you edit most often.
@@ -690,7 +691,8 @@ Agenda span, refile targets, capture templates (inbox, notes, journal), export b
                     ("[X]" . "☑")
                     ("[-]" . "◈"))))
 
-    (add-hook 'org-mode-hook #'mutecipher/org-prettify-checkboxes)
+    ;; Install the buffer-local alist before prettify-symbols-mode turns on.
+    (add-hook 'org-mode-hook #'mutecipher/org-prettify-checkboxes -50)
     (add-hook 'org-mode-hook #'prettify-symbols-mode)
     (add-hook 'org-mode-hook #'visual-line-mode)
     (add-hook 'org-mode-hook (lambda () (display-line-numbers-mode -1))))
@@ -723,9 +725,7 @@ Activate =conf-mode= for dotenv files so KEY=value syntax is highlighted rather 
 #+begin_src emacs-lisp
   (use-package conf-mode
     :ensure nil
-    :mode ("\\.env\\..*\\'" "\\.env\\'")
-    :init
-    (add-to-list 'auto-mode-alist '("\\.env\\'" . conf-mode)))
+    :mode ("\\.env\\..*\\'" "\\.env\\'"))
 #+end_src
 ** ERC
 IRC client defaults for Libera.Chat: quiet join/part noise, logging, spelling, wrapped fills, and a small set of auto-joined channels when you connect.
