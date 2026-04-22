@@ -16,7 +16,9 @@
 
 (require 'cl-lib)
 (require 'json)
+(require 'project)
 (require 'transient)
+(require 'url-util)
 
 ;;;; Customization
 
@@ -911,7 +913,8 @@ Registered as a jit-lock function in `mutecipher-acp-session-mode'."
                               :state-started-at nil
                               :state-timer nil
                               :tool-calls (make-hash-table :test #'equal)
-                              :commands nil)))
+                              :commands nil
+                              :file-cache nil)))
        (puthash session-id session mutecipher-acp--sessions)
        (mutecipher-acp--insert-banner session-id)
        (funcall callback session-id buf)))
@@ -936,7 +939,8 @@ Registered as a jit-lock function in `mutecipher-acp-session-mode'."
                         :state-started-at nil
                         :state-timer nil
                         :tool-calls (make-hash-table :test #'equal)
-                        :commands nil)))
+                        :commands nil
+                        :file-cache nil)))
     (puthash session-id session mutecipher-acp--sessions)
     (mutecipher-acp--insert-banner session-id)
     (mutecipher-acp--request
@@ -947,6 +951,120 @@ Registered as a jit-lock function in `mutecipher-acp-session-mode'."
                    (kill-buffer buf)
                    (message "ACP session/load failed: %s"
                             (plist-get err :message))))))
+
+;;;; Prompt attachments (@-mentions)
+
+(defconst mutecipher-acp--file-cache-ttl 30
+  "Seconds before `mutecipher-acp--session-files' re-walks a session's cwd.")
+
+(defconst mutecipher-acp--file-cache-cap 2000
+  "Maximum number of candidate files returned per session.
+Files are sorted shallowest-first before truncation.")
+
+(defconst mutecipher-acp--file-exclude-dirs
+  '(".git" "node_modules" ".direnv" ".venv" "vendor" "elpa" ".cache")
+  "Directory basenames skipped by the fs fallback walker.")
+
+(defun mutecipher-acp--path->file-uri (abs-path)
+  "Return a file:// URI for ABS-PATH with path segments percent-encoded."
+  (concat "file://"
+          (mapconcat #'url-hexify-string
+                     (split-string (expand-file-name abs-path) "/")
+                     "/")))
+
+(defun mutecipher-acp--walk-cwd (cwd)
+  "Walk CWD collecting relative file paths, skipping excluded dirs.
+Returns a list sorted shallowest-first, capped at
+`mutecipher-acp--file-cache-cap'."
+  (let ((root (file-name-as-directory (expand-file-name cwd)))
+        (acc '())
+        (count 0)
+        (queue (list (file-name-as-directory (expand-file-name cwd)))))
+    (while (and queue (< count mutecipher-acp--file-cache-cap))
+      (let ((dir (pop queue)))
+        (dolist (entry (ignore-errors
+                         (directory-files
+                          dir t directory-files-no-dot-files-regexp t)))
+          (cond
+           ((file-directory-p entry)
+            (unless (member (file-name-nondirectory entry)
+                            mutecipher-acp--file-exclude-dirs)
+              (push (file-name-as-directory entry) queue)))
+           ((file-regular-p entry)
+            (push (file-relative-name entry root) acc)
+            (setq count (1+ count)))))))
+    (sort acc (lambda (a b)
+                (let ((da (cl-count ?/ a))
+                      (db (cl-count ?/ b)))
+                  (if (= da db) (string< a b) (< da db)))))))
+
+(defun mutecipher-acp--session-files (session)
+  "Return a cached list of (REL-PATH . SOURCE) for SESSION's :cwd.
+SOURCE is the symbol `project' or `fs'. Cache lives on the session plist
+under :file-cache as (TIMESTAMP SOURCE LIST); refreshed after
+`mutecipher-acp--file-cache-ttl' seconds."
+  (let* ((cwd   (plist-get session :cwd))
+         (cache (plist-get session :file-cache))
+         (now   (float-time)))
+    (if (and cache
+             (< (- now (nth 0 cache)) mutecipher-acp--file-cache-ttl))
+        (cons (nth 1 cache) (nth 2 cache))
+      (let* ((proj  (and cwd
+                         (let ((default-directory cwd))
+                           (project-current nil cwd))))
+             (files (if proj
+                        (mapcar (lambda (f) (file-relative-name f cwd))
+                                (project-files proj))
+                      (and cwd (mutecipher-acp--walk-cwd cwd))))
+             (source (if proj 'project 'fs))
+             (capped (if (> (length files) mutecipher-acp--file-cache-cap)
+                         (seq-take files mutecipher-acp--file-cache-cap)
+                       files)))
+        (puthash (plist-get session :id)
+                 (plist-put session :file-cache (list now source capped))
+                 mutecipher-acp--sessions)
+        (cons source capped)))))
+
+(defun mutecipher-acp--extract-attachments (text cwd)
+  "Scan TEXT for @-mentions and return ((TOKEN . ABS-PATH) ...).
+Only tokens whose resolved path exists as a regular file are returned.
+Trailing punctuation (.,;:!?)}'\") is trimmed from each token before
+resolution. Duplicates are de-duplicated, preserving first-seen order."
+  (let ((seen (make-hash-table :test #'equal))
+        (out  '())
+        (case-fold-search nil))
+    (with-temp-buffer
+      (insert text)
+      (goto-char (point-min))
+      (while (re-search-forward "@\\([^ \t\n\r]+\\)" nil t)
+        (let* ((raw     (match-string-no-properties 1))
+               (trimmed (replace-regexp-in-string
+                         "[.,;:!?)}'\"]+\\'" "" raw))
+               (abs     (when (and cwd (> (length trimmed) 0))
+                          (if (file-name-absolute-p trimmed)
+                              (expand-file-name trimmed)
+                            (expand-file-name trimmed cwd)))))
+          (when (and abs
+                     (not (gethash abs seen))
+                     (file-regular-p abs))
+            (puthash abs t seen)
+            (push (cons trimmed abs) out)))))
+    (nreverse out)))
+
+(defun mutecipher-acp--prompt-blocks (text cwd)
+  "Return the :prompt vector for TEXT resolved against CWD.
+One text block (TEXT unchanged) followed by one resource_link block per
+@-mention that resolves to an existing file."
+  (let* ((attachments (mutecipher-acp--extract-attachments text cwd))
+         (text-block  (list :type "text" :text text))
+         (link-blocks (mapcar
+                       (lambda (a)
+                         (let ((abs (cdr a)))
+                           (list :type "resource_link"
+                                 :uri  (mutecipher-acp--path->file-uri abs)
+                                 :name (file-name-nondirectory abs))))
+                       attachments)))
+    (apply #'vector text-block link-blocks)))
 
 ;;;; Major modes
 
@@ -975,6 +1093,27 @@ Activates when the current line begins with \"/\"."
                                          commands))
                           (desc (plist-get cmd :description)))
                 (concat "  " desc)))))))
+
+;;; File-attachment completion
+
+(defun mutecipher-acp--files-capf ()
+  "Completion-at-point function for @-mention file attachments.
+Triggers when the text preceding point matches @[^ \\t\\n]*. Candidates
+are relative paths from the session's :cwd, prefixed with @ so that
+completing replaces the typed @fragment in place."
+  (when-let* ((session-id mutecipher-acp--session-id)
+              (session    (gethash session-id mutecipher-acp--sessions))
+              (at-pos     (save-excursion
+                            (skip-chars-backward "^ \t\n")
+                            (and (eq (char-after) ?@) (point)))))
+    (let* ((cache      (mutecipher-acp--session-files session))
+           (source     (car cache))
+           (files      (cdr cache))
+           (candidates (mapcar (lambda (f) (concat "@" f)) files))
+           (tag        (if (eq source 'project) "[project]" "[fs]")))
+      (list at-pos (point) candidates
+            :annotation-function (lambda (_) (concat "  " tag))
+            :exclusive 'no))))
 
 ;;; Session output buffer mode
 
@@ -1077,8 +1216,11 @@ RET sends the buffer contents as a prompt.  S-RET / M-J insert a newline.
 M-p / M-n cycle the input history.  C-c C-c cancels; C-c C-k kills the session."
   (setq-local header-line-format '((:eval (mutecipher-acp--input-header-line))))
   (setq-local mode-line-format '((:eval (mutecipher-acp--input-mode-line))))
+  (setq-local completion-auto-help t)
   (visual-line-mode 1)
   (add-hook 'post-command-hook #'mutecipher-acp--resize-input nil t)
+  (add-hook 'completion-at-point-functions
+            #'mutecipher-acp--files-capf nil t)
   (add-hook 'completion-at-point-functions
             #'mutecipher-acp--commands-capf nil t))
 
@@ -1333,7 +1475,8 @@ counter ticks; cancels it for every other state."
       (mutecipher-acp--request
        conn "session/prompt"
        (list :sessionId session-id
-             :prompt (vector (list :type "text" :text full-text)))
+             :prompt (mutecipher-acp--prompt-blocks
+                      full-text (plist-get session :cwd)))
        :success-fn (lambda (_)
                      (mutecipher-acp--clear-thinking session-id)
                      (mutecipher-acp--set-state session-id 'idle)

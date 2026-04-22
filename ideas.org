@@ -1,0 +1,145 @@
+#+title: Dotfiles ideas
+#+todo: TODO NEXT | DONE CANCELLED
+#+startup: overview content
+
+* For future agents
+This is a backlog of improvements to the Emacs ACP (Agent Client
+Protocol) client.  The module lives at
+=config/emacs/lisp/mutecipher-acp.el=.  The protocol reference is
+https://agentclientprotocol.com.
+
+Workflow: pick a =TODO= or =NEXT=, confirm scope with the user, then
+flip it to =DONE= in this file when it ships.  Use =[#A]= / =[#B]= /
+=[#C]= as the priority scale:
+
+- =[#A]= — parity blockers for replacing the ~claude~ CLI.
+- =[#B]= — polish that makes the experience feel production-ready.
+- =[#C]= — ambitious / nice-to-have.
+
+Repo notes:
+
+- The Emacs config is literate: most runtime code is tangled from
+  =config/emacs/config.org=.  Standalone modules under
+  =config/emacs/lisp/= (including =mutecipher-acp.el=) are edited
+  directly — don't touch a generated =config.el=.
+- Commit style is conventional commits (~feat(emacs):~,
+  ~fix(emacs):~, ~refactor(emacs):~, …), per the project =CLAUDE.md=.
+- Line-number anchors below reflect the file at the time of writing
+  and will drift — use them as a starting point, not gospel.
+
+* ACP client (mutecipher-acp.el)
+** DONE [#A] @-mention file attachments in prompts
+The input hint advertises =@ file= but =mutecipher-acp--do-prompt=
+only sends a single text content block.  Extend the prompt vector to
+include =resource_link= / =resource= content blocks populated from an
+=@=-completion UI.
+Anchor: config/emacs/lisp/mutecipher-acp.el:1336
+
+** TODO [#A] Inline diff view for Edit/Write tool calls
+A proposed edit currently collapses to =⏺ Edit(path)=.  Render a
+=diff-mode= hunk inline (or route multi-file edits through ediff) so
+the user can see what the agent is about to change.  Biggest trust
+factor before letting the agent touch real code.
+Anchor: config/emacs/lisp/mutecipher-acp.el:462
+
+** TODO [#A] Expandable / streaming tool output
+=tool_call_update= truncates =rawOutput= to its first line.  Fold each
+tool call as a collapsible region (=TAB= to expand) and stream
+long-running Bash-style output into a subordinate buffer live.
+Anchor: config/emacs/lisp/mutecipher-acp.el:513
+
+** TODO [#A] Inline keyboard-driven permission UX
+=completing-read= in the minibuffer is the roughest edge.  Replace
+with an in-buffer prompt pinned under the session pane (numeric or
+y/n/a keys) and a "remember for this tool / path" store so repeat
+answers aren't required.
+Anchor: config/emacs/lisp/mutecipher-acp.el:593
+
+** TODO [#A] MCP server passthrough in session/new
+=session/new= is hardcoded =:mcpServers []=, so the in-Emacs agent
+has fewer tools than the CLI.  Read from a user-configurable list
+(reuse the existing =mutecipher-acp-agents= alist shape).
+Anchor: config/emacs/lisp/mutecipher-acp.el:899
+
+** TODO [#B] Rewind / edit last message
+Parity with the CLI's Esc-Esc behaviour: re-prompt from a prior turn.
+Can be local (replay conversation state) if the server doesn't
+support a rewind RPC.
+Anchor: config/emacs/lisp/mutecipher-acp.el:1311
+
+** TODO [#B] Surface usage and cost
+=_meta.usage= isn't read anywhere.  Display per-turn tokens and a
+cumulative cost in the input-buffer mode-line or header.
+Anchor: config/emacs/lisp/mutecipher-acp.el:1059
+
+** TODO [#B] Wire the =authenticate= method
+The initial handshake only calls =initialize= and =session/new=;
+there's no flow for first-run or token refresh.  Agents that require
+it currently fail opaquely.
+Anchor: config/emacs/lisp/mutecipher-acp.el:887
+
+** TODO [#B] Slash-command argument hints
+=mutecipher-acp--commands-capf= completes names only.  The protocol
+advertises per-command argument hints that should flow into the
+completion annotation and/or an eldoc-style preview.
+Anchor: config/emacs/lisp/mutecipher-acp.el:955
+
+** TODO [#B] Buttonize file paths and file:line refs in tool lines
+Org link handling already exists for agent prose.  Extend the same
+treatment to tool-call lines so =RET= on a path visits the file.
+Anchor: config/emacs/lisp/mutecipher-acp.el:835
+
+** TODO [#B] Live plan rendering
+Each =plan= notification currently re-appends a bullet list.  Render
+once and update task statuses in place as subsequent plan updates
+arrive.
+Anchor: config/emacs/lisp/mutecipher-acp.el:528
+
+** TODO [#B] Stop-reason trailer
+When a turn ends on =max_tokens= or error, show a visible reason
+(short trailer under the agent response) instead of silently flipping
+the state label.
+Anchor: config/emacs/lisp/mutecipher-acp.el:1337
+
+** TODO [#B] Sticky-tail auto-scroll
+Follow the stream when point is at =point-max=; pause auto-scroll
+when the user has scrolled up so they can read without being yanked
+back to the tail.
+Anchor: config/emacs/lisp/mutecipher-acp.el:366
+
+** TODO [#B] Transcript export
+Dump a full session as =.org= or =.md= (user prose, agent prose, tool
+calls, outcomes) for audit or sharing.
+Anchor: config/emacs/lisp/mutecipher-acp.el:981
+
+** TODO [#B] Persist sessions across Emacs restarts
+Cache ={cwd → session-id}= (plus agent name) on disk so
+=mutecipher/acp-resume= can find the session from a fresh Emacs
+launch, not just the current process.
+Anchor: config/emacs/lisp/mutecipher-acp.el:339
+
+** TODO [#B] Reconnection / zombie cleanup
+A dead subprocess leaves a live session plist behind.  The sentinel
+should mark the session dead, surface it in the mode-line, and offer
+a restart path rather than failing silently on the next prompt.
+Anchor: config/emacs/lisp/mutecipher-acp.el:167
+
+** TODO [#C] OS notification on turn completion
+Fire an =alert= / =notifications-notify= when a long turn completes
+in an unfocused frame — easy win for background sessions.
+Anchor: config/emacs/lisp/mutecipher-acp.el:1337
+
+** TODO [#C] Per-project auto-session with live status
+Spawn or resume a session per project automatically, and expose a
+global mode-line segment listing every live session and its state.
+Anchor: config/emacs/lisp/mutecipher-acp.el:1161
+
+** TODO [#C] Dired drag-and-drop / marked-file attachments
+Pipe dired selections into the same =@=-mention content-block path
+used for inline attachments.  Depends on the =[#A]= attachments item.
+Anchor: config/emacs/lisp/mutecipher-acp.el:1336
+
+** TODO [#C] project.el / magit integration
+"Send staged diff as prompt", "summarize this PR" — small commands
+that wire project/vc context into a new prompt.
+Anchor: config/emacs/lisp/mutecipher-acp.el:1161
