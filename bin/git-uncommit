@@ -15,7 +15,7 @@ else
   [ "$(git stash)" = "No local changes to save" ]
   stash_failed=$?
   git checkout HEAD^ "$@"
-  git commit -a --amend -C HEAD --no-verify
+  git commit -a --amend -C HEAD
   [ $stash_failed = 0 ] || git stash pop
   git apply <(git diff HEAD HEAD@{1})
 fi

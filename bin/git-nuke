@@ -1,12 +1,46 @@
 #!/bin/sh
 #
-# Nukes a branch locally and on the origin remote.
-#
-# $1 - Branch name.
-#
-# Examples
-#
-#   git nuke add-git-nuke
+# Nukes a branch locally and on the origin remote. Refuses to delete
+# the current branch or main/master, and prompts for confirmation
+# before touching the remote.
 
-git branch -D $1
-git push origin :$1
+set -eu
+
+branch=${1:-}
+
+if [ -z "$branch" ]; then
+  echo "Usage: git nuke <branch>" >&2
+  exit 1
+fi
+
+current=$(git rev-parse --abbrev-ref HEAD)
+
+if [ "$branch" = "$current" ]; then
+  echo "Refusing to nuke the currently checked out branch ($branch)." >&2
+  exit 1
+fi
+
+case "$branch" in
+  main|master)
+    echo "Refusing to nuke protected branch ($branch)." >&2
+    exit 1
+    ;;
+esac
+
+printf "Delete branch '%s' locally and on origin? [y/N] " "$branch"
+read -r reply
+case "$reply" in
+  y|Y|yes|YES) ;;
+  *)
+    echo "Aborted." >&2
+    exit 1
+    ;;
+esac
+
+git branch -D "$branch"
+
+if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+  git push origin --delete "$branch"
+else
+  echo "Remote branch '$branch' does not exist on origin — skipping remote delete."
+fi
