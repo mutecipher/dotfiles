@@ -3,28 +3,12 @@
 # Bash library for color helpers.
 
 color::supported() {
-  if [[ $- == *i* ]]; then
-    return 1
-  else
+  if [[ -z ${_COLOR_SUPPORTED_CACHE+x} ]]; then
     local num_colors
-    num_colors=$(tput colors)
-    if ((num_colors > 8)); then
-      return 0
+    _COLOR_SUPPORTED_CACHE=1
+    if [ -t 1 ] && num_colors=$(tput colors 2>/dev/null) && ((num_colors > 8)); then
+      _COLOR_SUPPORTED_CACHE=0
     fi
   fi
-}
-
-color::for() {
-  case $1 in
-  black) echo 0 ;;
-  red) echo 1 ;;
-  green) echo 2 ;;
-  yellow) echo 3 ;;
-  blue) echo 4 ;;
-  magenta) echo 5 ;;
-  cyan) echo 6 ;;
-  white) echo 7 ;;
-  reset) echo 888 ;;
-  *) echo 9 ;;
-  esac
+  return $_COLOR_SUPPORTED_CACHE
 }
