@@ -35,7 +35,7 @@ include =resource_link= / =resource= content blocks populated from an
 =@=-completion UI.
 Anchor: config/emacs/lisp/mutecipher-acp.el:1336
 
-** TODO [#A] Inline diff view for Edit/Write tool calls
+** DONE [#A] Inline diff view for Edit/Write tool calls
 A proposed edit currently collapses to =⏺ Edit(path)=.  Render a
 =diff-mode= hunk inline (or route multi-file edits through ediff) so
 the user can see what the agent is about to change.  Biggest trust
@@ -60,6 +60,20 @@ Anchor: config/emacs/lisp/mutecipher-acp.el:593
 has fewer tools than the CLI.  Read from a user-configurable list
 (reuse the existing =mutecipher-acp-agents= alist shape).
 Anchor: config/emacs/lisp/mutecipher-acp.el:899
+
+** TODO [#B] Colorize inline diff blocks
+=mutecipher-acp--insert-diff-block= currently inserts each diff line
+as plain text.  A first pass defined =mutecipher-acp-diff-added= /
+=-removed= / =-hunk-header= faces with explicit =:background= and
+=:extend t= (inheriting from the built-in =diff-*= faces), but the
+backgrounds did not render on the liminal-light theme — neither the
+inherited nor the explicit ones.  Investigate: face-inheritance
+composition?  A =face-remapping-alist= somewhere in the session
+buffer?  Theme override?  Something about how =font-lock= in the
+session mode interacts with our text-property faces?  Once colors
+render reliably, restore a =mutecipher-acp--diff-line-face= dispatcher
+that paints +/−/@@ lines.
+Anchor: config/emacs/lisp/mutecipher-acp.el:481
 
 ** TODO [#B] Rewind / edit last message
 Parity with the CLI's Esc-Esc behaviour: re-prompt from a prior turn.
