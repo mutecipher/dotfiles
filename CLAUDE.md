@@ -26,7 +26,7 @@ sh ~/.dotfiles/setup.sh
 - `config/` — app configs symlinked into `$HOME/.config/` (emacs, nvim, ghostty)
 - `config/starship.toml` — Starship prompt config (a file, not a directory like the others)
 - `bin/` — custom scripts added to `$PATH` via `.zshrc`
-- `lib/` — shell utility library (`color.sh`, `date-time.sh`, `fs.sh`, `logger.sh`) sourced by scripts in `bin/`
+- `lib/` — shell utility library (`clipboard.sh`, `color.sh`, `date-time.sh`, `fs.sh`, `logger.sh`) sourced by scripts in `bin/`
 - `Brewfile` — all macOS dependencies managed by Homebrew
 
 ## Emacs Configuration

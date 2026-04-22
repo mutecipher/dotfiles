@@ -1,7 +1,9 @@
-#!/bin/sh
-if [ -z "$1" ]; then 
-  echo 'Usage: gpgkey <email>'
+#!/usr/bin/env bash
+. "$DOTFILES_LIB/clipboard.sh"
+
+if [ -z "$1" ]; then
+  echo 'Usage: gpg-copy-key <email>'
 else
-  gpg --export --armour "$1" | pbcopy
-  echo '=> Public key copied to pasteboard.'
+  gpg --export --armour "$1" | clipboard::copy && \
+    echo '=> Public key copied to clipboard.'
 fi

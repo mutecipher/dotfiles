@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 #
 # Copies an SSH public key to the clipboard.
 #
@@ -6,22 +6,22 @@
 #   ssh-copy-key            # auto-detects key (ed25519, ecdsa, rsa)
 #   ssh-copy-key id_github  # copies ~/.ssh/id_github.pub
 
+. "$DOTFILES_LIB/clipboard.sh"
+
 if [ -n "$1" ]; then
   key="$HOME/.ssh/$1.pub"
   if [ ! -f "$key" ]; then
     echo "No key found at $key" >&2
     exit 1
   fi
-  cat "$key" | pbcopy
-  echo "=> $1.pub copied to clipboard."
-  exit 0
+  clipboard::copy < "$key" && echo "=> $1.pub copied to clipboard."
+  exit $?
 fi
 
 for key in "$HOME/.ssh/id_ed25519.pub" "$HOME/.ssh/id_ecdsa.pub" "$HOME/.ssh/id_rsa.pub"; do
   if [ -f "$key" ]; then
-    cat "$key" | pbcopy
-    echo "=> $(basename $key) copied to clipboard."
-    exit 0
+    clipboard::copy < "$key" && echo "=> $(basename "$key") copied to clipboard."
+    exit $?
   fi
 done
 
