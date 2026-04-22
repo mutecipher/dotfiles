@@ -15,6 +15,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'diff)
 (require 'json)
 (require 'project)
 (require 'transient)
@@ -56,6 +57,13 @@ new session and activates Org font-lock in the session buffer."
 - Do NOT wrap the entire response in a src block; use prose with embedded blocks"
   "System instruction prepended to the first prompt when `mutecipher-acp-org-responses' is enabled."
   :type 'string
+  :group 'mutecipher-acp)
+
+(defcustom mutecipher-acp-diff-max-lines 500
+  "Maximum old/new line count before inline tool-call diffs are summarized.
+When either side of a diff exceeds this, the diff body is skipped and a
+single summary line is shown instead."
+  :type 'integer
   :group 'mutecipher-acp)
 
 ;;;; Faces
@@ -365,6 +373,12 @@ Each plist has :conn, :buffer, :agent, :cwd, :tool-calls, :commands.")
         (setq mutecipher-acp--session-id session-id)))
     buf))
 
+(defun mutecipher-acp--scroll-windows-to-end (buf)
+  "Move point to `point-max' in every window showing BUF."
+  (dolist (win (get-buffer-window-list buf nil t))
+    (with-selected-window win
+      (goto-char (point-max)))))
+
 (defun mutecipher-acp--append (session-id text &optional face)
   "Append TEXT to SESSION-ID's buffer, scrolling visible windows to the end.
 With FACE, propertize TEXT and mark `acp-raw' to shield it from Org font-lock."
@@ -378,9 +392,7 @@ With FACE, propertize TEXT and mark `acp-raw' to shield it from Org font-lock."
               (insert (if face (propertize text 'face face) text))
               (when face
                 (put-text-property start (point) 'acp-raw t)))))
-        (dolist (win (get-buffer-window-list buf nil t))
-          (with-selected-window win
-            (goto-char (point-max))))))))
+        (mutecipher-acp--scroll-windows-to-end buf)))))
 
 (defun mutecipher-acp--append-line (session-id prefix text &optional face)
   "Append a labelled line \"PREFIX text\n\" to SESSION-ID's buffer."
@@ -441,6 +453,85 @@ Handles strings, plists (JSON objects), and vectors."
                 (concat (substring s1 0 (1- max)) "\u2026")
               s1)))))))
 
+(defun mutecipher-acp--generate-unified-diff (old-text new-text)
+  "Return the hunk body comparing OLD-TEXT and NEW-TEXT as a unified diff.
+File headers (---/+++) and any trailing `Diff finished' line are stripped;
+the result starts at the first `@@' line.  Returns nil if the texts are
+identical or diff produced no hunk."
+  (let ((old-file (make-temp-file "acp-diff-old-"))
+        (new-file (make-temp-file "acp-diff-new-"))
+        (diff-buf (generate-new-buffer " *acp-diff*")))
+    (unwind-protect
+        (progn
+          (let ((coding-system-for-write 'utf-8))
+            (write-region (or old-text "") nil old-file nil 'silent)
+            (write-region (or new-text "") nil new-file nil 'silent))
+          (diff-no-select old-file new-file "-u" t diff-buf)
+          (with-current-buffer diff-buf
+            (let ((inhibit-read-only t))
+              (goto-char (point-max))
+              (when (re-search-backward "^Diff finished" nil t)
+                (delete-region (line-beginning-position) (point-max)))
+              (goto-char (point-min))
+              (when (re-search-forward "^@@" nil t)
+                (buffer-substring-no-properties
+                 (line-beginning-position) (point-max))))))
+      (ignore-errors (delete-file old-file))
+      (ignore-errors (delete-file new-file))
+      (when (buffer-live-p diff-buf) (kill-buffer diff-buf)))))
+
+(defun mutecipher-acp--insert-diff-block (session-id old-text new-text)
+  "Render a diff block for OLD-TEXT → NEW-TEXT into SESSION-ID's buffer.
+Caps at `mutecipher-acp-diff-max-lines' on either side; over that, emits
+a single summary line instead."
+  (when-let ((session (gethash session-id mutecipher-acp--sessions)))
+    (let ((buf (plist-get session :buffer)))
+      (when (buffer-live-p buf)
+        (let* ((old (or old-text ""))
+               (new (or new-text ""))
+               (old-lines (1+ (cl-count ?\n old)))
+               (new-lines (1+ (cl-count ?\n new)))
+               (body (if (or (> old-lines mutecipher-acp-diff-max-lines)
+                             (> new-lines mutecipher-acp-diff-max-lines))
+                         (propertize
+                          (format "  … diff suppressed (%d old, %d new lines)\n"
+                                  old-lines new-lines)
+                          'face 'shadow)
+                       (when-let ((diff-str (mutecipher-acp--generate-unified-diff old new)))
+                         (concat "\n" (string-trim-right diff-str "\n") "\n")))))
+          (when body
+            (with-current-buffer buf
+              (let ((inhibit-read-only t))
+                (goto-char (point-max))
+                (let ((start (point)))
+                  (insert body)
+                  (add-text-properties start (point)
+                                       '(acp-diff-region t acp-raw t)))))
+            (mutecipher-acp--scroll-windows-to-end buf)))))))
+
+(defun mutecipher-acp--render-tool-content (session-id call-id content-vec)
+  "Render any unrendered diff items from CONTENT-VEC for CALL-ID in SESSION-ID."
+  (when-let* ((session (gethash session-id mutecipher-acp--sessions))
+              (calls   (plist-get session :tool-calls))
+              (entry   (and call-id (gethash call-id calls)))
+              (total   (and (vectorp content-vec) (length content-vec))))
+    (let ((i (or (plist-get entry :rendered-content-count) 0)))
+      (while (< i total)
+        (let ((item (aref content-vec i)))
+          (when (equal (plist-get item :type) "diff")
+            (mutecipher-acp--insert-diff-block
+             session-id
+             (plist-get item :oldText)
+             (plist-get item :newText))))
+        (setq i (1+ i)))
+      (when-let ((buf (plist-get session :buffer))
+                 (end (plist-get entry :end-marker)))
+        (with-current-buffer buf
+          (set-marker end (point-max))))
+      (puthash call-id
+               (plist-put entry :rendered-content-count total)
+               calls))))
+
 (defun mutecipher-acp--handle-notification (method params)
   "Dispatch incoming JSON-RPC notification METHOD with PARAMS."
   (let ((session-id (plist-get params :sessionId))
@@ -488,8 +579,14 @@ Handles strings, plists (JSON objects), and vectors."
                 (let ((buf (plist-get session :buffer)))
                   (with-current-buffer buf
                     (puthash call-id
-                             (list :name name :marker (copy-marker (point-max) t))
-                             calls))))))
+                             (list :name name
+                                   :marker (copy-marker (point-max) t)
+                                   :end-marker (copy-marker (point-max) t)
+                                   :rendered-content-count 0)
+                             calls))))
+              (when call-id
+                (mutecipher-acp--render-tool-content
+                 session-id call-id (plist-get update :content)))))
            ((equal type "tool_call_update")
             (let* ((call-id    (plist-get update :toolCallId))
                    (status     (plist-get update :status))
@@ -512,6 +609,9 @@ Handles strings, plists (JSON objects), and vectors."
                           (let ((detail (mutecipher-acp--format-tool-input cmd-title)))
                             (delete-region (point) (line-end-position))
                             (insert (concat "\u23fa " name "(" detail ")")))))))))
+              (when call-id
+                (mutecipher-acp--render-tool-content
+                 session-id call-id (plist-get update :content)))
               (cond
                ((equal status "completed")
                 (let ((out (and raw-out (not (string-empty-p raw-out))
