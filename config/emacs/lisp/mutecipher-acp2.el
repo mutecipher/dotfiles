@@ -18,6 +18,7 @@
 
 (require 'cl-lib)
 (require 'diff)
+(require 'diff-mode)
 (require 'ewoc)
 (require 'json)
 (require 'mutecipher-icons)
@@ -1189,16 +1190,15 @@ Handles strings, plists (JSON objects), and vectors."
   "Return the hunk body comparing OLD-TEXT and NEW-TEXT as a unified diff.
 File headers and any trailing `Diff finished' line are stripped; result
 starts at the first `@@' line.  Returns nil if the texts are identical."
-  (let ((old-file (make-temp-file "acp2-diff-old-"))
-        (new-file (make-temp-file "acp2-diff-new-"))
-        (diff-buf (generate-new-buffer " *acp2-diff*")))
+  (let ((old-buf (generate-new-buffer " *acp2-diff-old*"))
+        (new-buf (generate-new-buffer " *acp2-diff-new*"))
+        (out-buf (generate-new-buffer " *acp2-diff*")))
     (unwind-protect
         (progn
-          (let ((coding-system-for-write 'utf-8))
-            (write-region (or old-text "") nil old-file nil 'silent)
-            (write-region (or new-text "") nil new-file nil 'silent))
-          (diff-no-select old-file new-file "-u" t diff-buf)
-          (with-current-buffer diff-buf
+          (with-current-buffer old-buf (insert (or old-text "")))
+          (with-current-buffer new-buf (insert (or new-text "")))
+          (diff-no-select old-buf new-buf "-u" t out-buf)
+          (with-current-buffer out-buf
             (let ((inhibit-read-only t))
               (goto-char (point-max))
               (when (re-search-backward "^Diff finished" nil t)
@@ -1207,9 +1207,47 @@ starts at the first `@@' line.  Returns nil if the texts are identical."
               (when (re-search-forward "^@@" nil t)
                 (buffer-substring-no-properties
                  (line-beginning-position) (point-max))))))
-      (ignore-errors (delete-file old-file))
-      (ignore-errors (delete-file new-file))
-      (when (buffer-live-p diff-buf) (kill-buffer diff-buf)))))
+      (dolist (b (list old-buf new-buf out-buf))
+        (when (buffer-live-p b) (kill-buffer b))))))
+
+(defun mutecipher-acp2--flatten-face-overlays ()
+  "Convert `face' overlays in the current buffer to text properties.
+`buffer-string' preserves text properties but not overlays, so any
+fontifier that uses overlays (notably `diff-refine-hunk') needs this
+pass before the string is extracted."
+  (dolist (ov (overlays-in (point-min) (point-max)))
+    (when-let ((face (overlay-get ov 'face)))
+      (add-face-text-property (overlay-start ov) (overlay-end ov) face))
+    (delete-overlay ov)))
+
+(defun mutecipher-acp2--fontify-diff-string (s)
+  "Return S with `diff-mode' font-lock and per-hunk refinement applied.
+Hunk headers, added/removed lines, and within-line refinement
+(`diff-refine-added' / `diff-refine-removed') all come along as text
+properties in the returned string."
+  (with-temp-buffer
+    (insert s)
+    (delay-mode-hooks (diff-mode))
+    (font-lock-ensure)
+    (save-excursion
+      (goto-char (point-min))
+      (while (re-search-forward diff-hunk-header-re nil t)
+        (ignore-errors (diff-refine-hunk))))
+    (mutecipher-acp2--flatten-face-overlays)
+    (buffer-string)))
+
+(defun mutecipher-acp2--transfer-faces (src buffer-beg)
+  "Copy `face' text properties from string SRC onto the current buffer.
+Properties are applied starting at BUFFER-BEG, character-by-character,
+via `add-face-text-property' so they compose with existing faces rather
+than replacing them."
+  (let ((i 0) (len (length src)))
+    (while (< i len)
+      (let* ((next (or (next-single-property-change i 'face src) len))
+             (face (get-text-property i 'face src)))
+        (when face
+          (add-face-text-property (+ buffer-beg i) (+ buffer-beg next) face))
+        (setq i next)))))
 
 (defun mutecipher-acp2--diff-body-for (old-text new-text)
   "Return a renderable diff body (propertized string) for OLD-TEXT → NEW-TEXT.
@@ -1227,8 +1265,10 @@ summary instead."
                  old-lines new-lines)
          'face 'shadow)
       (when-let ((diff-str (mutecipher-acp2--generate-unified-diff old new)))
-        (propertize
-         (concat "\n" (string-trim-right diff-str "\n") "\n"))))))
+        (concat "\n"
+                (mutecipher-acp2--fontify-diff-string
+                 (string-trim-right diff-str "\n"))
+                "\n")))))
 
 (defun mutecipher-acp2--tool-output-line-count (raw)
   "Return the line count of RAW (0 if nil or empty)."
@@ -1477,24 +1517,34 @@ repeatedly after `ewoc-invalidate'."
     (let ((line-starts (mutecipher-acp2--md-line-starts beg end)))
       ;; 1. Fenced code blocks ``` … ``` (multi-line)
       ;;    Fence lines hide; body gets constant-face so later matchers
-      ;;    skip via `--md-inside-code-p'.
-      (let (open-beg open-body-beg)
+      ;;    skip via `--md-inside-code-p'.  A ```diff tag routes the body
+      ;;    through `diff-mode' fontification instead of the plain wash.
+      (let (open-beg open-body-beg open-lang)
         (dolist (start line-starts)
           (save-excursion
             (goto-char start)
-            (when (looking-at "```[^\n]*$")
+            (when (looking-at "```\\([^\n]*\\)$")
               (let ((fence-beg (point))
-                    (fence-eol (line-end-position)))
+                    (fence-eol (line-end-position))
+                    (lang (string-trim (match-string-no-properties 1))))
                 (cond
                  ((null open-beg)
-                  (setq open-beg     fence-beg
-                        open-body-beg (min end (1+ fence-eol))))
+                  (setq open-beg      fence-beg
+                        open-body-beg (min end (1+ fence-eol))
+                        open-lang     lang))
                  (t
                   (mutecipher-acp2--md-hide open-beg open-body-beg)
-                  (add-face-text-property open-body-beg fence-beg
-                                          'font-lock-constant-face)
+                  (if (string= (downcase open-lang) "diff")
+                      (let* ((body (buffer-substring-no-properties
+                                    open-body-beg fence-beg))
+                             (fontified
+                              (mutecipher-acp2--fontify-diff-string body)))
+                        (mutecipher-acp2--transfer-faces
+                         fontified open-body-beg))
+                    (add-face-text-property open-body-beg fence-beg
+                                            'font-lock-constant-face))
                   (mutecipher-acp2--md-hide fence-beg (min end (1+ fence-eol)))
-                  (setq open-beg nil open-body-beg nil)))))))
+                  (setq open-beg nil open-body-beg nil open-lang nil)))))))
         ;; Unclosed fence (still streaming) — face what we have so far.
         (when open-beg
           (mutecipher-acp2--md-hide open-beg open-body-beg)
