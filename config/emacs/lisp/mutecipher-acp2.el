@@ -136,6 +136,10 @@ Renders as a theme-derived dim strike-through on a propertized space.")
   '((t :inherit pulse-highlight-start-face))
   "Face used by `pulse-momentary-highlight-region' after node invalidations.")
 
+(defface mutecipher-acp2-prompt-glyph-face
+  '((t :inherit mutecipher-acp2-user-face :weight bold))
+  "Face for the `❯' prompt glyph in the ACP2 input buffer.")
+
 ;;;; Data model
 ;;
 ;; Every visible thing in the transcript buffer is an ewoc node whose
@@ -1663,17 +1667,7 @@ paired `mutecipher-acp2-input-mode' buffer pinned below this window."
     (variable-pitch-mode 1))
   (setq-local header-line-format
               '((:eval (mutecipher-acp2--session-header-line))))
-  (setq-local mode-line-format
-              '((:eval (propertize " ACP2 " 'face '(:weight bold)))
-                " · "
-                (:eval (let ((s (gethash mutecipher-acp2--session-id
-                                         mutecipher-acp2--sessions)))
-                         (or (and s (plist-get s :agent)) "")))
-                "  "
-                (:eval (and mutecipher-acp2--session-id
-                            (propertize
-                             (mutecipher-acp2--id-prefix mutecipher-acp2--session-id)
-                             'face 'shadow)))))
+  (setq-local mode-line-format nil)
   ;; Create the ewoc on a fresh buffer; NOSEP so each pretty-printer
   ;; owns its own newlines.  Header/footer left empty — we use the
   ;; pinned `header-line-format' above instead of a scrolling banner.
@@ -1718,22 +1712,21 @@ paired `mutecipher-acp2-input-mode' buffer pinned below this window."
   "Current position in the history ring, or nil at the fresh prompt.")
 
 (defconst mutecipher-acp2--input-hint
-  "RET send · S-RET newline · / cmds · @ file · C-c C-a menu"
-  "Right-aligned hint text shown in the input buffer's header line.")
+  "RET send · / cmds · @ file · C-c C-a menu"
+  "One-shot hint shown in the echo area when the input window first opens.")
 
-(defun mutecipher-acp2--input-header-line ()
-  "Return the header-line content for the input buffer."
-  (let* ((win   (get-buffer-window (current-buffer)))
-         (width (if win (window-total-width win) 80))
-         (hint  mutecipher-acp2--input-hint)
-         (hint-w (string-width hint)))
-    (concat
-     (propertize "  > " 'face 'mutecipher-acp2-user-face)
-     (if (> width (+ hint-w 8))
-         (concat
-          (propertize " " 'display `(space :align-to (- right ,(1+ hint-w))))
-          (propertize hint 'face 'mutecipher-acp2-hint-face))
-       ""))))
+(defvar-local mutecipher-acp2--prompt-overlay nil
+  "Overlay that paints the `❯ ' glyph at point-min of the input buffer.")
+
+(defun mutecipher-acp2--install-prompt-glyph ()
+  "Install a `❯ ' prompt overlay at point-min of the input buffer.
+The overlay's `before-string' is purely visual — it does not contaminate
+`buffer-string', so send/history/resize code can continue to read the
+buffer verbatim."
+  (setq mutecipher-acp2--prompt-overlay
+        (make-overlay (point-min) (point-min) nil t nil))
+  (overlay-put mutecipher-acp2--prompt-overlay 'before-string
+               (propertize "❯ " 'face 'mutecipher-acp2-prompt-glyph-face)))
 
 (defun mutecipher-acp2--state-label (state started-at)
   "Render STATE as a propertized mode-line label.
@@ -1754,34 +1747,20 @@ STARTED-AT is a float-time used to display elapsed seconds for busy states."
       (_
        (propertize " idle " 'face 'mutecipher-acp2-status-idle-face)))))
 
-(defun mutecipher-acp2--input-mode-line ()
-  "Return the mode-line content for the input buffer."
-  (let* ((sid     mutecipher-acp2--session-id)
-         (session (and sid (gethash sid mutecipher-acp2--sessions)))
-         (state   (or (and session (plist-get session :state)) 'idle))
-         (started (and session (plist-get session :state-started-at)))
-         (agent   (and session (plist-get session :agent))))
-    (concat
-     (mutecipher-acp2--state-label state started)
-     (when agent
-       (concat "  " (propertize agent 'face 'shadow)))
-     (when sid
-       (concat "  " (propertize (mutecipher-acp2--id-prefix sid)
-                                'face 'shadow))))))
-
 (define-derived-mode mutecipher-acp2-input-mode fundamental-mode "ACP2-Input"
   "Dynamically-resizing input buffer paired with an ACP2 session output buffer.
 RET sends the buffer contents as a prompt.  S-RET / M-J insert a newline.
 M-p / M-n cycle the input history.  C-c C-c cancels; C-c C-k kills the session."
-  (setq-local header-line-format '((:eval (mutecipher-acp2--input-header-line))))
-  (setq-local mode-line-format '((:eval (mutecipher-acp2--input-mode-line))))
+  (setq-local header-line-format nil)
+  (setq-local mode-line-format nil)
   (setq-local completion-auto-help t)
   (visual-line-mode 1)
   (add-hook 'post-command-hook #'mutecipher-acp2--resize-input nil t)
   (add-hook 'completion-at-point-functions
             #'mutecipher-acp2--files-capf nil t)
   (add-hook 'completion-at-point-functions
-            #'mutecipher-acp2--commands-capf nil t))
+            #'mutecipher-acp2--commands-capf nil t)
+  (mutecipher-acp2--install-prompt-glyph))
 
 (defun mutecipher-acp2--resize-input ()
   "Grow or shrink the input window to fit the buffer content (1–12 lines)."
@@ -2041,10 +2020,13 @@ session buffer, and pins a small input buffer below it."
     (pop-to-buffer-same-window buf)
     (goto-char (point-max))
     (let* ((window-min-height 1)
-           (input-win (split-window-below -3)))
+           (input-win (split-window-below -2)))
       (set-window-buffer input-win input-buf)
       (set-window-dedicated-p input-win t)
-      (select-window input-win))))
+      (select-window input-win)
+      (let ((message-log-max nil))
+        (message "%s" (propertize mutecipher-acp2--input-hint
+                                  'face 'mutecipher-acp2-hint-face))))))
 
 ;;;###autoload
 (defun mutecipher/acp2-prompt (text)
