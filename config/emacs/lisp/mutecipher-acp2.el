@@ -141,6 +141,39 @@ Renders as a theme-derived dim strike-through on a propertized space.")
   '((t :inherit mutecipher-acp2-user-face :weight bold))
   "Face for the `❯' prompt glyph in the ACP2 input buffer.")
 
+(defface mutecipher-acp2-mode-default-face
+  '((t :inherit mutecipher-acp2-user-face))
+  "Header face for the default session mode.")
+
+(defface mutecipher-acp2-mode-auto-accept-face
+  '((t :foreground "#e5a50a" :weight bold))
+  "Header face for auto-accept session mode.")
+
+(defface mutecipher-acp2-mode-plan-face
+  '((t :foreground "#56b6c2" :weight bold))
+  "Header face for plan session mode.")
+
+(defface mutecipher-acp2-mode-bypass-face
+  '((t :foreground "#e06c75" :weight bold))
+  "Header face for bypass-permissions session mode.")
+
+(defface mutecipher-acp2-mode-dont-ask-face
+  '((t :foreground "#a07840" :weight bold))
+  "Header face for dont-ask session mode.")
+
+(defcustom mutecipher-acp2-mode-indicators
+  `(("default"           ,(string #xf0ac3) mutecipher-acp2-mode-default-face)     ; nf-md-shield
+    ("auto"              ,(string #xf0f4f) mutecipher-acp2-mode-auto-accept-face)  ; nf-md-lightning-bolt
+    ("acceptEdits"       ,(string #xf05e0) mutecipher-acp2-mode-auto-accept-face)  ; nf-md-check-circle
+    ("plan"              ,(string #xf0932) mutecipher-acp2-mode-plan-face)         ; nf-md-clipboard-list
+    ("dontAsk"           ,(string #xf0159) mutecipher-acp2-mode-dont-ask-face)     ; nf-md-cancel
+    ("bypassPermissions" ,(string #xf0e9b) mutecipher-acp2-mode-bypass-face))     ; nf-md-shield-off
+  "Alist mapping modeId to (icon face) for session header display.
+Unknown mode IDs fall back to (\"?\" mutecipher-acp2-mode-default-face)."
+  :type '(alist :key-type string
+                :value-type (list string face))
+  :group 'mutecipher-acp2)
+
 ;;;; Data model
 ;;
 ;; Every visible thing in the transcript buffer is an ewoc node whose
@@ -832,6 +865,15 @@ node is invalidated.  Otherwise a fresh plan node is entered."
                 (puthash session-id
                          (plist-put session :commands cmds)
                          mutecipher-acp2--sessions))))
+           ((equal type "current_mode_update")
+            (let* ((new-id  (plist-get update :currentModeId))
+                   (session (gethash session-id mutecipher-acp2--sessions)))
+              (when (and session new-id)
+                (plist-put session :current-mode-id new-id)
+                (mutecipher-acp2--force-input-mode-line session)
+                (let* ((avail (plist-get session :available-modes))
+                       (m     (and avail (mutecipher-acp2--find-mode new-id avail))))
+                  (message "Mode → %s" (or (and m (plist-get m :name)) new-id))))))
            (t
             (message "ACP2 [%s] update: %s (unhandled)"
                      (mutecipher-acp2--id-prefix session-id) type))))))
@@ -893,6 +935,8 @@ node is invalidated.  Otherwise a fresh plan node is entered."
         :current-turn-node nil
         :current-assistant nil
         :current-plan-node nil
+        :available-modes nil
+        :current-mode-id nil
         :tool-call-index (make-hash-table :test #'equal)))
 
 (defun mutecipher-acp2--initialize (conn callback)
@@ -910,10 +954,15 @@ node is invalidated.  Otherwise a fresh plan node is entered."
    conn "session/new" (list :cwd cwd :mcpServers [])
    :success-fn
    (lambda (result)
-     (let* ((session-id (plist-get result :sessionId))
-            (buf        (mutecipher-acp2--get-or-create-buffer session-id agent-name))
-            (session    (mutecipher-acp2--make-session-plist
-                         session-id conn buf agent-name cwd)))
+     (let* ((session-id   (plist-get result :sessionId))
+            (modes-data   (plist-get result :modes))
+            (avail-modes  (plist-get modes-data :availableModes))
+            (current-mode (plist-get modes-data :currentModeId))
+            (buf          (mutecipher-acp2--get-or-create-buffer session-id agent-name))
+            (session      (mutecipher-acp2--make-session-plist
+                           session-id conn buf agent-name cwd)))
+       (plist-put session :available-modes avail-modes)
+       (plist-put session :current-mode-id current-mode)
        (puthash session-id session mutecipher-acp2--sessions)
        (funcall callback session-id buf)))
    :error-fn
@@ -1685,29 +1734,52 @@ repeatedly after `ewoc-invalidate'."
 
 ;;;; Session output buffer mode
 
+(defun mutecipher-acp2--find-mode (id modes)
+  "Return the mode plist with :id ID from MODES, or nil."
+  (cl-find id modes :key (lambda (m) (plist-get m :id)) :test #'string=))
+
+(defun mutecipher-acp2--mode-indicator (session)
+  "Return (icon face mode-name) for SESSION's current mode.
+Falls back to (\"?\" mutecipher-acp2-mode-default-face nil) for unknown modes."
+  (let* ((mode-id  (or (and session (plist-get session :current-mode-id)) "default"))
+         (avail    (and session (plist-get session :available-modes)))
+         (entry    (or (assoc mode-id mutecipher-acp2-mode-indicators)
+                       (list mode-id "?" 'mutecipher-acp2-mode-default-face)))
+         (icon     (cadr entry))
+         (face     (caddr entry))
+         (name     (and avail
+                        (let ((m (mutecipher-acp2--find-mode mode-id avail)))
+                          (and m (plist-get m :name))))))
+    (list icon face name)))
+
 (defun mutecipher-acp2--session-header-line ()
   "Return the pinned header-line content for a session buffer.
-Left side: agent · abbreviated-cwd · state+elapsed.  Right side:
-session-id prefix and a reserved slot for a future usage/cost stub."
+Left side: mode-icon · agent · abbreviated-cwd · state+elapsed · mode-name.
+Right side: session-id prefix."
   (let* ((sid     mutecipher-acp2--session-id)
          (session (and sid (gethash sid mutecipher-acp2--sessions)))
          (agent   (or (and session (plist-get session :agent)) "?"))
          (cwd     (and session (plist-get session :cwd)))
          (state   (or (and session (plist-get session :state)) 'idle))
          (started (and session (plist-get session :state-started-at)))
+         (mi      (mutecipher-acp2--mode-indicator session))
+         (m-icon  (nth 0 mi))
+         (m-face  (nth 1 mi))
+         (m-name  (nth 2 mi))
          (right   (if sid
                       (propertize (mutecipher-acp2--id-prefix sid)
                                   'face 'shadow)
                     ""))
          (left    (concat
-                   (propertize (format "  %s" agent)
-                               'face 'mutecipher-acp2-user-face)
+                   (propertize (format "  %s %s" m-icon agent) 'face m-face)
                    (when cwd
                      (concat "  "
                              (propertize (abbreviate-file-name cwd)
                                          'face 'mutecipher-acp2-hint-face)))
                    "  "
-                   (mutecipher-acp2--state-label state started))))
+                   (mutecipher-acp2--state-label state started)
+                   (when m-name
+                     (concat "  " (propertize m-name 'face m-face))))))
     (concat left
             (propertize " " 'display
                         `(space :align-to (- right ,(1+ (length right)))))
@@ -1888,7 +1960,8 @@ M-p / M-n cycle the input history.  C-c C-c cancels; C-c C-k kills the session."
   (define-key map (kbd "C-c C-a")    #'mutecipher/acp2-dispatch)
   (define-key map (kbd "C-c C-c")    #'mutecipher/acp2-cancel)
   (define-key map (kbd "C-c C-k")    #'mutecipher/acp2-kill-session)
-  (define-key map (kbd "C-c C-o")    #'mutecipher/acp2-set-config))
+  (define-key map (kbd "C-c C-o")    #'mutecipher/acp2-set-config)
+  (define-key map (kbd "<backtab>")  #'mutecipher/acp2-cycle-mode))
 
 (defun mutecipher-acp2--input-buffer-name (session-id)
   "Return the input buffer name for SESSION-ID."
@@ -2170,7 +2243,7 @@ session buffer, and pins a small input buffer below it."
            (conn    (plist-get session :conn)))
       (mutecipher-acp2--request
        conn "session/set_config_option"
-       (list :sessionId session-id :key key :value value)
+       (list :sessionId session-id :configId key :value value)
        :success-fn (lambda (_) (message "ACP2: set %s = %s" key value))
        :error-fn   (lambda (err)
                      (message "ACP2 set_config_option failed: %s"
@@ -2187,6 +2260,35 @@ session buffer, and pins a small input buffer below it."
   "Set the current session's mode to VALUE."
   (interactive "sMode: ")
   (mutecipher/acp2-set-config "mode" value))
+
+;;;###autoload
+(defun mutecipher/acp2-cycle-mode ()
+  "Cycle the current session's mode through server-provided available modes."
+  (interactive)
+  (let ((session-id (or mutecipher-acp2--session-id
+                        (mutecipher-acp2--pick-session))))
+    (unless session-id (user-error "ACP2: no active session"))
+    (let* ((session (gethash session-id mutecipher-acp2--sessions))
+           (conn    (plist-get session :conn))
+           (modes   (plist-get session :available-modes)))
+      (when (zerop (length modes)) (user-error "ACP2: no mode list from server"))
+      (let* ((current (or (plist-get session :current-mode-id)
+                          (plist-get (aref modes 0) :id)))
+             (ids     (mapcar (lambda (m) (plist-get m :id)) modes))
+             (idx     (or (cl-position current ids :test #'string=) 0))
+             (next    (aref modes (mod (1+ idx) (length modes))))
+             (next-id (plist-get next :id)))
+        (mutecipher-acp2--request
+         conn "session/set_config_option"
+         (list :sessionId session-id :configId "mode" :value next-id)
+         :success-fn (lambda (_) nil)
+         :error-fn   (lambda (_err)
+                       (plist-put session :available-modes
+                                  (cl-remove-if
+                                   (lambda (m) (string= (plist-get m :id) next-id))
+                                   (plist-get session :available-modes)))
+                       (let ((mutecipher-acp2--session-id session-id))
+                         (mutecipher/acp2-cycle-mode))))))))
 
 ;;;###autoload
 (defun mutecipher/acp2-set-thought-level (value)
