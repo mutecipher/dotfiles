@@ -46,12 +46,7 @@ Global defaults that shape every session: key bindings, scrolling, selection, en
      ("C-c A l" . mutecipher/acp-resume)
      ("C-c A p" . mutecipher/acp-prompt)
      ("C-c A r" . mutecipher/acp-prompt-region)
-     ("C-c A c" . mutecipher/acp-cancel)
-     ("C-c A 2 s" . mutecipher/acp2-start)
-     ("C-c A 2 l" . mutecipher/acp2-resume)
-     ("C-c A 2 p" . mutecipher/acp2-prompt)
-     ("C-c A 2 r" . mutecipher/acp2-prompt-region)
-     ("C-c A 2 c" . mutecipher/acp2-cancel))
+     ("C-c A c" . mutecipher/acp-cancel))
     :custom
     (ad-redefinition-action 'accept)
     (auto-save-default t)
@@ -790,7 +785,6 @@ Local =lisp/= extensions shipped with this repo: centered writing, ligatures, co
   (require 'mutecipher-markdown)
   (require 'mutecipher-hover)
   (require 'mutecipher-acp)
-  (require 'mutecipher-acp2)
   (require 'mutecipher-vc-gutter)
   (require 'mutecipher-flymake-inline)
   (require 'mutecipher-git-blame)
@@ -807,8 +801,6 @@ Local =lisp/= extensions shipped with this repo: centered writing, ligatures, co
   (setq mutecipher-acp-agents
 	'(("claude"  :command "claude-agent-acp" :args ())
 	  ("copilot" :command "copilot"          :args ("--acp"))))
-
-  (setq mutecipher-acp2-agents mutecipher-acp-agents)
 
   (dolist (hook '(css-mode-hook
 		  css-ts-mode-hook
