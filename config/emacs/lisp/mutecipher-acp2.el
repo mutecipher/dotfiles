@@ -748,8 +748,12 @@ node is invalidated.  Otherwise a fresh plan node is entered."
            (plan       (mutecipher-acp2--raw-input-plan raw-in))
            (raw-out    (plist-get update :rawOutput)))
       (when (and (null status-str) cmd-title)
-        (setf (macp-tool-call-input tc)
-              (mutecipher-acp2--format-tool-input cmd-title)))
+        (let* ((prefix (concat (macp-tool-call-name tc) " "))
+               (detail (if (string-prefix-p prefix cmd-title)
+                           (substring cmd-title (length prefix))
+                         cmd-title)))
+          (setf (macp-tool-call-input tc)
+                (mutecipher-acp2--format-tool-input detail))))
       (when plan
         (setf (macp-tool-call-plan-body tc) plan))
       (when raw-out
