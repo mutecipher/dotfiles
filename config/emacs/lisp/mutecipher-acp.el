@@ -1756,24 +1756,36 @@ repeatedly after `ewoc-invalidate'."
 
 (defun mutecipher-acp--mode-indicator (session)
   "Return (icon face mode-name) for SESSION's current mode.
-Falls back to (\"?\" mutecipher-acp-mode-default-face nil) for unknown modes."
+ICON is nil when the mode is unrecognized and the server hasn't yet sent
+`:available-modes' — callers treat nil ICON as \"no pill to show\".
+When `:available-modes' is populated, MODE-NAME is suffixed with ` (N/M)'
+showing the current mode's 1-based position and total count."
   (let* ((mode-id  (or (and session (plist-get session :current-mode-id)) "default"))
          (avail    (and session (plist-get session :available-modes)))
-         (lookup-id (let ((hash (string-match "#\\(.+\\)$" mode-id)))
-                      (if hash (match-string 1 mode-id) mode-id)))
-         (entry    (or (assoc lookup-id mutecipher-acp-mode-indicators)
-                       (list lookup-id "?" 'mutecipher-acp-mode-default-face)))
-         (icon     (cadr entry))
-         (face     (caddr entry))
-         (name     (and avail
+         (lookup-id (if (string-match "#\\(.+\\)$" mode-id)
+                        (match-string 1 mode-id)
+                      mode-id))
+         (entry    (assoc lookup-id mutecipher-acp-mode-indicators))
+         (icon     (cond (entry (cadr entry))
+                         (avail "?")
+                         (t nil)))
+         (face     (if entry (caddr entry) 'mutecipher-acp-mode-default-face))
+         (base     (and avail
                         (let ((m (mutecipher-acp--find-mode mode-id avail)))
-                          (and m (plist-get m :name))))))
+                          (and m (plist-get m :name)))))
+         (idx      (and avail (cl-position mode-id avail
+                                           :key (lambda (m) (plist-get m :id))
+                                           :test #'string=)))
+         (name     (cond
+                    ((and base idx) (format "%s (%d/%d)" base (1+ idx) (length avail)))
+                    (base base)
+                    (t nil))))
     (list icon face name)))
 
 (defun mutecipher-acp--session-header-line ()
   "Return the pinned header-line content for a session buffer.
-Left side: mode-icon · agent · abbreviated-cwd · state+elapsed · mode-name.
-Right side: session-id prefix."
+Two-column layout: identity (agent + abbreviated cwd tail) on the left;
+state chunk, mode pill, and session-id prefix flush-right."
   (let* ((sid     mutecipher-acp--session-id)
          (session (and sid (gethash sid mutecipher-acp--sessions)))
          (agent   (or (and session (plist-get session :agent)) "?"))
@@ -1784,23 +1796,46 @@ Right side: session-id prefix."
          (m-icon  (nth 0 mi))
          (m-face  (nth 1 mi))
          (m-name  (nth 2 mi))
-         (right   (if sid
-                      (propertize (mutecipher-acp--id-prefix sid)
-                                  'face 'shadow)
-                    ""))
+         (sep     (propertize " · " 'face 'mutecipher-acp-hint-face))
+         (account-icon (propertize
+                        (or (and (fboundp 'mutecipher/icon-for-acp)
+                                 (mutecipher/icon-for-acp 'user))
+                            "")
+                        'face 'mutecipher-acp-agent-face))
+         (cwd-abbr (and cwd (abbreviate-file-name cwd)))
+         (cwd-tail (when cwd-abbr
+                     (let* ((segs (split-string cwd-abbr "/" t))
+                            (tail (if (> (length segs) 2)
+                                      (nthcdr (- (length segs) 2) segs)
+                                    segs)))
+                       (mapconcat #'identity tail "/"))))
          (left    (concat
-                   (propertize (format "  %s %s" m-icon agent) 'face m-face)
-                   (when cwd
-                     (concat "  "
-                             (propertize (abbreviate-file-name cwd)
-                                         'face 'mutecipher-acp-hint-face)))
                    "  "
-                   (mutecipher-acp--state-label state started)
-                   (when m-name
-                     (concat "  " (propertize m-name 'face m-face))))))
+                   account-icon
+                   " "
+                   (propertize agent 'face 'mutecipher-acp-agent-face)
+                   (when cwd-tail
+                     (concat sep
+                             (propertize cwd-tail
+                                         'face 'mutecipher-acp-hint-face
+                                         'help-echo cwd-abbr)))))
+         (state-chunk (mutecipher-acp--state-label state started))
+         (mode-pill (when m-icon
+                      (propertize (if m-name
+                                      (format "%s %s" m-icon m-name)
+                                    m-icon)
+                                  'face m-face)))
+         (id-chunk (if sid
+                       (propertize (mutecipher-acp--id-prefix sid)
+                                   'face 'shadow)
+                     ""))
+         (right (concat state-chunk
+                        (when mode-pill (concat sep mode-pill))
+                        "   "
+                        id-chunk)))
     (concat left
             (propertize " " 'display
-                        `(space :align-to (- right ,(1+ (length right)))))
+                        `(space :align-to (- right ,(1+ (string-width right)))))
             right
             " ")))
 
@@ -1879,23 +1914,21 @@ buffer verbatim."
                (propertize "❯ " 'face 'mutecipher-acp-prompt-glyph-face)))
 
 (defun mutecipher-acp--state-label (state started-at)
-  "Render STATE as a propertized mode-line label.
+  "Render STATE as `<dot> <label>', propertized with the matching status face.
 STARTED-AT is a float-time used to display elapsed seconds for busy states."
-  (let ((elapsed (and started-at (max 0 (truncate (- (float-time) started-at))))))
-    (pcase state
-      ('thinking
-       (propertize (format " thinking %ds " (or elapsed 0))
-                   'face 'mutecipher-acp-status-busy-face))
-      ('streaming
-       (propertize (format " streaming %ds " (or elapsed 0))
-                   'face 'mutecipher-acp-status-busy-face))
-      ('awaiting-permission
-       (propertize " awaiting permission "
-                   'face 'mutecipher-acp-status-await-face))
-      ('error
-       (propertize " error " 'face 'mutecipher-acp-status-error-face))
-      (_
-       (propertize " idle " 'face 'mutecipher-acp-status-idle-face)))))
+  (let* ((elapsed (and started-at (max 0 (truncate (- (float-time) started-at)))))
+         (pair
+          (pcase state
+            ((or 'thinking 'streaming)
+             (cons (format "%s %ds" (symbol-name state) (or elapsed 0))
+                   'mutecipher-acp-status-busy-face))
+            ('awaiting-permission
+             (cons "awaiting permission" 'mutecipher-acp-status-await-face))
+            ('error
+             (cons "error" 'mutecipher-acp-status-error-face))
+            (_
+             (cons "idle" 'mutecipher-acp-status-idle-face)))))
+    (propertize (concat "● " (car pair)) 'face (cdr pair))))
 
 (defun mutecipher-acp--maybe-complete ()
   (when (memq last-command-event '(?/ ?@))
