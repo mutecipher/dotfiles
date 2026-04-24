@@ -162,14 +162,14 @@ Renders as a theme-derived dim strike-through on a propertized space.")
   "Header face for dont-ask session mode.")
 
 (defcustom mutecipher-acp-mode-indicators
-  `(("default"           ,(string #xf0ac3) mutecipher-acp-mode-default-face)     ; nf-md-shield
-    ("auto"              ,(string #xf0f4f) mutecipher-acp-mode-auto-accept-face)  ; nf-md-lightning-bolt
-    ("acceptEdits"       ,(string #xf05e0) mutecipher-acp-mode-auto-accept-face)  ; nf-md-check-circle
-    ("plan"              ,(string #xf0932) mutecipher-acp-mode-plan-face)         ; nf-md-clipboard-list
-    ("dontAsk"           ,(string #xf0159) mutecipher-acp-mode-dont-ask-face)     ; nf-md-cancel
-    ("bypassPermissions" ,(string #xf0e9b) mutecipher-acp-mode-bypass-face)      ; nf-md-shield-off
-    ("agent"             ,(string #xf06d3) mutecipher-acp-mode-default-face)     ; nf-md-robot
-    ("autopilot"         ,(string #xf0e10) mutecipher-acp-mode-bypass-face))     ; nf-md-rocket
+  `(("default"           ,(string #xf132) mutecipher-acp-mode-default-face)      ; nf-fa-shield
+    ("auto"              ,(string #xf0e7) mutecipher-acp-mode-auto-accept-face)  ; nf-fa-bolt
+    ("acceptEdits"       ,(string #xf05d) mutecipher-acp-mode-auto-accept-face)  ; nf-fa-check_circle
+    ("plan"              ,(string #xf022) mutecipher-acp-mode-plan-face)         ; nf-fa-list_alt
+    ("dontAsk"           ,(string #xf05e) mutecipher-acp-mode-dont-ask-face)     ; nf-fa-ban
+    ("bypassPermissions" ,(string #xf09c) mutecipher-acp-mode-bypass-face)       ; nf-fa-unlock
+    ("agent"             ,(string #xf0d0) mutecipher-acp-mode-default-face)      ; nf-fa-magic
+    ("autopilot"         ,(string #xf135) mutecipher-acp-mode-bypass-face))      ; nf-fa-rocket
   "Alist mapping modeId to (icon face) for session header display.
 Unknown mode IDs fall back to (\"?\" mutecipher-acp-mode-default-face)."
   :type '(alist :key-type string
@@ -1799,7 +1799,7 @@ state chunk, mode pill, and session-id prefix flush-right."
          (sep     (propertize " · " 'face 'mutecipher-acp-hint-face))
          (account-icon (propertize
                         (or (and (fboundp 'mutecipher/icon-for-acp)
-                                 (mutecipher/icon-for-acp 'user))
+                                 (mutecipher/icon-for-acp 'assistant))
                             "")
                         'face 'mutecipher-acp-agent-face))
          (cwd-abbr (and cwd (abbreviate-file-name cwd)))

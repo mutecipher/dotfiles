@@ -251,41 +251,41 @@ re-resolve."
 
 (defvar mutecipher-icons-acp-alist
   `(;; Message roles
-    (user            . (,(string #xf0004) . mutecipher-icon-cyan))    ; nf-md-account
-    (assistant       . (,(string #xf0b79) . mutecipher-icon-purple))  ; nf-md-chat
-    (thought         . (,(string #xf0335) . shadow))                  ; nf-md-lightbulb
-    (notice          . (,(string #xf02fd) . shadow))                  ; nf-md-information
+    (user            . (,(string #xf007) . mutecipher-icon-cyan))     ; nf-fa-user
+    (assistant       . (,(string #xf075) . mutecipher-icon-purple))   ; nf-fa-comment
+    (thought         . (,(string #xf0eb) . shadow))                   ; nf-fa-lightbulb_o
+    (notice          . (,(string #xf05a) . shadow))                   ; nf-fa-info_circle
     ;; Tool-call kinds
-    (tool-edit       . (,(string #xf03eb) . mutecipher-icon-orange))  ; nf-md-pencil
-    (tool-write      . (,(string #xf03eb) . mutecipher-icon-orange))
-    (tool-bash       . (,(string #xf018d) . mutecipher-icon-green))   ; nf-md-console
-    (tool-read       . (,(string #xf0214) . mutecipher-icon-blue))    ; nf-md-file
-    (tool-grep       . (,(string #xf0349) . mutecipher-icon-blue))    ; nf-md-magnify
-    (tool-other      . (,(string #xf0842) . shadow))                  ; nf-md-wrench
+    (tool-edit       . (,(string #xf040) . mutecipher-icon-orange))   ; nf-fa-pencil
+    (tool-write      . (,(string #xf040) . mutecipher-icon-orange))
+    (tool-bash       . (,(string #xf120) . mutecipher-icon-green))    ; nf-fa-terminal
+    (tool-read       . (,(string #xf0f6) . mutecipher-icon-blue))     ; nf-fa-file_text_o
+    (tool-grep       . (,(string #xf002) . mutecipher-icon-blue))     ; nf-fa-search
+    (tool-other      . (,(string #xf0ad) . shadow))                   ; nf-fa-wrench
     ;; Tool statuses — semantic faces
-    (status-pending  . (,(string #xf0130) . shadow))                  ; nf-md-circle-outline
-    (status-running  . (,(string #xf0453) . warning))                 ; nf-md-sync
-    (status-done     . (,(string #xf012c) . success))                 ; nf-md-check
-    (status-error    . (,(string #xf0156) . error))                   ; nf-md-close
+    (status-pending  . (,(string #xf10c) . shadow))                   ; nf-fa-circle_o
+    (status-running  . (,(string #xf021) . warning))                  ; nf-fa-refresh
+    (status-done     . (,(string #xf00c) . success))                  ; nf-fa-check
+    (status-error    . (,(string #xf00d) . error))                    ; nf-fa-times
     ;; Plan entry statuses — same semantic treatment
-    (plan-pending    . (,(string #xf0130) . shadow))                  ; nf-md-circle-outline
-    (plan-inprogress . (,(string #xf0150) . warning))                 ; nf-md-clock
-    (plan-done       . (,(string #xf012c) . success))                 ; nf-md-check
+    (plan-pending    . (,(string #xf10c) . shadow))                   ; nf-fa-circle_o
+    (plan-inprogress . (,(string #xf017) . warning))                  ; nf-fa-clock_o
+    (plan-done       . (,(string #xf00c) . success))                  ; nf-fa-check
     ;; Disclosure triangles
-    (disclosure-collapsed . (,(string #xf0142) . shadow))             ; nf-md-chevron-right
-    (disclosure-expanded  . (,(string #xf0140) . shadow))             ; nf-md-chevron-down
+    (disclosure-collapsed . (,(string #xf054) . shadow))              ; nf-fa-chevron_right
+    (disclosure-expanded  . (,(string #xf078) . shadow))              ; nf-fa-chevron_down
     ;; Turn indicators (status of the turn as a whole)
-    (turn-running    . (,(string #xf0453) . warning))                 ; nf-md-sync
-    (turn-done       . (,(string #xf012c) . success))                 ; nf-md-check
-    (turn-error      . (,(string #xf0156) . error))                   ; nf-md-close
-    (turn-cancelled  . (,(string #xf0376) . shadow)))                 ; nf-md-minus-circle
+    (turn-running    . (,(string #xf021) . warning))                  ; nf-fa-refresh
+    (turn-done       . (,(string #xf00c) . success))                  ; nf-fa-check
+    (turn-error      . (,(string #xf00d) . error))                    ; nf-fa-times
+    (turn-cancelled  . (,(string #xf056) . shadow)))                  ; nf-fa-minus_circle
   "Map ACP kind symbols to (ICON . FACE) pairs.
-All icons drawn from the Material Design family (nf-md-*) in the
-U+F0000+ supplementary PUA range, so they render consistently out of
-`Symbols Nerd Font' (the proportional variant).  Role and tool-kind
-icons use the palette faces so kinds stay visually distinct; status
-icons use built-in semantic faces (success/warning/error/shadow) so
-themes color them correctly by meaning.")
+All icons drawn from the Font Awesome family (nf-fa-*) in the
+U+F000–U+F2FF PUA range, so they render out of both variants of
+`Symbols Nerd Font' (Mono and proportional).  Role and tool-kind icons
+use the palette faces so kinds stay visually distinct; status icons use
+built-in semantic faces (success/warning/error/shadow) so themes color
+them correctly by meaning.")
 
 (defun mutecipher/icon-for-acp (kind)
   "Return a propertized Nerd Font icon string for the ACP KIND symbol, or nil."
