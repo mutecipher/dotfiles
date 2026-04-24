@@ -965,7 +965,8 @@ Returns a list sorted shallowest-first, capped at
         (count 0)
         (queue (list (file-name-as-directory (expand-file-name cwd)))))
     (while (and queue (< count mutecipher-acp2--file-cache-cap))
-      (let ((dir (pop queue)))
+      (let ((dir (pop queue))
+            (new-dirs nil))
         (dolist (entry (ignore-errors
                          (directory-files
                           dir t directory-files-no-dot-files-regexp t)))
@@ -973,10 +974,12 @@ Returns a list sorted shallowest-first, capped at
            ((file-directory-p entry)
             (unless (member (file-name-nondirectory entry)
                             mutecipher-acp2--file-exclude-dirs)
-              (push (file-name-as-directory entry) queue)))
+              (push (file-name-as-directory entry) new-dirs)))
            ((file-regular-p entry)
             (push (file-relative-name entry root) acc)
-            (setq count (1+ count)))))))
+            (setq count (1+ count)))))
+        (when new-dirs
+          (setq queue (nconc queue (nreverse new-dirs))))))
     (sort acc (lambda (a b)
                 (let ((da (cl-count ?/ a))
                       (db (cl-count ?/ b)))
@@ -1056,17 +1059,16 @@ Activates when the current line begins with \"/\"."
                    (looking-at "/"))))
     (let* ((slash-pos (save-excursion (beginning-of-line) (point)))
            (word-end  (point))
-           (names     (mapcar (lambda (c)
-                                (concat "/" (plist-get c :name)))
+           (cmd-map   (mapcar (lambda (c)
+                                (cons (concat "/" (plist-get c :name))
+                                      (plist-get c :description)))
                               commands)))
-      (list slash-pos word-end names
+      (list slash-pos word-end (mapcar #'car cmd-map)
             :annotation-function
             (lambda (name)
-              (when-let* ((cmd (seq-find (lambda (c)
-                                           (equal (concat "/" (plist-get c :name)) name))
-                                         commands))
-                          (desc (plist-get cmd :description)))
-                (concat "  " desc)))))))
+              (when-let ((desc (cdr (assoc name cmd-map))))
+                (concat "  " desc)))
+            :company-kind (lambda (_) 'keyword)))))
 
 (defun mutecipher-acp2--files-capf ()
   "Completion-at-point function for @-mention file attachments."
@@ -1082,7 +1084,11 @@ Activates when the current line begins with \"/\"."
            (tag        (if (eq source 'project) "[project]" "[fs]")))
       (list at-pos (point) candidates
             :annotation-function (lambda (_) (concat "  " tag))
-            :exclusive 'no))))
+            :exclusive 'no
+            :exit-function (lambda (_s status)
+                             (when (eq status 'finished)
+                               (insert " ")))
+            :company-kind (lambda (_) 'file)))))
 
 ;;;; Pretty-printer dispatch
 ;;
@@ -1801,15 +1807,24 @@ STARTED-AT is a float-time used to display elapsed seconds for busy states."
       (_
        (propertize " idle " 'face 'mutecipher-acp2-status-idle-face)))))
 
+(defun mutecipher-acp2--maybe-complete ()
+  (when (memq last-command-event '(?/ ?@))
+    (completion-at-point)))
+
 (define-derived-mode mutecipher-acp2-input-mode fundamental-mode "ACP2-Input"
   "Dynamically-resizing input buffer paired with an ACP2 session output buffer.
 RET sends the buffer contents as a prompt.  S-RET / M-J insert a newline.
 M-p / M-n cycle the input history.  C-c C-c cancels; C-c C-k kills the session."
   (setq-local header-line-format nil)
   (setq-local mode-line-format nil)
-  (setq-local completion-auto-help t)
+  (setq-local completion-auto-help 'always)
+  (setq-local completion-styles '(basic flex))
+  (setq-local completions-format 'one-column)
+  (setq-local completions-max-height 12)
   (visual-line-mode 1)
+  (completion-preview-mode 1)
   (add-hook 'post-command-hook #'mutecipher-acp2--resize-input nil t)
+  (add-hook 'post-self-insert-hook #'mutecipher-acp2--maybe-complete nil t)
   (add-hook 'completion-at-point-functions
             #'mutecipher-acp2--files-capf nil t)
   (add-hook 'completion-at-point-functions
