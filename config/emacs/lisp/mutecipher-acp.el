@@ -167,7 +167,9 @@ Renders as a theme-derived dim strike-through on a propertized space.")
     ("acceptEdits"       ,(string #xf05e0) mutecipher-acp-mode-auto-accept-face)  ; nf-md-check-circle
     ("plan"              ,(string #xf0932) mutecipher-acp-mode-plan-face)         ; nf-md-clipboard-list
     ("dontAsk"           ,(string #xf0159) mutecipher-acp-mode-dont-ask-face)     ; nf-md-cancel
-    ("bypassPermissions" ,(string #xf0e9b) mutecipher-acp-mode-bypass-face))     ; nf-md-shield-off
+    ("bypassPermissions" ,(string #xf0e9b) mutecipher-acp-mode-bypass-face)      ; nf-md-shield-off
+    ("agent"             ,(string #xf06d3) mutecipher-acp-mode-default-face)     ; nf-md-robot
+    ("autopilot"         ,(string #xf0e10) mutecipher-acp-mode-bypass-face))     ; nf-md-rocket
   "Alist mapping modeId to (icon face) for session header display.
 Unknown mode IDs fall back to (\"?\" mutecipher-acp-mode-default-face)."
   :type '(alist :key-type string
