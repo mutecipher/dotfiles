@@ -874,6 +874,20 @@ node is invalidated.  Otherwise a fresh plan node is entered."
                 (let* ((avail (plist-get session :available-modes))
                        (m     (and avail (mutecipher-acp--find-mode new-id avail))))
                   (message "Mode → %s" (or (and m (plist-get m :name)) new-id))))))
+           ((equal type "config_option_update")
+            (let* ((opts    (plist-get update :configOptions))
+                   (session (gethash session-id mutecipher-acp--sessions)))
+              (when (and session opts)
+                (let* ((mode-opt  (cl-find "mode" opts
+                                           :key (lambda (o) (plist-get o :id))
+                                           :test #'string=))
+                       (new-id    (and mode-opt (plist-get mode-opt :currentValue))))
+                  (when new-id
+                    (plist-put session :current-mode-id new-id)
+                    (mutecipher-acp--force-input-mode-line session)
+                    (let* ((avail (plist-get session :available-modes))
+                           (m     (and avail (mutecipher-acp--find-mode new-id avail))))
+                      (message "Mode → %s" (or (and m (plist-get m :name)) new-id))))))))
            (t
             (message "ACP [%s] update: %s (unhandled)"
                      (mutecipher-acp--id-prefix session-id) type))))))
@@ -1743,8 +1757,10 @@ repeatedly after `ewoc-invalidate'."
 Falls back to (\"?\" mutecipher-acp-mode-default-face nil) for unknown modes."
   (let* ((mode-id  (or (and session (plist-get session :current-mode-id)) "default"))
          (avail    (and session (plist-get session :available-modes)))
-         (entry    (or (assoc mode-id mutecipher-acp-mode-indicators)
-                       (list mode-id "?" 'mutecipher-acp-mode-default-face)))
+         (lookup-id (let ((hash (string-match "#\\(.+\\)$" mode-id)))
+                      (if hash (match-string 1 mode-id) mode-id)))
+         (entry    (or (assoc lookup-id mutecipher-acp-mode-indicators)
+                       (list lookup-id "?" 'mutecipher-acp-mode-default-face)))
          (icon     (cadr entry))
          (face     (caddr entry))
          (name     (and avail
