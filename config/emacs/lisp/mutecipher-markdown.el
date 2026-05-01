@@ -561,5 +561,7 @@ a cleaner reading experience while remaining fully editable.
 (add-to-list 'auto-mode-alist '("\\.md\\'"       . mutecipher-markdown-mode))
 (add-to-list 'auto-mode-alist '("\\.markdown\\'" . mutecipher-markdown-mode))
 
+(add-hook 'mutecipher-markdown-mode-hook (lambda () (display-line-numbers-mode -1)))
+
 (provide 'mutecipher-markdown)
 ;;; mutecipher-markdown.el ends here
