@@ -106,6 +106,7 @@
    `(mutecipher-markdown-inline-code ((t :background ,bg-sub)))
    `(mutecipher-markdown-table       ((t :foreground ,fg-dim)))
    ;; Org
+   `(mutecipher-org-table-rule ((t :foreground ,fg-dim)))
    `(org-ellipsis              ((t :foreground ,fg-faint :underline nil)))
    `(org-hide                  ((t :foreground ,bg)))
    `(org-document-title        ((t :height 1.4 :weight bold)))

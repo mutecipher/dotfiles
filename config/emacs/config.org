@@ -792,6 +792,7 @@ Local =lisp/= extensions shipped with this repo: centered writing, ligatures, co
   (require 'mutecipher-blog)
   (require 'mutecipher-treesit)
   (require 'mutecipher-modeline)
+  (require 'mutecipher-org-table)
 
   (mutecipher-vc-gutter-global-mode 1)
   (mutecipher-git-blame-global-mode 1)
