@@ -390,24 +390,31 @@ Group 3: closing fence line including trailing newline."
 (defun mutecipher-markdown--box-line (widths left junc right fill face)
   "Build a horizontal box border string.
 WIDTHS: column width vector.  LEFT/JUNC/RIGHT: edge and junction chars.
-FILL: horizontal fill character (e.g. ?─ or ?═).  FACE: applied to the result."
+FILL: horizontal fill character (e.g. ?─).  FACE: applied to the result."
   (let ((segs (mapcar (lambda (w) (make-string (+ w 2) fill))
                       (append widths nil))))
     (propertize (concat left (mapconcat #'identity segs junc) right)
                 'face face)))
 
-(defun mutecipher-markdown--format-data-row (cells widths cell-face pipe-face)
+(defun mutecipher-markdown--format-data-row (cells widths cell-face pipe-face &optional align)
   "Build a propertized data row display string.
 CELLS: list of trimmed strings.  WIDTHS: column-width vector.
-CELL-FACE: face for cell content.  PIPE-FACE: face for │ chars."
+CELL-FACE: face for cell content.  PIPE-FACE: face for │ chars.
+ALIGN is `center' (used for header rows) or nil (left-align, default)."
   (let ((pipe (propertize "│" 'face pipe-face))
         parts)
     (dotimes (i (length cells))
-      (let* ((cell (or (nth i cells) ""))
-             (w    (if (< i (length widths)) (aref widths i) (length cell)))
-             (pad  (make-string (max 0 (- w (length cell))) ?\s)))
+      (let* ((cell  (or (nth i cells) ""))
+             (w     (if (< i (length widths)) (aref widths i) (length cell)))
+             (slack (max 0 (- w (length cell))))
+             (lpad  (if (eq align 'center) (/ slack 2) 0))
+             (rpad  (- slack lpad)))
         (push pipe parts)
-        (let ((segment (concat " " cell pad " ")))
+        (let ((segment (concat " "
+                               (make-string lpad ?\s)
+                               cell
+                               (make-string rpad ?\s)
+                               " ")))
           ;; Fill in cell-face only where no face is set; inline formatting
           ;; faces (mutecipher-markdown-inline-code, bold, etc.) are left
           ;; untouched so their foreground/background aren't overridden.
@@ -439,31 +446,43 @@ CELL-FACE: face for cell content.  PIPE-FACE: face for │ chars."
                (syn       'mutecipher-markdown-syntax)
                (tbl       'mutecipher-markdown-table)
                (top       (mutecipher-markdown--box-line widths "┌" "┬" "┐" ?─ syn))
-               (hdr-sep   (mutecipher-markdown--box-line widths "╞" "╪" "╡" ?═ syn))
+               (row-sep   (mutecipher-markdown--box-line widths "├" "┼" "┤" ?─ syn))
                (bottom    (mutecipher-markdown--box-line widths "└" "┴" "┘" ?─ syn))
                (n         (length starts)))
           (seq-do-indexed
            (lambda (ls i)
-             (let* ((cells  (nth i vis-cells))
-                    (sep-p  (mutecipher-markdown--sep-row-p cells))
-                    (last-p (= i (1- n)))
-                    ;; For the last row, extend overlay to cover the trailing newline so
-                    ;; after-string (bottom border) lands on its own line without an extra blank.
-                    (le     (save-excursion
-                              (goto-char ls)
-                              (if last-p
-                                  (min (1+ (line-end-position)) (point-max))
-                                (line-end-position))))
-                    (base   (if sep-p
-                                hdr-sep
-                              (mutecipher-markdown--format-data-row cells widths tbl syn)))
-                    (disp   (if last-p (concat base "\n") base))
-                    (ov     (make-overlay ls le nil t nil)))
+             (let* ((cells       (nth i vis-cells))
+                    (sep-p       (mutecipher-markdown--sep-row-p cells))
+                    (last-p      (= i (1- n)))
+                    (next-cells  (and (not last-p) (nth (1+ i) vis-cells)))
+                    (next-sep-p  (mutecipher-markdown--sep-row-p next-cells))
+                    ;; Inject a row-sep between two adjacent data rows.
+                    ;; Skip when this row is itself a separator (it already
+                    ;; renders as ├─┼─┤) or the next row is, to avoid doubling.
+                    (inject-p    (and (not last-p) (not sep-p) (not next-sep-p)))
+                    ;; Extend overlay over the trailing newline whenever we
+                    ;; need to emit something after the row content.
+                    (extend-p    (or last-p inject-p))
+                    (le          (save-excursion
+                                   (goto-char ls)
+                                   (if extend-p
+                                       (min (1+ (line-end-position)) (point-max))
+                                     (line-end-position))))
+                    (align       (when (= i 0) 'center))
+                    (base        (if sep-p
+                                     row-sep
+                                   (mutecipher-markdown--format-data-row
+                                    cells widths tbl syn align)))
+                    (disp        (if extend-p (concat base "\n") base))
+                    (ov          (make-overlay ls le nil t nil)))
                (overlay-put ov 'display disp)
                (when (= i 0)
                  (overlay-put ov 'before-string (concat top "\n")))
-               (when last-p
+               (cond
+                (last-p
                  (overlay-put ov 'after-string (concat bottom "\n")))
+                (inject-p
+                 (overlay-put ov 'after-string (concat row-sep "\n"))))
                (overlay-put ov 'mutecipher-markdown-table-ov t)
                (push ov mutecipher-markdown--table-overlays)))
            starts))))))
