@@ -13,6 +13,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'transient)
 (require 'tabulated-list)
 (require 'ansi-color)
@@ -26,8 +27,14 @@
   :group 'tools
   :prefix "mutecipher-containers-")
 
-(defcustom mutecipher-containers-backend "podman"
-  "Path or name of the container CLI executable."
+(defun mutecipher-containers--detect-backend ()
+  "Return first available container CLI, or \"podman\" as fallback."
+  (or (executable-find "podman")
+      (executable-find "docker")
+      "podman"))
+
+(defcustom mutecipher-containers-backend (mutecipher-containers--detect-backend)
+  "Container CLI executable. Auto-detected, prefers podman over docker."
   :type 'string
   :group 'mutecipher-containers)
 
@@ -59,7 +66,7 @@
   :group 'mutecipher-containers)
 
 (defface mutecipher-containers-id
-  '((t :inherit liminal-faded :family "monospace"))
+  '((t :inherit liminal-faded))
   "Face for short container/image IDs."
   :group 'mutecipher-containers)
 
@@ -69,11 +76,6 @@
   :group 'mutecipher-containers)
 
 ;;;; Core subprocess helpers
-
-(defun mutecipher-containers--argv (&rest args)
-  "Return a flat argument list: backend followed by ARGS (strings and lists)."
-  (cons mutecipher-containers-backend
-        (flatten-list args)))
 
 (defun mutecipher-containers--run-sync (&rest args)
   "Run the container backend with ARGS synchronously.
@@ -85,19 +87,45 @@ Return stdout as a string, or nil on non-zero exit."
 
 (defun mutecipher-containers--run-async (callback &rest args)
   "Run the container backend with ARGS asynchronously.
-CALLBACK is called with the full stdout string on successful exit."
-  (let* ((buf (generate-new-buffer " *containers-async*"))
+On successful exit, CALLBACK is invoked with stdout in the buffer that
+was current when this function was called.  Non-zero exits are reported
+via `message'."
+  (let* ((source-buf (current-buffer))
+         (buf (generate-new-buffer " *containers-async*"))
          (proc (apply #'start-process "mutecipher-containers" buf
                       mutecipher-containers-backend args)))
     (set-process-sentinel
      proc
      (lambda (p _)
-       (when (and (memq (process-status p) '(exit signal))
-                  (zerop (process-exit-status p)))
-         (with-current-buffer (process-buffer p)
-           (funcall callback (buffer-string))))
-       (when (buffer-live-p (process-buffer p))
-         (kill-buffer (process-buffer p)))))))
+       (let* ((status (process-status p))
+              (exit   (process-exit-status p))
+              (stdout (and (buffer-live-p (process-buffer p))
+                           (with-current-buffer (process-buffer p)
+                             (buffer-string)))))
+         (when (buffer-live-p (process-buffer p))
+           (kill-buffer (process-buffer p)))
+         (cond
+          ((and (memq status '(exit signal)) (zerop exit))
+           (when (buffer-live-p source-buf)
+             (with-current-buffer source-buf
+               (funcall callback stdout))))
+          ((memq status '(exit signal))
+           (message "%s %s failed (exit %s): %s"
+                    mutecipher-containers-backend
+                    (string-join args " ")
+                    exit (string-trim (or stdout ""))))))))))
+
+(defun mutecipher-containers--mutate-and-refresh (refresh-fn &rest args)
+  "Run backend with ARGS, then call REFRESH-FN in the source buffer.
+Point is restored to its original line after the refresh so that mutating
+actions don't kick the cursor back to the top of the list."
+  (let ((line (line-number-at-pos)))
+    (apply #'mutecipher-containers--run-async
+           (lambda (_)
+             (funcall refresh-fn)
+             (goto-char (point-min))
+             (forward-line (max 0 (1- line))))
+           args)))
 
 (defun mutecipher-containers--parse-json (str)
   "Parse STR as a JSON array or newline-delimited JSON objects.
@@ -107,7 +135,7 @@ Returns a list of alists."
         (let ((parsed (json-parse-string str :object-type 'alist :array-type 'list)))
           (if (listp parsed) parsed (list parsed)))
       (json-parse-error
-       ;; newline-delimited JSON (podman default for some sub-commands)
+       ;; newline-delimited JSON (docker --format json output)
        (delq nil
              (mapcar (lambda (line)
                        (when (not (string-empty-p (string-trim line)))
@@ -115,10 +143,6 @@ Returns a list of alists."
                              (json-parse-string line :object-type 'alist :array-type 'list)
                            (json-parse-error nil))))
                      (split-string str "\n" t)))))))
-
-(defalias 'mutecipher-containers--alist-get #'alist-get
-  "JSON is parsed with `:object-type 'alist', so keys are symbols.
-Kept as an alias so callers don't need to change.")
 
 (defun mutecipher-containers--prepare-stream-buffer (name header-text)
   "Get-or-create NAME as a log-mode buffer with HEADER-TEXT inserted."
@@ -160,6 +184,40 @@ trailer when the process finishes."
                                  'face 'mutecipher-containers-stopped)))))))
     proc))
 
+;;;; List rendering and filtering
+
+(defvar-local mutecipher-containers--filter nil
+  "Regexp filter applied to the current list buffer, or nil for no filter.")
+
+(defvar-local mutecipher-containers--all-rows nil
+  "Last computed tabulated-list rows for the current buffer, pre-filter.")
+
+(defun mutecipher-containers--rerender ()
+  "Set `tabulated-list-entries' from cached rows, applying any filter."
+  (setq tabulated-list-entries
+        (if mutecipher-containers--filter
+            (cl-remove-if-not
+             (lambda (row)
+               (cl-some (lambda (cell)
+                          (string-match-p mutecipher-containers--filter
+                                          (substring-no-properties cell)))
+                        (cadr row)))
+             mutecipher-containers--all-rows)
+          mutecipher-containers--all-rows))
+  (tabulated-list-print t))
+
+(defun mutecipher-containers--do-filter (&optional clear)
+  "Set a regexp filter on the current list buffer.
+With prefix arg CLEAR, remove the filter.  An empty input also clears."
+  (interactive "P")
+  (setq mutecipher-containers--filter
+        (cond (clear nil)
+              (t (let ((input (read-string
+                               "Filter (regexp, empty = clear): "
+                               (or mutecipher-containers--filter ""))))
+                   (and (not (string-empty-p input)) input)))))
+  (mutecipher-containers--rerender))
+
 ;;;; Container list buffer
 
 (defvar mutecipher-containers--show-all nil
@@ -183,9 +241,9 @@ trailer when the process finishes."
    ((listp ports)
     (mapconcat
      (lambda (p)
-       (let ((host (mutecipher-containers--alist-get 'hostPort p))
-             (cont (mutecipher-containers--alist-get 'containerPort p))
-             (proto (mutecipher-containers--alist-get 'protocol p)))
+       (let ((host (alist-get 'hostPort p))
+             (cont (alist-get 'containerPort p))
+             (proto (alist-get 'protocol p)))
          (if (and host cont)
              (format "%s→%s/%s" host cont (or proto "tcp"))
            "")))
@@ -196,20 +254,22 @@ trailer when the process finishes."
   "Convert a list of container alists DATA into tabulated-list entries."
   (mapcar
    (lambda (c)
-     (let* ((id     (substring (or (mutecipher-containers--alist-get 'Id c)
-                                   (mutecipher-containers--alist-get 'ID c) "?") 0 12))
-            (names  (let ((n (mutecipher-containers--alist-get 'Names c)))
+     (let* ((id     (substring (or (alist-get 'Id c)
+                                   (alist-get 'ID c) "?") 0 12))
+            (names  (let ((n (alist-get 'Names c)))
                       (cond ((stringp n) n)
                             ((listp n)   (mapconcat (lambda (x)
                                                       (string-trim x "/"))
                                                     n ", "))
                             (t ""))))
-            (image  (or (mutecipher-containers--alist-get 'Image c) ""))
-            (status (or (mutecipher-containers--alist-get 'Status c)
-                        (mutecipher-containers--alist-get 'State c) ""))
+            (image  (or (alist-get 'Image c) ""))
+            (status (or (alist-get 'Status c)
+                        (alist-get 'State c) ""))
             (ports  (mutecipher-containers--format-ports
-                     (mutecipher-containers--alist-get 'Ports c)))
-            (created (or (mutecipher-containers--alist-get 'Created c) ""))
+                     (alist-get 'Ports c)))
+            (created (or (alist-get 'Created c)
+                         (alist-get 'CreatedAt c)
+                         ""))
             (sface   (mutecipher-containers--status-face status)))
        (list id
              (vector
@@ -228,11 +288,18 @@ trailer when the process finishes."
   (let* ((args (if mutecipher-containers--show-all
                    '("ps" "-a" "--format" "json")
                  '("ps" "--format" "json")))
-         (raw (apply #'mutecipher-containers--run-sync args))
-         (data (mutecipher-containers--parse-json raw)))
-    (setq mutecipher-containers--entries data
-          tabulated-list-entries (mutecipher-containers--container-entries (or data '())))
-    (tabulated-list-print t)))
+         (raw (apply #'mutecipher-containers--run-sync args)))
+    (cond
+     ((null raw)
+      (message "%s %s failed" mutecipher-containers-backend (string-join args " "))
+      (setq mutecipher-containers--entries nil
+            mutecipher-containers--all-rows nil))
+     (t
+      (let ((data (mutecipher-containers--parse-json raw)))
+        (setq mutecipher-containers--entries data
+              mutecipher-containers--all-rows
+              (mutecipher-containers--container-entries (or data '()))))))
+    (mutecipher-containers--rerender)))
 
 (defvar mutecipher-containers-mode-map
   (let ((map (make-sparse-keymap)))
@@ -245,6 +312,7 @@ trailer when the process finishes."
     (define-key map (kbd "e")   #'mutecipher-containers--do-exec)
     (define-key map (kbd "l")   #'mutecipher-containers--do-logs)
     (define-key map (kbd "i")   #'mutecipher-containers--do-inspect)
+    (define-key map (kbd "/")   #'mutecipher-containers--do-filter)
     (define-key map (kbd "?")   #'mutecipher-containers/container-actions)
     map)
   "Keymap for `mutecipher-containers-mode'.")
@@ -264,16 +332,17 @@ trailer when the process finishes."
   (setq-local revert-buffer-function (lambda (&rest _) (mutecipher-containers--refresh))))
 
 (defun mutecipher-containers--container-id-at-point ()
-  "Return the full container ID for the entry at point, or nil."
+  "Return the full container ID for the entry at point, or nil.
+The tabulated row id is the short 12-char form; look up the full ID
+in cached entries when available."
   (when-let ((id (tabulated-list-get-id)))
-    ;; id is the short 12-char form; look up full ID in cached entries
-    (when mutecipher-containers--entries
-      (cl-some (lambda (c)
-                 (let ((full (or (mutecipher-containers--alist-get 'Id c)
-                                 (mutecipher-containers--alist-get 'ID c))))
-                   (when (and full (string-prefix-p id full)) full)))
-               mutecipher-containers--entries))
-    id))
+    (or (and mutecipher-containers--entries
+             (cl-some (lambda (c)
+                        (let ((full (or (alist-get 'Id c)
+                                        (alist-get 'ID c))))
+                          (when (and full (string-prefix-p id full)) full)))
+                      mutecipher-containers--entries))
+        id)))
 
 (defun mutecipher-containers--container-name-at-point ()
   "Return a display name (Name or short ID) for the container at point."
@@ -295,27 +364,24 @@ trailer when the process finishes."
   (interactive)
   (when-let ((id (mutecipher-containers--container-id-at-point)))
     (message "Starting %s..." (mutecipher-containers--container-name-at-point))
-    (mutecipher-containers--run-async
-     (lambda (_) (mutecipher-containers--refresh))
-     "start" id)))
+    (mutecipher-containers--mutate-and-refresh
+     #'mutecipher-containers--refresh "start" id)))
 
 (defun mutecipher-containers--do-stop ()
   "Stop container at point."
   (interactive)
   (when-let ((id (mutecipher-containers--container-id-at-point)))
     (message "Stopping %s..." (mutecipher-containers--container-name-at-point))
-    (mutecipher-containers--run-async
-     (lambda (_) (mutecipher-containers--refresh))
-     "stop" id)))
+    (mutecipher-containers--mutate-and-refresh
+     #'mutecipher-containers--refresh "stop" id)))
 
 (defun mutecipher-containers--do-restart ()
   "Restart container at point."
   (interactive)
   (when-let ((id (mutecipher-containers--container-id-at-point)))
     (message "Restarting %s..." (mutecipher-containers--container-name-at-point))
-    (mutecipher-containers--run-async
-     (lambda (_) (mutecipher-containers--refresh))
-     "restart" id)))
+    (mutecipher-containers--mutate-and-refresh
+     #'mutecipher-containers--refresh "restart" id)))
 
 (defun mutecipher-containers--do-rm ()
   "Delete container at point (prompts for confirmation)."
@@ -323,9 +389,8 @@ trailer when the process finishes."
   (when-let ((id   (mutecipher-containers--container-id-at-point))
              (name (mutecipher-containers--container-name-at-point)))
     (when (yes-or-no-p (format "Delete container %s? " name))
-      (mutecipher-containers--run-async
-       (lambda (_) (mutecipher-containers--refresh))
-       "rm" "-f" id))))
+      (mutecipher-containers--mutate-and-refresh
+       #'mutecipher-containers--refresh "rm" "-f" id))))
 
 (defun mutecipher-containers--do-exec ()
   "Open an exec session inside the container at point via term."
@@ -387,10 +452,7 @@ trailer when the process finishes."
 ;;;; Log buffer mode
 
 (define-derived-mode mutecipher-containers-log-mode special-mode "Container-Log"
-  "Mode for streaming container log output."
-  (setq-local mode-line-format
-              '(" " mode-line-buffer-identification))
-  (read-only-mode 0))
+  "Mode for streaming container log output.")
 
 ;;;; Image list buffer
 
@@ -401,30 +463,32 @@ trailer when the process finishes."
   "Convert image alist DATA to tabulated-list entries."
   (mapcar
    (lambda (img)
-     (let* ((id    (let ((raw (or (mutecipher-containers--alist-get 'Id img)
-                                  (mutecipher-containers--alist-get 'ID img) "")))
+     (let* ((id    (let ((raw (or (alist-get 'Id img)
+                                  (alist-get 'ID img) "")))
                      (if (string-prefix-p "sha256:" raw)
                          (substring raw 7 19)
                        (substring raw 0 (min 12 (length raw))))))
-            (repo  (or (mutecipher-containers--alist-get 'Repository img)
-                       (let ((names (mutecipher-containers--alist-get 'Names img)))
+            (repo  (or (alist-get 'Repository img)
+                       (let ((names (alist-get 'Names img)))
                          (when names
                            (let* ((first (if (listp names) (car names) names))
                                   (parts (split-string first ":")))
                              (car parts))))
                        "<none>"))
-            (tag   (or (mutecipher-containers--alist-get 'Tag img)
-                       (let ((names (mutecipher-containers--alist-get 'Names img)))
+            (tag   (or (alist-get 'Tag img)
+                       (let ((names (alist-get 'Names img)))
                          (when names
                            (let* ((first (if (listp names) (car names) names))
                                   (parts (split-string first ":")))
                              (if (cdr parts) (cadr parts) "latest"))))
                        "<none>"))
-            (size  (let ((s (mutecipher-containers--alist-get 'Size img)))
+            (size  (let ((s (alist-get 'Size img)))
                      (if (numberp s)
                          (file-size-human-readable s 'iec)
                        (or (format "%s" s) ""))))
-            (created (or (mutecipher-containers--alist-get 'Created img) "")))
+            (created (or (alist-get 'Created img)
+                         (alist-get 'CreatedAt img)
+                         "")))
        (list id
              (vector
               (propertize id 'face 'mutecipher-containers-id)
@@ -438,11 +502,18 @@ trailer when the process finishes."
 
 (defun mutecipher-images--refresh ()
   "Fetch image data and re-render the list buffer."
-  (let* ((raw (mutecipher-containers--run-sync "images" "--format" "json"))
-         (data (mutecipher-containers--parse-json raw)))
-    (setq mutecipher-images--entries data
-          tabulated-list-entries (mutecipher-containers--image-entries (or data '())))
-    (tabulated-list-print t)))
+  (let ((raw (mutecipher-containers--run-sync "images" "--format" "json")))
+    (cond
+     ((null raw)
+      (message "%s images failed" mutecipher-containers-backend)
+      (setq mutecipher-images--entries nil
+            mutecipher-containers--all-rows nil))
+     (t
+      (let ((data (mutecipher-containers--parse-json raw)))
+        (setq mutecipher-images--entries data
+              mutecipher-containers--all-rows
+              (mutecipher-containers--image-entries (or data '()))))))
+    (mutecipher-containers--rerender)))
 
 (defvar mutecipher-images-mode-map
   (let ((map (make-sparse-keymap)))
@@ -451,6 +522,7 @@ trailer when the process finishes."
     (define-key map (kbd "d")   #'mutecipher-images--do-rm)
     (define-key map (kbd "p")   #'mutecipher-containers/pull)
     (define-key map (kbd "b")   #'mutecipher-containers/build)
+    (define-key map (kbd "/")   #'mutecipher-containers--do-filter)
     (define-key map (kbd "?")   #'mutecipher-containers/image-actions)
     map)
   "Keymap for `mutecipher-images-mode'.")
@@ -491,9 +563,8 @@ trailer when the process finishes."
   (when-let ((id   (mutecipher-images--image-id-at-point))
              (name (mutecipher-images--image-name-at-point)))
     (when (yes-or-no-p (format "Delete image %s? " name))
-      (mutecipher-containers--run-async
-       (lambda (_) (mutecipher-images--refresh))
-       "rmi" id))))
+      (mutecipher-containers--mutate-and-refresh
+       #'mutecipher-images--refresh "rmi" id))))
 
 (defun mutecipher-images--action-dispatch ()
   "Open per-image transient for the entry at point."
@@ -502,8 +573,148 @@ trailer when the process finishes."
       (mutecipher-containers/image-actions)
     (user-error "No image at point")))
 
+;;;; Volume list buffer
+
+(defvar-local mutecipher-volumes--entries nil
+  "Last fetched list of volume alists for this buffer.")
+
+(defun mutecipher-volumes--rows (data)
+  "Convert volume alist DATA to tabulated-list rows."
+  (mapcar
+   (lambda (v)
+     (let* ((name    (or (alist-get 'Name v) ""))
+            (driver  (or (alist-get 'Driver v) ""))
+            (mount   (or (alist-get 'Mountpoint v) ""))
+            (created (or (alist-get 'CreatedAt v) (alist-get 'Created v) "")))
+       (list name
+             (vector
+              (propertize name 'face 'liminal-strong)
+              driver
+              (propertize mount 'face 'mutecipher-containers-id)
+              (if (numberp created)
+                  (format-time-string "%Y-%m-%d" created)
+                (format "%s" created))))))
+   data))
+
+(defun mutecipher-volumes--refresh ()
+  "Fetch volume data and re-render the list buffer."
+  (let ((raw (mutecipher-containers--run-sync "volume" "ls" "--format" "json")))
+    (cond
+     ((null raw)
+      (message "%s volume ls failed" mutecipher-containers-backend)
+      (setq mutecipher-volumes--entries nil
+            mutecipher-containers--all-rows nil))
+     (t
+      (let ((data (mutecipher-containers--parse-json raw)))
+        (setq mutecipher-volumes--entries data
+              mutecipher-containers--all-rows
+              (mutecipher-volumes--rows (or data '()))))))
+    (mutecipher-containers--rerender)))
+
+(defun mutecipher-volumes--do-refresh ()
+  "Refresh the volume list."
+  (interactive)
+  (mutecipher-volumes--refresh))
+
+(defun mutecipher-volumes--do-rm ()
+  "Delete the volume at point (prompts for confirmation)."
+  (interactive)
+  (when-let ((name (tabulated-list-get-id)))
+    (when (yes-or-no-p (format "Delete volume %s? " name))
+      (mutecipher-containers--mutate-and-refresh
+       #'mutecipher-volumes--refresh "volume" "rm" name))))
+
+(defvar mutecipher-volumes-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "g") #'mutecipher-volumes--do-refresh)
+    (define-key map (kbd "d") #'mutecipher-volumes--do-rm)
+    (define-key map (kbd "/") #'mutecipher-containers--do-filter)
+    map)
+  "Keymap for `mutecipher-volumes-mode'.")
+
+(define-derived-mode mutecipher-volumes-mode tabulated-list-mode "Volumes"
+  "Major mode for listing and managing container volumes."
+  (setq tabulated-list-format
+        [("Name"       30 t)
+         ("Driver"     10 t)
+         ("Mountpoint" 50 t)
+         ("Created"    12 t)])
+  (setq tabulated-list-padding 1)
+  (tabulated-list-init-header)
+  (setq-local revert-buffer-function (lambda (&rest _) (mutecipher-volumes--refresh))))
+
+;;;; Network list buffer
+
+(defvar-local mutecipher-networks--entries nil
+  "Last fetched list of network alists for this buffer.")
+
+(defun mutecipher-networks--rows (data)
+  "Convert network alist DATA to tabulated-list rows."
+  (mapcar
+   (lambda (n)
+     (let* ((id     (let ((raw (or (alist-get 'Id n) (alist-get 'ID n) "")))
+                      (substring raw 0 (min 12 (length raw)))))
+            (name   (or (alist-get 'Name n) ""))
+            (driver (or (alist-get 'Driver n) ""))
+            (scope  (or (alist-get 'Scope n) "")))
+       (list (or (and (not (string-empty-p name)) name) id)
+             (vector
+              (propertize id 'face 'mutecipher-containers-id)
+              (propertize name 'face 'liminal-strong)
+              driver
+              scope))))
+   data))
+
+(defun mutecipher-networks--refresh ()
+  "Fetch network data and re-render the list buffer."
+  (let ((raw (mutecipher-containers--run-sync "network" "ls" "--format" "json")))
+    (cond
+     ((null raw)
+      (message "%s network ls failed" mutecipher-containers-backend)
+      (setq mutecipher-networks--entries nil
+            mutecipher-containers--all-rows nil))
+     (t
+      (let ((data (mutecipher-containers--parse-json raw)))
+        (setq mutecipher-networks--entries data
+              mutecipher-containers--all-rows
+              (mutecipher-networks--rows (or data '()))))))
+    (mutecipher-containers--rerender)))
+
+(defun mutecipher-networks--do-refresh ()
+  "Refresh the network list."
+  (interactive)
+  (mutecipher-networks--refresh))
+
+(defun mutecipher-networks--do-rm ()
+  "Delete the network at point (prompts for confirmation)."
+  (interactive)
+  (when-let ((name (tabulated-list-get-id)))
+    (when (yes-or-no-p (format "Delete network %s? " name))
+      (mutecipher-containers--mutate-and-refresh
+       #'mutecipher-networks--refresh "network" "rm" name))))
+
+(defvar mutecipher-networks-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "g") #'mutecipher-networks--do-refresh)
+    (define-key map (kbd "d") #'mutecipher-networks--do-rm)
+    (define-key map (kbd "/") #'mutecipher-containers--do-filter)
+    map)
+  "Keymap for `mutecipher-networks-mode'.")
+
+(define-derived-mode mutecipher-networks-mode tabulated-list-mode "Networks"
+  "Major mode for listing and managing container networks."
+  (setq tabulated-list-format
+        [("ID"     12 t)
+         ("Name"   25 t)
+         ("Driver" 10 t)
+         ("Scope"  10 t)])
+  (setq tabulated-list-padding 1)
+  (tabulated-list-init-header)
+  (setq-local revert-buffer-function (lambda (&rest _) (mutecipher-networks--refresh))))
+
 ;;;; Transient menus
 
+;;;###autoload (autoload 'mutecipher-containers/dispatch "mutecipher-containers" nil t)
 (transient-define-prefix mutecipher-containers/dispatch ()
   "Container and image management."
   [["Containers"
@@ -511,10 +722,17 @@ trailer when the process finishes."
     ("a" "List all"      mutecipher-containers/list-all)]
    ["Images"
     ("i" "List images"   mutecipher-containers/images)]
-   ["Quick Actions"
+   ["Other"
+    ("v" "Volumes"       mutecipher-containers/volumes)
+    ("n" "Networks"      mutecipher-containers/networks)]]
+  [["Quick Actions"
     ("p" "Pull image"    mutecipher-containers/pull)
     ("b" "Build image"   mutecipher-containers/build)
-    ("r" "Run container" mutecipher-containers/run)]])
+    ("r" "Run container" mutecipher-containers/run)]
+   ["Maintenance"
+    ("P" "Prune containers" mutecipher-containers/prune-containers)
+    ("I" "Prune images"     mutecipher-containers/prune-images)
+    ("X" "Prune system"     mutecipher-containers/prune-system)]])
 
 (transient-define-prefix mutecipher-containers/container-actions ()
   "Actions for the container at point."
@@ -537,29 +755,27 @@ trailer when the process finishes."
 
 ;;;; Interactive commands
 
-;;;###autoload
-(defun mutecipher-containers/list ()
-  "List running containers."
-  (interactive)
+(defun mutecipher-containers--show (all)
+  "Open the container list buffer, showing all containers when ALL is non-nil."
   (let* ((buf (get-buffer-create "*containers*"))
          (win (display-buffer buf)))
     (with-current-buffer buf
       (mutecipher-containers-mode)
-      (setq mutecipher-containers--show-all nil)
+      (setq mutecipher-containers--show-all all)
       (mutecipher-containers--refresh))
     (select-window win)))
+
+;;;###autoload
+(defun mutecipher-containers/list ()
+  "List running containers."
+  (interactive)
+  (mutecipher-containers--show nil))
 
 ;;;###autoload
 (defun mutecipher-containers/list-all ()
   "List all containers (running and stopped)."
   (interactive)
-  (let* ((buf (get-buffer-create "*containers*"))
-         (win (display-buffer buf)))
-    (with-current-buffer buf
-      (mutecipher-containers-mode)
-      (setq mutecipher-containers--show-all t)
-      (mutecipher-containers--refresh))
-    (select-window win)))
+  (mutecipher-containers--show t))
 
 ;;;###autoload
 (defun mutecipher-containers/images ()
@@ -571,6 +787,68 @@ trailer when the process finishes."
       (mutecipher-images-mode)
       (mutecipher-images--refresh))
     (select-window win)))
+
+;;;###autoload
+(defun mutecipher-containers/volumes ()
+  "List container volumes."
+  (interactive)
+  (let* ((buf (get-buffer-create "*container-volumes*"))
+         (win (display-buffer buf)))
+    (with-current-buffer buf
+      (mutecipher-volumes-mode)
+      (mutecipher-volumes--refresh))
+    (select-window win)))
+
+;;;###autoload
+(defun mutecipher-containers/networks ()
+  "List container networks."
+  (interactive)
+  (let* ((buf (get-buffer-create "*container-networks*"))
+         (win (display-buffer buf)))
+    (with-current-buffer buf
+      (mutecipher-networks-mode)
+      (mutecipher-networks--refresh))
+    (select-window win)))
+
+(defun mutecipher-containers--stream-prune (buf-name proc-name header args)
+  "Pop to BUF-NAME, stream backend ARGS under PROC-NAME, prefix with HEADER."
+  (let ((buf (mutecipher-containers--prepare-stream-buffer
+              buf-name (concat header "\n\n"))))
+    (pop-to-buffer buf)
+    (mutecipher-containers--stream-into-buffer
+     proc-name buf
+     (cons mutecipher-containers-backend args))))
+
+;;;###autoload
+(defun mutecipher-containers/prune-containers ()
+  "Remove all stopped containers."
+  (interactive)
+  (when (yes-or-no-p "Remove all stopped containers? ")
+    (mutecipher-containers--stream-prune
+     "*containers-prune*" "containers-prune"
+     "Pruning stopped containers"
+     '("container" "prune" "-f"))))
+
+;;;###autoload
+(defun mutecipher-containers/prune-images (&optional all)
+  "Remove dangling images.  With prefix arg ALL, remove all unused images."
+  (interactive "P")
+  (when (yes-or-no-p (if all "Remove all unused images? "
+                       "Remove dangling images? "))
+    (mutecipher-containers--stream-prune
+     "*containers-prune-images*" "containers-prune-images"
+     (format "Pruning images%s" (if all " (all unused)" ""))
+     (append '("image" "prune" "-f") (when all '("-a"))))))
+
+;;;###autoload
+(defun mutecipher-containers/prune-system ()
+  "Remove unused containers, networks, images, and build cache."
+  (interactive)
+  (when (yes-or-no-p "Remove all unused resources (system prune)? ")
+    (mutecipher-containers--stream-prune
+     "*containers-prune-system*" "containers-prune-system"
+     "System prune"
+     '("system" "prune" "-f"))))
 
 ;;;###autoload
 (defun mutecipher-containers/pull (image)
@@ -610,7 +888,7 @@ trailer when the process finishes."
                   (list mutecipher-containers-backend "run" "--rm" "-it"
                         image
                         (when (not (string-empty-p cmd))
-                          (split-string cmd)))))
+                          (split-string-and-unquote cmd)))))
            (buf (apply #'make-term
                        (format "containers-run-%s" image)
                        (car argv) nil (cdr argv))))
