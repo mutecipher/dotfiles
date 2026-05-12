@@ -46,7 +46,8 @@ Global defaults that shape every session: key bindings, scrolling, selection, en
      ("C-c A l" . mutecipher/acp-resume)
      ("C-c A p" . mutecipher/acp-prompt)
      ("C-c A r" . mutecipher/acp-prompt-region)
-     ("C-c A c" . mutecipher/acp-cancel))
+     ("C-c A c" . mutecipher/acp-cancel)
+     ("C-c C d" . mutecipher-containers/dispatch))
     :custom
     (ad-redefinition-action 'accept)
     (auto-save-default t)
@@ -785,6 +786,7 @@ Local =lisp/= extensions shipped with this repo: centered writing, ligatures, co
   (require 'mutecipher-markdown)
   (require 'mutecipher-hover)
   (require 'mutecipher-acp)
+  (require 'mutecipher-containers)
   (require 'mutecipher-vc-gutter)
   (require 'mutecipher-flymake-inline)
   (require 'mutecipher-git-blame)
