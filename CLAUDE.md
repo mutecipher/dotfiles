@@ -37,22 +37,23 @@ The Emacs config uses **literate programming** via Org-mode:
 - Generated: `config/emacs/config.el` (excluded from git, built at load time)
 - Custom modules: `config/emacs/lisp/` — naming convention `mutecipher-<feature>.el`, each is a standalone `provide`d feature
 - Custom themes: `config/emacs/themes/` (`liminal-dark-theme.el`, `liminal-light-theme.el`)
+- Tests: `config/emacs/test/` — ert tests, run with `emacs -Q --batch -L config/emacs/lisp -L config/emacs/test -l <test-file> -f ert-run-tests-batch-and-exit`
 
-When modifying Emacs config, edit `config.org` — never edit `config.el` directly. The `.gitignore` excludes `config.el`, `cache/`, `elpa/`, and `tree-sitter/`.
+When modifying Emacs config, edit `config.org` — never edit `config.el` directly. The generated `config.el` is gitignored.
 
 ### Emacs modules (`lisp/`)
 
 | Group | Modules |
 |---|---|
 | UI / appearance | `mutecipher-appearance.el`, `mutecipher-modeline.el`, `mutecipher-icons.el`, `mutecipher-colorize.el` |
-| Editing / display | `mutecipher-centered.el`, `mutecipher-ligatures.el`, `mutecipher-tidy.el`, `mutecipher-flymake-inline.el`, `mutecipher-hover.el`, `mutecipher-vc-gutter.el` |
+| Editing / display | `mutecipher-centered.el`, `mutecipher-ligatures.el`, `mutecipher-tidy.el`, `mutecipher-flymake-inline.el`, `mutecipher-hover.el`, `mutecipher-vc-gutter.el`, `mutecipher-org-table.el` |
 | Language / treesit | `mutecipher-treesit.el` |
-| Content / modes | `mutecipher-blog.el`, `mutecipher-markdown.el`, `mutecipher-todo-keywords.el` |
+| Content / modes | `mutecipher-blog.el`, `mutecipher-markdown.el`, `mutecipher-todo-keywords.el`, `mutecipher-deck.el` |
 | Tools / integrations | `mutecipher-acp.el`, `mutecipher-containers.el`, `mutecipher-git-blame.el` |
 
 ## Neovim Configuration
 
-Uses **LazyVim** distribution. Plugin specs live in `config/nvim/lua/plugins/`. The `lazy-lock.json` is excluded from git.
+Uses **LazyVim** distribution. Plugin specs live in `config/nvim/lua/plugins/`. The `lazy-lock.json` is gitignored.
 
 ## Key Shell Aliases
 
