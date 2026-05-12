@@ -1,18 +1,31 @@
-;;; mutecipher-acp.el --- ACP client, ewoc-based rewrite (WIP)  -*- lexical-binding: t -*-
+;;; mutecipher-acp.el --- ACP (Agent Client Protocol) client  -*- lexical-binding: t -*-
 ;;
-;; Parallel module under development — the ewoc-based successor to
-;; `mutecipher-acp'.  The RPC transport, agents alist, @-mention
-;; machinery, and input-buffer UX match the current module exactly;
-;; rendering will move onto `ewoc' so each turn, message, tool-call,
-;; and plan is an addressable, independently re-renderable node.
+;; An Emacs client for the Agent Client Protocol — a JSON-RPC interface
+;; spoken by coding agents (e.g. claude-code-acp) over stdio NDJSON.
 ;;
-;; This file is scaffolding — step 1 of the plan at
-;; ~/.claude/plans/we-had-a-discussion-wise-pond.md.  Incoming ACP
-;; notifications currently log to *Messages*; rendering lands in
-;; subsequent steps.  Both modules coexist during development: the old
-;; `C-c A' bindings keep working, this module sits under `C-c A 2'.
+;; Architecture, top to bottom:
 ;;
-;; No external dependencies — only built-in Emacs packages.
+;;   • Transport: minimal NDJSON JSON-RPC layer over `make-process'
+;;     (Emacs's built-in `jsonrpc.el' uses Content-Length framing, which
+;;     ACP does not — hence the custom layer).
+;;   • Dispatch:  inbound lines split into responses, agent-initiated
+;;     requests (fs/*, session/request_permission), and notifications.
+;;   • Session:   `:cwd', `:state', `:current-*' scratch slots, plus
+;;     1Hz state-timer for the elapsed-seconds counter.
+;;   • Render:    every transcript element is an ewoc node whose data is
+;;     a `macp-node' wrapping a kind-specific struct (turn, user,
+;;     assistant, thought, tool-call, plan, trailer, notice).
+;;     `mutecipher-acp--pp' dispatches on kind to per-kind printers.
+;;   • Input:     a paired `mutecipher-acp-input-mode' buffer below the
+;;     output window — slash-command + @-file completion, history ring,
+;;     dynamic resize.
+;;   • Markdown:  a small imperative renderer for assistant prose
+;;     (fenced code, headings, blockquotes, tables, checkboxes,
+;;     bold/italic/strike, inline links).  Applies via text properties
+;;     so it composes with the icon-gutter face overlays.
+;;
+;; No external dependencies — only built-in Emacs packages plus the
+;; `mutecipher-icons' module for tool/status glyphs.
 
 ;;; Code:
 
@@ -72,6 +85,33 @@ and large payloads don't bloat the buffer."
 (defcustom mutecipher-acp-log-keep-lines 5000
   "Maximum lines retained in `*ACP-log*'; older lines are trimmed."
   :type 'integer
+  :group 'mutecipher-acp)
+
+(defcustom mutecipher-acp-log-format 'summary
+  "How to render entries in `*ACP-log*'.
+- `summary' — one-line summary (method/event + key fields), raw JSON
+  on a dim continuation line.  Best for scanning.
+- `raw'     — raw JSON line only, like the original protocol-trace.
+- `compact' — summary line only, no raw payload."
+  :type '(choice (const :tag "Summary + raw"  summary)
+                 (const :tag "Raw JSON only"  raw)
+                 (const :tag "Summary only"   compact))
+  :group 'mutecipher-acp)
+
+(defcustom mutecipher-acp-log-suppress
+  '("usage_update")
+  "List of `sessionUpdate' types to drop from the log.
+The default suppresses `usage_update' notifications, which fire many
+times per turn and drown out interesting traffic.  Set to nil to keep
+everything; toggle interactively with `mutecipher/acp-toggle-log-noise'."
+  :type '(repeat string)
+  :group 'mutecipher-acp)
+
+(defcustom mutecipher-acp-log-suppress-empty-chunks t
+  "When non-nil, skip `agent_message_chunk' entries whose text is empty.
+The agent emits a leading empty chunk before each response — useful as a
+streaming-start marker but rarely useful in the log."
+  :type 'boolean
   :group 'mutecipher-acp)
 
 ;;;; Faces
@@ -182,6 +222,13 @@ Unknown mode IDs fall back to (\"?\" mutecipher-acp-mode-default-face)."
 ;; `data' is a `macp-node'.  The master pretty-printer
 ;; `mutecipher-acp--pp' dispatches on `macp-node-kind' to kind-specific
 ;; renderers.  Kind-specific data lives in the dedicated structs below.
+;;
+;; Prefix convention: file-internal identifiers are `mutecipher-acp-…'
+;; (or `mutecipher/acp-…' for interactive entry points).  The shorter
+;; `macp-…' prefix is reserved for `cl-defstruct' types and accessors —
+;; cl's auto-generated names show up at every call site, so the long
+;; prefix would punish readability.  No other identifiers should use
+;; `macp-…'.
 
 (cl-defstruct macp-node
   kind         ; 'turn-header 'user 'assistant 'thought 'tool-call 'plan 'trailer
@@ -224,16 +271,77 @@ Unknown mode IDs fall back to (\"?\" mutecipher-acp-mode-default-face)."
   text          ; plain-text line content
   face)         ; face symbol applied to the line
 
+(cl-defstruct (macp-session (:constructor mutecipher-acp--make-session))
+  id conn buffer agent cwd
+  input-buffer
+  (state 'idle)
+  state-started-at
+  state-timer
+  commands
+  file-cache
+  (turn-counter 0)
+  current-turn-node
+  current-assistant
+  current-plan-node
+  available-modes
+  current-mode-id
+  title
+  (tool-call-index (make-hash-table :test #'equal)))
+
 ;;;; Protocol-trace log buffer
 ;;
 ;; Always-on capture of every JSON-RPC line, inbound and outbound.
 ;; Lives in `*ACP-log*'; switch to it with `mutecipher/acp-show-log'.
-;; Each entry is timestamped and tagged with a direction indicator:
-;;   →  outbound (we sent it)
-;;   ←  inbound  (agent sent it)
-;; Long payloads are truncated per `mutecipher-acp-log-max-line'.
+;;
+;; Two independent dimensions:
+;; - DIRECTION (one column wide):
+;;     →    outbound request from us
+;;     ←    inbound message from the agent
+;;     ⇐    outbound success response (we replied to an agent request)
+;;     ⨯    outbound error response  (we rejected an agent request)
+;; - FORMAT (per `mutecipher-acp-log-format'):
+;;     summary  — one parsed-summary line + raw JSON on a dim continuation
+;;     compact  — summary line only (no raw)
+;;     raw      — original wire format (for full-fidelity dumps)
+;;
+;; `mutecipher-acp-log-suppress' drops noisy `sessionUpdate' types
+;; (default: usage_update); empty `agent_message_chunk's drop via
+;; `mutecipher-acp-log-suppress-empty-chunks'.  Long entries are
+;; truncated per `mutecipher-acp-log-max-line'.
+
+(defface mutecipher-acp-log-direction-face
+  '((t :inherit font-lock-keyword-face :weight bold))
+  "Face for the direction glyph (→ ← ⇐ ⨯) in `*ACP-log*'.")
+
+(defface mutecipher-acp-log-method-face
+  '((t :inherit font-lock-function-name-face :weight bold))
+  "Face for the method/event name in summary log lines.")
+
+(defface mutecipher-acp-log-id-face
+  '((t :inherit shadow))
+  "Face for request-ids and session-id prefixes in summary log lines.")
+
+(defface mutecipher-acp-log-error-face
+  '((t :inherit error :weight bold))
+  "Face for error rows in `*ACP-log*'.")
+
+(defface mutecipher-acp-log-raw-face
+  '((t :inherit shadow :height 0.92))
+  "Face for the dim continuation line that carries raw JSON.")
 
 (defconst mutecipher-acp--log-buffer-name "*ACP-log*")
+
+(defconst mutecipher-acp--log-direction-glyphs
+  '((in       . "←")
+    (out      . "→")
+    (out-resp . "⇐")
+    (out-err  . "⨯"))
+  "Alist mapping log-direction symbols to their display glyph.")
+
+(defvar-local mutecipher-acp--log-line-count 0
+  "Buffer-local running line count for `*ACP-log*'.
+Maintained incrementally so the per-entry trim doesn't pay for
+`count-lines' over the whole buffer on every write.")
 
 (defun mutecipher-acp--log-buffer ()
   "Return the `*ACP-log*' buffer, creating it if necessary."
@@ -253,29 +361,270 @@ Unknown mode IDs fall back to (\"?\" mutecipher-acp-mode-default-face)."
             (substring s 0 mutecipher-acp-log-max-line)
             (- (length s) mutecipher-acp-log-max-line))))
 
-(defun mutecipher-acp--log (tag agent payload)
+(defun mutecipher-acp--log-parse (payload)
+  "Return the JSON-RPC PAYLOAD as a plist, or nil on parse failure."
+  (and (stringp payload)
+       (not (string-empty-p payload))
+       (condition-case nil
+           (json-parse-string payload
+                              :object-type 'plist
+                              :null-object nil
+                              :false-object :json-false)
+         (error nil))))
+
+(defun mutecipher-acp--log-summarize (msg)
+  "Return a short, human-scannable summary string for parsed JSON-RPC MSG.
+MSG is a plist; returns nil to fall through to raw rendering."
+  (when (listp msg)
+    (let* ((id     (plist-get msg :id))
+           (method (plist-get msg :method))
+           (result (plist-get msg :result))
+           (err    (plist-get msg :error))
+           (params (plist-get msg :params)))
+      (cond
+       ;; Inbound or outbound request (has both :id and :method).
+       ((and id method)
+        (format "%s id=%s%s"
+                (propertize method 'face 'mutecipher-acp-log-method-face)
+                (propertize (format "%s" id) 'face 'mutecipher-acp-log-id-face)
+                (mutecipher-acp--log-summarize-method method params)))
+       ;; Notification (method, no id).
+       (method
+        (format "%s%s"
+                (propertize method 'face 'mutecipher-acp-log-method-face)
+                (mutecipher-acp--log-summarize-method method params)))
+       ;; Error response (id + error).
+       ((and id err)
+        (let ((code (plist-get err :code))
+              (m    (plist-get err :message)))
+          (propertize (format "error id=%s code=%s %s" id code (or m ""))
+                      'face 'mutecipher-acp-log-error-face)))
+       ;; Success response (id + result).
+       ((and id (or result (plist-member msg :result)))
+        (format "ok id=%s%s"
+                (propertize (format "%s" id) 'face 'mutecipher-acp-log-id-face)
+                (mutecipher-acp--log-summarize-result result)))))))
+
+(defun mutecipher-acp--log-summarize-method (method params)
+  "Return a small detail suffix for METHOD with PARAMS."
+  (cond
+   ((null params) "")
+   ((equal method "session/update")
+    (let* ((update (plist-get params :update))
+           (type   (and update (plist-get update :sessionUpdate)))
+           (sid    (plist-get params :sessionId)))
+      (format " %s%s%s"
+              (propertize (or type "?") 'face 'mutecipher-acp-log-method-face)
+              (mutecipher-acp--log-summarize-update type update)
+              (mutecipher-acp--log-session-tag sid))))
+   ((equal method "session/prompt")
+    (let* ((sid    (plist-get params :sessionId))
+           (prompt (plist-get params :prompt))
+           (text   (and (vectorp prompt) (> (length prompt) 0)
+                        (plist-get (aref prompt 0) :text))))
+      (format " %s%s"
+              (mutecipher-acp--log-session-tag sid)
+              (if text (format " %S" (mutecipher-acp--log-shorten text 60)) ""))))
+   ((equal method "session/request_permission")
+    (let* ((sid (plist-get params :sessionId))
+           (tc  (plist-get params :toolCall))
+           (kind (plist-get tc :kind))
+           (name (plist-get tc :title)))
+      (format " %s%s"
+              (mutecipher-acp--log-session-tag sid)
+              (if name (format " %s(%s)"
+                                (or kind "tool")
+                                (mutecipher-acp--log-shorten name 50))
+                ""))))
+   ((equal method "session/cancel")
+    (mutecipher-acp--log-session-tag (plist-get params :sessionId)))
+   ((equal method "session/new")
+    (let ((cwd (plist-get params :cwd)))
+      (if cwd (format " cwd=%s" (abbreviate-file-name cwd)) "")))
+   ((equal method "session/load")
+    (mutecipher-acp--log-session-tag (plist-get params :sessionId)))
+   ((equal method "session/set_config_option")
+    (format " %s %s=%S"
+            (mutecipher-acp--log-session-tag (plist-get params :sessionId))
+            (plist-get params :configId)
+            (plist-get params :value)))
+   ((equal method "fs/read_text_file")
+    (let ((p (plist-get params :path)))
+      (if p (format " %s" p) "")))
+   ((equal method "fs/write_text_file")
+    (let ((p (plist-get params :path)))
+      (if p (format " %s" p) "")))
+   (t "")))
+
+(defun mutecipher-acp--log-summarize-update (type update)
+  "Detail for a `session/update' of TYPE carrying UPDATE plist."
+  (cond
+   ((equal type "agent_message_chunk")
+    (let ((text (plist-get (plist-get update :content) :text)))
+      (format " %S" (mutecipher-acp--log-shorten (or text "") 50))))
+   ((equal type "tool_call")
+    (let ((kind (plist-get update :kind))
+          (name (plist-get update :title))
+          (cid  (plist-get update :toolCallId)))
+      (format " %s(%s)%s"
+              (or kind "tool")
+              (mutecipher-acp--log-shorten (or name "") 40)
+              (if cid (format " cid=%s"
+                               (propertize (mutecipher-acp--log-short-id cid)
+                                           'face 'mutecipher-acp-log-id-face))
+                ""))))
+   ((equal type "tool_call_update")
+    (let ((status (plist-get update :status))
+          (cid    (plist-get update :toolCallId)))
+      (format "%s%s"
+              (if status (format " %s" status) "")
+              (if cid (format " cid=%s"
+                               (propertize (mutecipher-acp--log-short-id cid)
+                                           'face 'mutecipher-acp-log-id-face))
+                ""))))
+   ((equal type "thought")
+    (format " %S" (mutecipher-acp--log-shorten
+                   (or (plist-get update :thought) "") 60)))
+   ((equal type "plan")
+    (let ((tasks (plist-get update :tasks)))
+      (format " (%d task%s)"
+              (length tasks)
+              (if (= 1 (length tasks)) "" "s"))))
+   ((equal type "session_info_update")
+    (let ((title (plist-get update :title)))
+      (if title (format " title=%S" title) "")))
+   ((equal type "current_mode_update")
+    (format " mode=%s" (plist-get update :currentModeId)))
+   ((equal type "config_option_update")
+    (let* ((opts    (plist-get update :configOptions))
+           (mode-opt (and opts
+                          (cl-find "mode" opts
+                                   :key (lambda (o) (plist-get o :id))
+                                   :test #'string=))))
+      (if mode-opt
+          (format " mode=%s" (plist-get mode-opt :currentValue))
+        "")))
+   ((equal type "available_commands_update")
+    (let ((cmds (plist-get update :availableCommands)))
+      (format " (%d cmd%s)"
+              (length cmds) (if (= 1 (length cmds)) "" "s"))))
+   ((equal type "usage_update")
+    (let ((used (plist-get update :used))
+          (size (plist-get update :size))
+          (cost (plist-get (plist-get update :cost) :amount)))
+      (format " %s/%s%s"
+              (or used "?") (or size "?")
+              (if cost (format " $%.4f" cost) ""))))
+   (t "")))
+
+(defun mutecipher-acp--log-summarize-result (result)
+  "One-line summary suffix for an RPC RESULT value."
+  (cond
+   ((null result) "")
+   ((not (listp result)) "")
+   ((plist-get result :sessionId)
+    (mutecipher-acp--log-session-tag (plist-get result :sessionId)))
+   ((plist-get result :stopReason)
+    (format " stopReason=%s" (plist-get result :stopReason)))
+   ((plist-get result :outcome)
+    (let* ((o   (plist-get result :outcome))
+           (oid (plist-get o :optionId))
+           (out (plist-get o :outcome)))
+      (format " %s%s" (or out "?") (if oid (format "/%s" oid) ""))))
+   (t "")))
+
+(defun mutecipher-acp--log-session-tag (sid)
+  "Return ` sid=…' tag for SID, or empty string."
+  (if sid
+      (format " sid=%s"
+              (propertize (mutecipher-acp--id-prefix sid)
+                          'face 'mutecipher-acp-log-id-face))
+    ""))
+
+(defun mutecipher-acp--log-short-id (id)
+  "Return the first 8 chars of an opaque ID like a toolCallId."
+  (if (and (stringp id) (> (length id) 12))
+      (concat (substring id 0 12) "…")
+    (format "%s" id)))
+
+(defun mutecipher-acp--log-shorten (s max)
+  "Return S with embedded newlines escaped, truncated to MAX chars."
+  (let ((s1 (replace-regexp-in-string "[\n\t]+" " " (or s ""))))
+    (if (> (length s1) max)
+        (concat (substring s1 0 (1- max)) "…")
+      s1)))
+
+(defun mutecipher-acp--log-suppressed-p (msg)
+  "Non-nil if MSG should be dropped per the user's filter customs."
+  (let* ((method (plist-get msg :method))
+         (update (plist-get msg :update))
+         (params (plist-get msg :params))
+         (update (or update (plist-get params :update)))
+         (type   (and update (plist-get update :sessionUpdate))))
+    (and (equal method "session/update")
+         (or (and type (member type mutecipher-acp-log-suppress))
+             (and mutecipher-acp-log-suppress-empty-chunks
+                  (equal type "agent_message_chunk")
+                  (let ((text (plist-get (plist-get update :content) :text)))
+                    (or (null text) (string-empty-p text))))))))
+
+(defun mutecipher-acp--log-needs-parse-p ()
+  "Non-nil when an entry must be parsed before we can decide what to do.
+Parsing is needed for any summary format and for any active suppression
+filter; in `raw' mode with no filters it's pure waste on a hot path."
+  (or (memq mutecipher-acp-log-format '(summary compact))
+      mutecipher-acp-log-suppress
+      mutecipher-acp-log-suppress-empty-chunks))
+
+(defun mutecipher-acp--log (direction agent payload)
   "Append a log entry to `*ACP-log*'.
-TAG is a short direction/kind marker (\"→\", \"←\", \"agent→\", etc.).
-AGENT is the connection/agent label for the entry.  PAYLOAD is the raw
-JSON line or a preformatted string."
-  (let ((buf (mutecipher-acp--log-buffer))
-        (ts  (format-time-string "%H:%M:%S.%3N"))
-        (line (mutecipher-acp--log-truncate (or payload ""))))
-    (with-current-buffer buf
-      (let ((inhibit-read-only t)
-            (was-at-end (= (point) (point-max))))
-        (save-excursion
-          (goto-char (point-max))
-          (insert (format "%s %s %-10s %s\n"
-                          ts tag (or agent "") line))
-          (let ((excess (- (count-lines (point-min) (point-max))
-                           mutecipher-acp-log-keep-lines)))
-            (when (> excess 0)
-              (goto-char (point-min))
-              (forward-line excess)
-              (delete-region (point-min) (point)))))
-        (when was-at-end
-          (goto-char (point-max)))))))
+DIRECTION is one of `in', `out', `out-resp', `out-err'.  AGENT is the
+connection/agent label.  PAYLOAD is the raw JSON-RPC line on the wire."
+  (let ((msg (and (mutecipher-acp--log-needs-parse-p)
+                  (mutecipher-acp--log-parse payload))))
+    (unless (and msg (mutecipher-acp--log-suppressed-p msg))
+      (let* ((buf      (mutecipher-acp--log-buffer))
+             (ts       (format-time-string "%H:%M:%S.%3N"))
+             (glyph    (or (cdr (assq direction
+                                       mutecipher-acp--log-direction-glyphs))
+                            "?"))
+             (dir-face (if (eq direction 'out-err)
+                           'mutecipher-acp-log-error-face
+                         'mutecipher-acp-log-direction-face))
+             (summary  (and msg (mutecipher-acp--log-summarize msg)))
+             (raw-line (mutecipher-acp--log-truncate (or payload "")))
+             (header   (format "%s %s %-10s "
+                                ts
+                                (propertize glyph 'face dir-face)
+                                (or agent "")))
+             (entry
+              (pcase mutecipher-acp-log-format
+                ('raw     (concat header raw-line "\n"))
+                ('compact (concat header (or summary raw-line) "\n"))
+                (_ (concat header (or summary raw-line) "\n"
+                            (when (and summary
+                                       (not (string-empty-p raw-line)))
+                              (concat "  "
+                                      (propertize raw-line
+                                                  'face 'mutecipher-acp-log-raw-face)
+                                      "\n")))))))
+        (with-current-buffer buf
+          (let ((inhibit-read-only t)
+                (was-at-end (= (point) (point-max)))
+                (added-lines (cl-count ?\n entry)))
+            (save-excursion
+              (goto-char (point-max))
+              (insert entry)
+              (cl-incf mutecipher-acp--log-line-count added-lines)
+              (let ((excess (- mutecipher-acp--log-line-count
+                                mutecipher-acp-log-keep-lines)))
+                (when (> excess 0)
+                  (goto-char (point-min))
+                  (forward-line excess)
+                  (delete-region (point-min) (point))
+                  (cl-decf mutecipher-acp--log-line-count excess))))
+            (when was-at-end
+              (goto-char (point-max)))))))))
 
 ;;;###autoload
 (defun mutecipher/acp-show-log ()
@@ -284,12 +633,40 @@ JSON line or a preformatted string."
   (pop-to-buffer (mutecipher-acp--log-buffer)))
 
 ;;;###autoload
+(defun mutecipher/acp-toggle-log-noise ()
+  "Toggle whether noisy `usage_update' notifications appear in `*ACP-log*'.
+Also covers empty `agent_message_chunk's via the related custom."
+  (interactive)
+  (cond
+   ((member "usage_update" mutecipher-acp-log-suppress)
+    (setq mutecipher-acp-log-suppress
+          (delete "usage_update" mutecipher-acp-log-suppress))
+    (setq mutecipher-acp-log-suppress-empty-chunks nil)
+    (message "ACP log: showing usage_update + empty chunks"))
+   (t
+    (cl-pushnew "usage_update" mutecipher-acp-log-suppress :test #'equal)
+    (setq mutecipher-acp-log-suppress-empty-chunks t)
+    (message "ACP log: hiding usage_update + empty chunks"))))
+
+;;;###autoload
+(defun mutecipher/acp-cycle-log-format ()
+  "Cycle `mutecipher-acp-log-format' through summary → compact → raw."
+  (interactive)
+  (setq mutecipher-acp-log-format
+        (pcase mutecipher-acp-log-format
+          ('summary 'compact)
+          ('compact 'raw)
+          (_        'summary)))
+  (message "ACP log: format=%s" mutecipher-acp-log-format))
+
+;;;###autoload
 (defun mutecipher/acp-clear-log ()
   "Erase the `*ACP-log*' buffer."
   (interactive)
   (with-current-buffer (mutecipher-acp--log-buffer)
     (let ((inhibit-read-only t))
-      (erase-buffer))))
+      (erase-buffer)
+      (setq mutecipher-acp--log-line-count 0))))
 
 ;;;; NDJSON transport layer
 ;;
@@ -347,7 +724,7 @@ NOTIFY-FN is called as (method params) for incoming JSON-RPC notifications."
           (delete-region (point-min) (match-end 0))
           (goto-char (point-min))
           (unless (string-empty-p line)
-            (mutecipher-acp--log "←" (process-name proc) line)
+            (mutecipher-acp--log 'in (process-name proc) line)
             (mutecipher-acp--dispatch conn line)))))))
 
 (defun mutecipher-acp--make-sentinel (conn)
@@ -398,7 +775,7 @@ SUCCESS-FN and ERROR-FN are called with the result/error plist."
          (msg (list :jsonrpc "2.0" :id id :method method :params params))
          (line (json-serialize msg :null-object nil :false-object :json-false)))
     (puthash id (list success-fn error-fn) (mutecipher-acp--conn-pending conn))
-    (mutecipher-acp--log "→" (process-name (mutecipher-acp--conn-process conn)) line)
+    (mutecipher-acp--log 'out (process-name (mutecipher-acp--conn-process conn)) line)
     (process-send-string (mutecipher-acp--conn-process conn) (concat line "\n"))))
 
 (defun mutecipher-acp--respond (conn id result)
@@ -406,7 +783,7 @@ SUCCESS-FN and ERROR-FN are called with the result/error plist."
 Used to reply to inbound requests from the agent."
   (let ((line (json-serialize (list :jsonrpc "2.0" :id id :result result)
                               :null-object nil :false-object :json-false)))
-    (mutecipher-acp--log "→resp" (process-name (mutecipher-acp--conn-process conn)) line)
+    (mutecipher-acp--log 'out-resp (process-name (mutecipher-acp--conn-process conn)) line)
     (process-send-string (mutecipher-acp--conn-process conn) (concat line "\n"))))
 
 (defun mutecipher-acp--respond-error (conn id code message)
@@ -414,8 +791,15 @@ Used to reply to inbound requests from the agent."
   (let ((line (json-serialize (list :jsonrpc "2.0" :id id
                                     :error (list :code code :message message))
                               :null-object nil :false-object :json-false)))
-    (mutecipher-acp--log "→err" (process-name (mutecipher-acp--conn-process conn)) line)
+    (mutecipher-acp--log 'out-err (process-name (mutecipher-acp--conn-process conn)) line)
     (process-send-string (mutecipher-acp--conn-process conn) (concat line "\n"))))
+
+;; JSON-RPC 2.0 standard error codes; -32000 is the "implementation
+;; defined" floor we use for fs-permission denials and other errors
+;; the protocol itself doesn't enumerate.
+(defconst mutecipher-acp--rpc-error-method-not-found -32601)
+(defconst mutecipher-acp--rpc-error-invalid-params  -32602)
+(defconst mutecipher-acp--rpc-error-server          -32000)
 
 ;;;; State
 
@@ -445,7 +829,7 @@ METHOD is the method string, PARAMS is the decoded plist."
    ((equal method "fs/write_text_file")
     (mutecipher-acp--handle-fs-write conn id params))
    (t
-    (mutecipher-acp--respond-error conn id -32601
+    (mutecipher-acp--respond-error conn id mutecipher-acp--rpc-error-method-not-found
                                     (format "Method not found: %s" method)))))
 
 ;;;; fs/* handlers
@@ -454,7 +838,7 @@ METHOD is the method string, PARAMS is the decoded plist."
   "Return the session plist for CONN, or nil if none is active."
   (let (found)
     (maphash (lambda (_id session)
-               (when (eq (plist-get session :conn) conn)
+               (when (eq (macp-session-conn session) conn)
                  (setq found session)))
              mutecipher-acp--sessions)
     found))
@@ -465,7 +849,7 @@ Deferred via `run-at-time' so that `y-or-n-p' runs in the main event loop,
 not inside the process filter where interactive prompts are suppressed."
   (let* ((path     (plist-get params :path))
          (session  (mutecipher-acp--session-for-conn conn))
-         (cwd      (and session (plist-get session :cwd)))
+         (cwd      (and session (macp-session-cwd session)))
          (abs-path (if (and path (not (file-name-absolute-p path)) cwd)
                        (expand-file-name path cwd)
                      path)))
@@ -474,7 +858,7 @@ not inside the process filter where interactive prompts are suppressed."
       (run-at-time 0 nil
                    (lambda ()
                      (if (not (y-or-n-p (format "ACP: read %s? " abs-path)))
-                         (mutecipher-acp--respond-error conn id -32000 "Read denied by user")
+                         (mutecipher-acp--respond-error conn id mutecipher-acp--rpc-error-server "Read denied by user")
                        (condition-case err
                            (let ((content
                                   (with-temp-buffer
@@ -482,7 +866,7 @@ not inside the process filter where interactive prompts are suppressed."
                                     (buffer-string))))
                              (mutecipher-acp--respond conn id (list :content content)))
                          (error
-                          (mutecipher-acp--respond-error conn id -32000
+                          (mutecipher-acp--respond-error conn id mutecipher-acp--rpc-error-server
                                                           (error-message-string err))))))))))
 
 (defun mutecipher-acp--handle-fs-write (conn id params)
@@ -491,20 +875,20 @@ Deferred via `run-at-time' so that `y-or-n-p' runs in the main event loop."
   (let* ((path     (plist-get params :path))
          (content  (plist-get params :content))
          (session  (mutecipher-acp--session-for-conn conn))
-         (cwd      (and session (plist-get session :cwd)))
+         (cwd      (and session (macp-session-cwd session)))
          (abs-path (if (and path (not (file-name-absolute-p path)) cwd)
                        (expand-file-name path cwd)
                      path)))
     (cond
      ((not abs-path)
-      (mutecipher-acp--respond-error conn id -32602 "Missing path parameter"))
+      (mutecipher-acp--respond-error conn id mutecipher-acp--rpc-error-invalid-params "Missing path parameter"))
      ((not content)
-      (mutecipher-acp--respond-error conn id -32602 "Missing content parameter"))
+      (mutecipher-acp--respond-error conn id mutecipher-acp--rpc-error-invalid-params "Missing content parameter"))
      (t
       (run-at-time 0 nil
                    (lambda ()
                      (if (not (y-or-n-p (format "ACP: write %s? " abs-path)))
-                         (mutecipher-acp--respond-error conn id -32000 "Write denied by user")
+                         (mutecipher-acp--respond-error conn id mutecipher-acp--rpc-error-server "Write denied by user")
                        (condition-case err
                            (progn
                              (make-directory (file-name-directory abs-path) t)
@@ -515,7 +899,7 @@ Deferred via `run-at-time' so that `y-or-n-p' runs in the main event loop."
                                    (revert-buffer t t t))))
                              (mutecipher-acp--respond conn id (list)))
                          (error
-                          (mutecipher-acp--respond-error conn id -32000
+                          (mutecipher-acp--respond-error conn id mutecipher-acp--rpc-error-server
                                                           (error-message-string err)))))))))))
 
 ;;;; Permission handling
@@ -542,7 +926,7 @@ Deferred via `run-at-time' so that `y-or-n-p' runs in the main event loop."
          (options     (plist-get params :options))
          (labels      (mapcar #'mutecipher-acp--option-label options))
          (prior-state (when-let ((s (gethash session-id mutecipher-acp--sessions)))
-                        (plist-get s :state))))
+                        (macp-session-state s))))
     (mutecipher-acp--set-state session-id 'awaiting-permission)
     (unwind-protect
         (condition-case _
@@ -620,22 +1004,20 @@ Invalidates only that node so the rest of the transcript is untouched.
 Trims leading whitespace off the very first chunk so agents that start
 a response with a stray `\\n' don't leave the icon alone on a line."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
-              (buf     (plist-get session :buffer))
+              (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
     (mutecipher-acp--with-sticky-tail buf
       (unless mutecipher-acp--ewoc
         (user-error "ACP: no ewoc in session buffer"))
       (let* ((ewoc mutecipher-acp--ewoc)
-             (node (plist-get session :current-assistant))
+             (node (macp-session-current-assistant session))
              (inhibit-read-only t))
         (unless node
           (setq node (ewoc-enter-last
                       ewoc
                       (make-macp-node :kind 'assistant
                                       :data (make-macp-assistant :text ""))))
-          (puthash session-id
-                   (plist-put session :current-assistant node)
-                   mutecipher-acp--sessions))
+          (setf (macp-session-current-assistant session) node))
         (let* ((msg (macp-node-data (ewoc-data node)))
                (old (or (macp-assistant-text msg) ""))
                (chunk (if (string-empty-p old)
@@ -647,10 +1029,8 @@ a response with a stray `\\n' don't leave the icon alone on a line."
 (defun mutecipher-acp--close-assistant (session-id)
   "Drop SESSION-ID's :current-assistant reference so a new node is entered next."
   (when-let ((session (gethash session-id mutecipher-acp--sessions)))
-    (when (plist-get session :current-assistant)
-      (puthash session-id
-               (plist-put session :current-assistant nil)
-               mutecipher-acp--sessions))))
+    (when (macp-session-current-assistant session)
+      (setf (macp-session-current-assistant session) nil))))
 
 (defun mutecipher-acp--ingest-tool-content (tc content-vec)
   "Append any new diff items from CONTENT-VEC onto TC, tracking rendered count.
@@ -684,9 +1064,9 @@ truncated into the tool-call header."
 (defun mutecipher-acp--enter-tool-call (session-id update)
   "Create a tool-call ewoc node from UPDATE and register it in SESSION-ID's index."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
-              (buf     (plist-get session :buffer))
+              (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf))
-              (index   (plist-get session :tool-call-index)))
+              (index   (macp-session-tool-call-index session)))
     (mutecipher-acp--close-assistant session-id)
     (let* ((cc-name (plist-get (plist-get (plist-get update :_meta) :claudeCode) :toolName))
            (name    (or cc-name (plist-get update :title) (plist-get update :kind) "tool"))
@@ -721,7 +1101,7 @@ truncated into the tool-call header."
 (defun mutecipher-acp--enter-notice (session-id text &optional face)
   "Enter a notice node in SESSION-ID's ewoc with TEXT and optional FACE."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
-              (buf     (plist-get session :buffer))
+              (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
     (mutecipher-acp--with-sticky-tail buf
       (let ((inhibit-read-only t))
@@ -733,7 +1113,7 @@ truncated into the tool-call header."
 (defun mutecipher-acp--enter-thought (session-id text)
   "Enter a thought node in SESSION-ID's ewoc carrying TEXT."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
-              (buf     (plist-get session :buffer))
+              (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
     (mutecipher-acp--with-sticky-tail buf
       (let ((inhibit-read-only t))
@@ -747,11 +1127,11 @@ truncated into the tool-call header."
 If the turn already has a plan node, its entries are replaced and the
 node is invalidated.  Otherwise a fresh plan node is entered."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
-              (buf     (plist-get session :buffer))
+              (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
     (mutecipher-acp--with-sticky-tail buf
       (let ((inhibit-read-only t)
-            (existing (plist-get session :current-plan-node)))
+            (existing (macp-session-current-plan-node session)))
         (cond
          (existing
           (let ((plan (macp-node-data (ewoc-data existing))))
@@ -763,16 +1143,28 @@ node is invalidated.  Otherwise a fresh plan node is entered."
                        mutecipher-acp--ewoc
                        (make-macp-node :kind 'plan
                                        :data (make-macp-plan :entries tasks)))))
-            (puthash session-id
-                     (plist-put session :current-plan-node node)
-                     mutecipher-acp--sessions))))))))
+            (setf (macp-session-current-plan-node session) node))))))))
+
+(defun mutecipher-acp--should-auto-collapse-p (tc)
+  "Non-nil when tool-call TC should be collapsed automatically.
+Trigger only on terminal status (`done' / `error'), and only when the
+result is something the user is unlikely to want spread open: more than
+three lines of raw output, or any diff content.  ExitPlanMode-style
+calls (`plan-body' set) are a hard opt-out — that's the whole point of
+the call, so it stays expanded."
+  (and (memq (macp-tool-call-status tc) '(done error))
+       (not (macp-tool-call-plan-body tc))
+       (or (> (mutecipher-acp--tool-output-line-count
+               (macp-tool-call-raw-output tc))
+              3)
+           (macp-tool-call-diffs tc))))
 
 (defun mutecipher-acp--update-tool-call (session-id update)
   "Apply tool_call_update UPDATE to SESSION-ID's matching tool-call node."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
-              (buf     (plist-get session :buffer))
+              (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf))
-              (index   (plist-get session :tool-call-index))
+              (index   (macp-session-tool-call-index session))
               (call-id (plist-get update :toolCallId))
               (node    (gethash call-id index)))
     (let* ((wrapper    (ewoc-data node))
@@ -800,16 +1192,8 @@ node is invalidated.  Otherwise a fresh plan node is entered."
                            (macp-tool-call-ended-at tc) (float-time)))
         ("in_progress" (setf (macp-tool-call-status tc) 'running)))
       (mutecipher-acp--ingest-tool-content tc (plist-get update :content))
-      ;; Auto-collapse on completion when output is long or diffs exist.
-      ;; Plans (ExitPlanMode-style) are a hard opt-out: the whole point
-      ;; of that tool call is the plan body, so we never auto-collapse it.
-      (when (and (memq (macp-tool-call-status tc) '(done error))
-                 (not (macp-node-collapsed wrapper))
-                 (not (macp-tool-call-plan-body tc))
-                 (or (> (mutecipher-acp--tool-output-line-count
-                         (macp-tool-call-raw-output tc))
-                        3)
-                     (macp-tool-call-diffs tc)))
+      (when (and (not (macp-node-collapsed wrapper))
+                 (mutecipher-acp--should-auto-collapse-p tc))
         (setf (macp-node-collapsed wrapper) t))
       (mutecipher-acp--with-sticky-tail buf
         (let ((inhibit-read-only t))
@@ -819,87 +1203,127 @@ node is invalidated.  Otherwise a fresh plan node is entered."
           (when (memq (macp-tool-call-status tc) '(done error))
             (mutecipher-acp--pulse-node mutecipher-acp--ewoc node)))))))
 
+;;;; session/update dispatch
+
+(defun mutecipher-acp--update-agent-message-chunk (session-id update)
+  "Render an `agent_message_chunk' UPDATE for SESSION-ID."
+  (when-let ((s (gethash session-id mutecipher-acp--sessions)))
+    (when (eq (macp-session-state s) 'thinking)
+      (mutecipher-acp--set-state session-id 'streaming)))
+  (let ((text (or (plist-get (plist-get update :content) :text) "")))
+    (mutecipher-acp--append-assistant-chunk session-id text)))
+
+(defun mutecipher-acp--update-tool-call-new (session-id update)
+  "Handle a new `tool_call' UPDATE for SESSION-ID."
+  (mutecipher-acp--enter-tool-call session-id update))
+
+(defun mutecipher-acp--update-tool-call-update (session-id update)
+  "Handle a `tool_call_update' UPDATE for SESSION-ID."
+  (mutecipher-acp--update-tool-call session-id update))
+
+(defun mutecipher-acp--update-thought (session-id update)
+  "Handle a `thought' UPDATE for SESSION-ID."
+  (mutecipher-acp--close-assistant session-id)
+  (mutecipher-acp--enter-thought session-id
+                                  (or (plist-get update :thought) "")))
+
+(defun mutecipher-acp--update-plan (session-id update)
+  "Handle a `plan' UPDATE for SESSION-ID."
+  (mutecipher-acp--close-assistant session-id)
+  (mutecipher-acp--enter-plan session-id (plist-get update :tasks)))
+
+(defun mutecipher-acp--update-session-info (session-id update)
+  "Handle a `session_info_update' UPDATE for SESSION-ID — rename buffers."
+  (let* ((title     (plist-get update :title))
+         (session   (gethash session-id mutecipher-acp--sessions))
+         (buf       (and session (macp-session-buffer session)))
+         (input-buf (and session (macp-session-input-buffer session))))
+    (when (and title buf (buffer-live-p buf))
+      (with-current-buffer buf
+        (rename-buffer (format "*ACP: %s*" title) t))
+      (when (buffer-live-p input-buf)
+        (with-current-buffer input-buf
+          (rename-buffer (format "*ACP-input: %s*" title) t)))
+      (setf (macp-session-title session) title))))
+
+(defun mutecipher-acp--update-available-commands (session-id update)
+  "Handle an `available_commands_update' UPDATE for SESSION-ID."
+  (let ((cmds    (plist-get update :commands))
+        (session (gethash session-id mutecipher-acp--sessions)))
+    (when (and session cmds)
+      (setf (macp-session-commands session) cmds))))
+
+(defun mutecipher-acp--apply-mode-change (session new-id)
+  "Mutate SESSION's current mode to NEW-ID and refresh the mode-line / echo.
+No-op when NEW-ID already matches the session's current mode — the agent
+re-emits `current_mode_update' / `config_option_update' on every prompt
+turn, and we don't want each turn to repaint the pill and spam the echo."
+  (when (and session new-id
+             (not (equal new-id (macp-session-current-mode-id session))))
+    (setf (macp-session-current-mode-id session) new-id)
+    (mutecipher-acp--force-input-mode-line session)
+    (let* ((avail (macp-session-available-modes session))
+           (m     (and avail (mutecipher-acp--find-mode new-id avail))))
+      (message "Mode → %s" (or (and m (plist-get m :name)) new-id)))))
+
+(defun mutecipher-acp--update-current-mode (session-id update)
+  "Handle a `current_mode_update' UPDATE for SESSION-ID."
+  (mutecipher-acp--apply-mode-change
+   (gethash session-id mutecipher-acp--sessions)
+   (plist-get update :currentModeId)))
+
+(defun mutecipher-acp--update-config-option (session-id update)
+  "Handle a `config_option_update' UPDATE for SESSION-ID.
+Currently we only react to the `mode' config; other keys are ignored."
+  (let* ((opts     (plist-get update :configOptions))
+         (session  (gethash session-id mutecipher-acp--sessions))
+         (mode-opt (and opts
+                        (cl-find "mode" opts
+                                 :key (lambda (o) (plist-get o :id))
+                                 :test #'string=)))
+         (new-id   (and mode-opt (plist-get mode-opt :currentValue))))
+    (when (and session new-id)
+      (mutecipher-acp--apply-mode-change session new-id))))
+
+(defvar mutecipher-acp--update-handlers
+  '(("agent_message_chunk"      . mutecipher-acp--update-agent-message-chunk)
+    ("tool_call"                . mutecipher-acp--update-tool-call-new)
+    ("tool_call_update"         . mutecipher-acp--update-tool-call-update)
+    ("thought"                  . mutecipher-acp--update-thought)
+    ("plan"                     . mutecipher-acp--update-plan)
+    ("session_info_update"      . mutecipher-acp--update-session-info)
+    ("available_commands_update". mutecipher-acp--update-available-commands)
+    ("current_mode_update"      . mutecipher-acp--update-current-mode)
+    ("config_option_update"     . mutecipher-acp--update-config-option))
+  "Alist of (sessionUpdate-type . handler-fn).
+HANDLER-FN is called as (SESSION-ID UPDATE-PLIST).  Add an entry to
+support a new `sessionUpdate' kind without touching the dispatcher.")
+
 (defun mutecipher-acp--handle-notification (method params)
   "Dispatch an incoming JSON-RPC notification with METHOD and PARAMS."
-  (let ((session-id (plist-get params :sessionId))
-        (update     (plist-get params :update)))
-    (cond
-     ((equal method "session/update")
+  (cond
+   ((equal method "session/update")
+    (let* ((session-id (plist-get params :sessionId))
+           (update     (plist-get params :update))
+           (type       (and update (plist-get update :sessionUpdate)))
+           (handler    (and type (cdr (assoc type
+                                             mutecipher-acp--update-handlers)))))
       (when session-id
-        (let ((type (plist-get update :sessionUpdate)))
-          (cond
-           ((equal type "agent_message_chunk")
-            (when-let ((s (gethash session-id mutecipher-acp--sessions)))
-              (when (eq (plist-get s :state) 'thinking)
-                (mutecipher-acp--set-state session-id 'streaming)))
-            (let ((text (or (plist-get (plist-get update :content) :text) "")))
-              (mutecipher-acp--append-assistant-chunk session-id text)))
-           ((equal type "tool_call")
-            (mutecipher-acp--enter-tool-call session-id update))
-           ((equal type "tool_call_update")
-            (mutecipher-acp--update-tool-call session-id update))
-           ((equal type "thought")
-            (mutecipher-acp--close-assistant session-id)
-            (mutecipher-acp--enter-thought session-id
-                                            (or (plist-get update :thought) "")))
-           ((equal type "plan")
-            (mutecipher-acp--close-assistant session-id)
-            (mutecipher-acp--enter-plan session-id
-                                         (plist-get update :tasks)))
-           ((equal type "session_info_update")
-            (let* ((title     (plist-get update :title))
-                   (session   (gethash session-id mutecipher-acp--sessions))
-                   (buf       (and session (plist-get session :buffer)))
-                   (input-buf (and session (plist-get session :input-buffer))))
-              (when (and title buf (buffer-live-p buf))
-                (with-current-buffer buf
-                  (rename-buffer (format "*ACP: %s*" title) t))
-                (when (buffer-live-p input-buf)
-                  (with-current-buffer input-buf
-                    (rename-buffer (format "*ACP-input: %s*" title) t)))
-                (puthash session-id
-                         (plist-put session :title title)
-                         mutecipher-acp--sessions))))
-           ((equal type "available_commands_update")
-            (let* ((cmds    (plist-get update :commands))
-                   (session (gethash session-id mutecipher-acp--sessions)))
-              (when (and session cmds)
-                (puthash session-id
-                         (plist-put session :commands cmds)
-                         mutecipher-acp--sessions))))
-           ((equal type "current_mode_update")
-            (let* ((new-id  (plist-get update :currentModeId))
-                   (session (gethash session-id mutecipher-acp--sessions)))
-              (when (and session new-id)
-                (plist-put session :current-mode-id new-id)
-                (mutecipher-acp--force-input-mode-line session)
-                (let* ((avail (plist-get session :available-modes))
-                       (m     (and avail (mutecipher-acp--find-mode new-id avail))))
-                  (message "Mode → %s" (or (and m (plist-get m :name)) new-id))))))
-           ((equal type "config_option_update")
-            (let* ((opts    (plist-get update :configOptions))
-                   (session (gethash session-id mutecipher-acp--sessions)))
-              (when (and session opts)
-                (let* ((mode-opt  (cl-find "mode" opts
-                                           :key (lambda (o) (plist-get o :id))
-                                           :test #'string=))
-                       (new-id    (and mode-opt (plist-get mode-opt :currentValue))))
-                  (when new-id
-                    (plist-put session :current-mode-id new-id)
-                    (mutecipher-acp--force-input-mode-line session)
-                    (let* ((avail (plist-get session :available-modes))
-                           (m     (and avail (mutecipher-acp--find-mode new-id avail))))
-                      (message "Mode → %s" (or (and m (plist-get m :name)) new-id))))))))
-           (t
-            (message "ACP [%s] update: %s (unhandled)"
-                     (mutecipher-acp--id-prefix session-id) type))))))
-     (t
-      (message "ACP notification: %s" method)))))
+        (cond
+         (handler (funcall handler session-id update))
+         (type    (message "ACP [%s] update: %s (unhandled)"
+                           (mutecipher-acp--id-prefix session-id) type))))))
+   (t
+    (message "ACP notification: %s" method))))
 
 ;;;; Connection management
 
 (defun mutecipher-acp--connect (agent-name)
-  "Return an existing live connection for AGENT-NAME, or create a new one."
+  "Return an existing live connection for AGENT-NAME, or create a new one.
+Connections are cached per agent name, NOT per (agent, cwd).  Two
+sessions in different working directories share one subprocess; the
+agent's cwd is supplied per-session via `session/new', so this is
+correct as long as the agent honours that boundary."
   (let ((existing (gethash agent-name mutecipher-acp--connections)))
     (if (and existing
              (process-live-p (mutecipher-acp--conn-process existing)))
@@ -938,23 +1362,6 @@ node is invalidated.  Otherwise a fresh plan node is entered."
 
 ;;;; Protocol helpers
 
-(defun mutecipher-acp--make-session-plist (session-id conn buf agent cwd)
-  "Return a fresh session plist with all slots initialised to their defaults."
-  (list :id session-id :conn conn :buffer buf :agent agent :cwd cwd
-        :input-buffer nil
-        :state 'idle
-        :state-started-at nil
-        :state-timer nil
-        :commands nil
-        :file-cache nil
-        :turn-counter 0
-        :current-turn-node nil
-        :current-assistant nil
-        :current-plan-node nil
-        :available-modes nil
-        :current-mode-id nil
-        :tool-call-index (make-hash-table :test #'equal)))
-
 (defun mutecipher-acp--initialize (conn callback)
   "Send ACP initialize to CONN, call CALLBACK with the result."
   (mutecipher-acp--request
@@ -975,10 +1382,11 @@ node is invalidated.  Otherwise a fresh plan node is entered."
             (avail-modes  (plist-get modes-data :availableModes))
             (current-mode (plist-get modes-data :currentModeId))
             (buf          (mutecipher-acp--get-or-create-buffer session-id agent-name))
-            (session      (mutecipher-acp--make-session-plist
-                           session-id conn buf agent-name cwd)))
-       (plist-put session :available-modes avail-modes)
-       (plist-put session :current-mode-id current-mode)
+            (session      (mutecipher-acp--make-session
+                           :id session-id :conn conn :buffer buf
+                           :agent agent-name :cwd cwd
+                           :available-modes avail-modes
+                           :current-mode-id current-mode)))
        (puthash session-id session mutecipher-acp--sessions)
        (funcall callback session-id buf)))
    :error-fn
@@ -987,11 +1395,12 @@ node is invalidated.  Otherwise a fresh plan node is entered."
 
 (defun mutecipher-acp--load-session (conn session-id agent-name cwd callback)
   "Resume SESSION-ID via session/load on CONN; call CALLBACK with (session-id buf).
-The session plist is created eagerly so replayed notifications have
+The session struct is created eagerly so replayed notifications have
 somewhere to land before the success callback fires."
   (let* ((buf     (mutecipher-acp--get-or-create-buffer session-id agent-name))
-         (session (mutecipher-acp--make-session-plist
-                   session-id conn buf agent-name cwd)))
+         (session (mutecipher-acp--make-session
+                   :id session-id :conn conn :buffer buf
+                   :agent agent-name :cwd cwd)))
     (puthash session-id session mutecipher-acp--sessions)
     (mutecipher-acp--request
      conn "session/load" (list :sessionId session-id)
@@ -1053,8 +1462,8 @@ Returns a list sorted shallowest-first, capped at
 (defun mutecipher-acp--session-files (session)
   "Return a cached (SOURCE . LIST) pair of relative paths for SESSION's :cwd.
 SOURCE is the symbol `project' or `fs'."
-  (let* ((cwd   (plist-get session :cwd))
-         (cache (plist-get session :file-cache))
+  (let* ((cwd   (macp-session-cwd session))
+         (cache (macp-session-file-cache session))
          (now   (float-time)))
     (if (and cache
              (< (- now (nth 0 cache)) mutecipher-acp--file-cache-ttl))
@@ -1070,9 +1479,7 @@ SOURCE is the symbol `project' or `fs'."
              (capped (if (> (length files) mutecipher-acp--file-cache-cap)
                          (seq-take files mutecipher-acp--file-cache-cap)
                        files)))
-        (puthash (plist-get session :id)
-                 (plist-put session :file-cache (list now source capped))
-                 mutecipher-acp--sessions)
+        (setf (macp-session-file-cache session) (list now source capped))
         (cons source capped)))))
 
 (defun mutecipher-acp--extract-attachments (text cwd)
@@ -1118,7 +1525,7 @@ SOURCE is the symbol `project' or `fs'."
 Activates when the current line begins with \"/\"."
   (when-let* ((session-id mutecipher-acp--session-id)
               (session    (gethash session-id mutecipher-acp--sessions))
-              (commands   (plist-get session :commands))
+              (commands   (macp-session-commands session))
               (_ (save-excursion
                    (beginning-of-line)
                    (looking-at "/"))))
@@ -1375,26 +1782,21 @@ summary instead."
            (mutecipher/icon-for-acp kind))
       fallback))
 
-(defun mutecipher-acp--pp-tool-call (node)
-  "Render a tool-call NODE: disclosure + kind icon + summary + optional body.
-Collapsed nodes show one summary line with a `+N lines' hint.  Expanded
-nodes show the full raw output, inline plan body (for ExitPlanMode),
-and any diff bodies."
-  (let* ((tc         (macp-node-data node))
-         (name       (or (macp-tool-call-name tc) "tool"))
+(defun mutecipher-acp--first-output-line (raw)
+  "Return the first line of RAW, or nil if RAW is empty/missing."
+  (and raw (not (string-empty-p raw))
+       (car (split-string raw "\n"))))
+
+(defun mutecipher-acp--pp-tool-call-header (tc collapsed)
+  "Insert the `(disclosure) (kind-icon) name(input)' header line for TC."
+  (let* ((name       (or (macp-tool-call-name tc) "tool"))
          (input      (macp-tool-call-input tc))
-         (status     (macp-tool-call-status tc))
-         (raw-output (macp-tool-call-raw-output tc))
-         (diffs      (macp-tool-call-diffs tc))
-         (collapsed  (macp-node-collapsed node))
-         (lines      (mutecipher-acp--tool-output-line-count raw-output))
          (disclosure (mutecipher-acp--icon-or
                       (if collapsed 'disclosure-collapsed 'disclosure-expanded)
                       (if collapsed "▸" "▾")))
          (kind-icon  (mutecipher-acp--icon-or
                       (mutecipher-acp--tool-kind-icon-key (macp-tool-call-kind tc))
                       "")))
-    ;; Header: (disclosure) (kind icon) name(input)
     (insert "\n"
             "  "
             (propertize disclosure 'face 'mutecipher-acp-disclosure-face)
@@ -1404,66 +1806,89 @@ and any diff bodies."
             (propertize (concat name
                                 (if input (concat "(" input ")") ""))
                         'face 'mutecipher-acp-tool-face)
-            "\n")
-    ;; Status / output line
-    (pcase status
-      ('done
-       (let ((done-icon (mutecipher-acp--icon-or 'status-done "✓")))
-         (cond
-          (collapsed
-           (let ((first (and raw-output (not (string-empty-p raw-output))
-                             (car (split-string raw-output "\n"))))
-                 (extra (max 0 (1- lines))))
-             (insert "    "
-                     done-icon
-                     (propertize
-                      (concat (if first (concat " " first) "")
-                              (when (or (> extra 0) diffs)
-                                (format " (+%d%s, TAB to expand)"
-                                        extra
-                                        (if diffs
-                                            (format ", %d diff%s"
-                                                    (length diffs)
-                                                    (if (= 1 (length diffs)) "" "s"))
-                                          "")))
-                              "\n")
-                      'face 'shadow))))
-          (t
-           (insert "    "
-                   done-icon
-                   (propertize
-                    (concat (if (and raw-output (not (string-empty-p raw-output)))
-                                (concat " " raw-output
-                                        (unless (string-suffix-p "\n" raw-output)
-                                          "\n"))
-                              "\n"))
-                    'face 'shadow))))))
-      ('error
-       (let ((err-icon (mutecipher-acp--icon-or 'status-error "✘")))
-         (insert "    "
-                 err-icon
-                 (propertize
-                  (concat " "
-                          (or (and raw-output (not (string-empty-p raw-output))
-                                   (if collapsed
-                                       (car (split-string raw-output "\n"))
-                                     (string-trim-right raw-output "\n")))
-                              "failed")
-                          "\n")
-                  'face 'mutecipher-acp-error-face)))))
-    ;; Expanded body: plan markdown + diffs
+            "\n")))
+
+(defun mutecipher-acp--pp-tool-call-done (tc collapsed)
+  "Insert the `done' status line for TC.
+Honors COLLAPSED to pick the summary vs full-output rendering."
+  (let* ((raw-output (macp-tool-call-raw-output tc))
+         (diffs      (macp-tool-call-diffs tc))
+         (lines      (mutecipher-acp--tool-output-line-count raw-output))
+         (done-icon  (mutecipher-acp--icon-or 'status-done "✓")))
+    (cond
+     (collapsed
+      (let ((first (mutecipher-acp--first-output-line raw-output))
+            (extra (max 0 (1- lines))))
+        (insert "    "
+                done-icon
+                (propertize
+                 (concat (if first (concat " " first) "")
+                         (when (or (> extra 0) diffs)
+                           (format " (+%d%s, TAB to expand)"
+                                   extra
+                                   (if diffs
+                                       (format ", %d diff%s"
+                                               (length diffs)
+                                               (if (= 1 (length diffs)) "" "s"))
+                                     "")))
+                         "\n")
+                 'face 'shadow))))
+     (t
+      (insert "    "
+              done-icon
+              (propertize
+               (if (and raw-output (not (string-empty-p raw-output)))
+                   (concat " " (string-trim-right raw-output "\n") "\n")
+                 "\n")
+               'face 'shadow))))))
+
+(defun mutecipher-acp--pp-tool-call-error (tc collapsed)
+  "Insert the `error' status line for TC.  Honors COLLAPSED."
+  (let* ((raw-output (macp-tool-call-raw-output tc))
+         (err-icon   (mutecipher-acp--icon-or 'status-error "✘"))
+         (body       (cond
+                      ((not (and raw-output (not (string-empty-p raw-output))))
+                       "failed")
+                      (collapsed
+                       (mutecipher-acp--first-output-line raw-output))
+                      (t
+                       (string-trim-right raw-output "\n")))))
+    (insert "    "
+            err-icon
+            (propertize (concat " " body "\n")
+                        'face 'mutecipher-acp-error-face))))
+
+(defun mutecipher-acp--pp-tool-call-status (tc collapsed)
+  "Dispatch to the per-status renderer for TC."
+  (pcase (macp-tool-call-status tc)
+    ('done  (mutecipher-acp--pp-tool-call-done  tc collapsed))
+    ('error (mutecipher-acp--pp-tool-call-error tc collapsed))))
+
+(defun mutecipher-acp--pp-tool-call-body (tc)
+  "Insert the expanded body for TC: plan markdown + diff hunks."
+  (when-let ((plan-body (macp-tool-call-plan-body tc)))
+    (insert (propertize
+             (concat "\n"
+                     (replace-regexp-in-string
+                      "^"
+                      (propertize "    │ " 'face 'mutecipher-acp-plan-gutter-face)
+                      (string-trim-right plan-body "\n"))
+                     "\n\n"))))
+  (dolist (pair (macp-tool-call-diffs tc))
+    (when-let ((body (mutecipher-acp--diff-body-for (car pair) (cdr pair))))
+      (insert body))))
+
+(defun mutecipher-acp--pp-tool-call (node)
+  "Render a tool-call NODE: disclosure + kind icon + summary + optional body.
+Collapsed nodes show one summary line with a `+N lines' hint.  Expanded
+nodes show the full raw output, inline plan body (for ExitPlanMode),
+and any diff bodies."
+  (let* ((tc        (macp-node-data node))
+         (collapsed (macp-node-collapsed node)))
+    (mutecipher-acp--pp-tool-call-header tc collapsed)
+    (mutecipher-acp--pp-tool-call-status tc collapsed)
     (unless collapsed
-      (when-let ((plan-body (macp-tool-call-plan-body tc)))
-        (insert (propertize
-                 (concat "\n"
-                         (replace-regexp-in-string
-                          "^"
-                          (propertize "    │ " 'face 'mutecipher-acp-plan-gutter-face)
-                          (string-trim-right plan-body "\n"))
-                         "\n\n"))))
-      (dolist (pair diffs)
-        (when-let ((body (mutecipher-acp--diff-body-for (car pair) (cdr pair))))
-          (insert body))))
+      (mutecipher-acp--pp-tool-call-body tc))
     ;; Trailing blank line so the next node doesn't abut the tool-call card.
     (insert "\n")))
 
@@ -1575,178 +2000,203 @@ buffer.  Returned positions are suitable starting points for per-line
           (push (point) starts))))
     (nreverse starts)))
 
+(defun mutecipher-acp--md-pass-fenced-code (_beg end line-starts)
+  "Render fenced code blocks ``` … ``` ending at END.
+A ```diff tag routes the body through `diff-mode' fontification."
+  (let (open-beg open-body-beg open-lang)
+    (dolist (start line-starts)
+      (save-excursion
+        (goto-char start)
+        (when (looking-at "```\\([^\n]*\\)$")
+          (let ((fence-beg (point))
+                (fence-eol (line-end-position))
+                (lang (string-trim (match-string-no-properties 1))))
+            (cond
+             ((null open-beg)
+              (setq open-beg      fence-beg
+                    open-body-beg (min end (1+ fence-eol))
+                    open-lang     lang))
+             (t
+              (mutecipher-acp--md-hide open-beg open-body-beg)
+              (if (string= (downcase open-lang) "diff")
+                  (let* ((body (buffer-substring-no-properties
+                                open-body-beg fence-beg))
+                         (fontified
+                          (mutecipher-acp--fontify-diff-string body)))
+                    (mutecipher-acp--transfer-faces
+                     fontified open-body-beg))
+                (add-face-text-property open-body-beg fence-beg
+                                        'font-lock-constant-face))
+              (mutecipher-acp--md-hide fence-beg (min end (1+ fence-eol)))
+              (setq open-beg nil open-body-beg nil open-lang nil)))))))
+    ;; Unclosed fence (still streaming) — face what we have so far.
+    (when open-beg
+      (mutecipher-acp--md-hide open-beg open-body-beg)
+      (add-face-text-property open-body-beg end 'font-lock-constant-face))))
+
+(defun mutecipher-acp--md-pass-inline-code (beg end _line-starts)
+  "Render inline `code` between BEG and END."
+  (goto-char beg)
+  (while (re-search-forward "`\\([^`\n]+\\)`" end t)
+    (let ((mb (match-beginning 0)) (me (match-end 0))
+          (ib (match-beginning 1)) (ie (match-end 1)))
+      (unless (mutecipher-acp--md-inside-code-p mb)
+        (mutecipher-acp--md-hide mb (1+ mb))
+        (add-face-text-property ib ie 'font-lock-constant-face)
+        (mutecipher-acp--md-hide (1- me) me)))))
+
+(defun mutecipher-acp--md-pass-headings (_beg _end line-starts)
+  "Render ATX headings (# / ## / ###) at every line start in LINE-STARTS."
+  (dolist (start line-starts)
+    (save-excursion
+      (goto-char start)
+      (when (looking-at "\\(#\\{1,3\\}\\) \\(.+\\)$")
+        (let* ((hashes     (match-string 1))
+               (marker-beg (match-beginning 1))
+               (marker-end (1+ (match-end 1)))
+               (text-beg   marker-end)
+               (text-end   (match-end 2))
+               (height     (pcase (length hashes)
+                             (1 1.3) (2 1.2) (_ 1.1))))
+          (unless (mutecipher-acp--md-inside-code-p marker-beg)
+            (mutecipher-acp--md-hide marker-beg marker-end)
+            (add-face-text-property text-beg text-end
+                                    `(:weight bold :height ,height))))))))
+
+(defun mutecipher-acp--md-pass-blockquotes (_beg _end line-starts)
+  "Render `> …' blockquotes by replacing the marker with a thin bar."
+  (dolist (start line-starts)
+    (save-excursion
+      (goto-char start)
+      (when (looking-at "\\(> \\)\\(.*\\)$")
+        (let ((marker-beg (match-beginning 1))
+              (marker-end (match-end 1))
+              (text-beg   (match-beginning 2))
+              (text-end   (match-end 2)))
+          (unless (mutecipher-acp--md-inside-code-p marker-beg)
+            (put-text-property marker-beg marker-end 'display
+                               (propertize "▎ " 'face 'shadow))
+            (add-face-text-property text-beg text-end
+                                    '(:slant italic :inherit shadow))))))))
+
+(defun mutecipher-acp--md-pass-tables (_beg _end line-starts)
+  "Dim `|' separators in markdown table rows; shadow the separator-rule row."
+  (dolist (start line-starts)
+    (save-excursion
+      (goto-char start)
+      (cond
+       ((looking-at "|[-:| ]+|[ \t]*$")
+        (unless (mutecipher-acp--md-inside-code-p (point))
+          (add-face-text-property (match-beginning 0) (match-end 0) 'shadow)))
+       ((looking-at "|\\([^\n]*\\)|[ \t]*$")
+        (unless (mutecipher-acp--md-inside-code-p (point))
+          (let ((row-end (match-end 0)))
+            (goto-char (match-beginning 0))
+            (while (re-search-forward "|" row-end t)
+              (add-face-text-property (1- (point)) (point) 'shadow)))))))))
+
+(defun mutecipher-acp--md-pass-checkboxes (_beg _end line-starts)
+  "Render `- [x]' / `- [ ]' as ☑ / ☐ at every applicable line start."
+  (dolist (start line-starts)
+    (save-excursion
+      (goto-char start)
+      (when (looking-at "\\([ \t]*\\)- \\(\\[[ xX]\\]\\) \\(.*\\)$")
+        (let* ((box-beg (match-beginning 0))
+               (box-end (match-end 2))
+               (text-beg (1+ box-end))
+               (text-end (match-end 3))
+               (indent  (match-string 1))
+               (checked (member (match-string 2) '("[x]" "[X]"))))
+          (unless (mutecipher-acp--md-inside-code-p box-beg)
+            (put-text-property
+             box-beg box-end 'display
+             (concat indent
+                     (propertize (if checked "☑" "☐")
+                                 'face (if checked 'success 'shadow))))
+            (when checked
+              (add-face-text-property text-beg text-end
+                                      '(:strike-through t :inherit shadow)))))))))
+
+(defun mutecipher-acp--md-pass-bold (beg end _line-starts)
+  "Render `**bold**' between BEG and END."
+  (goto-char beg)
+  (while (re-search-forward "\\*\\*\\([^*\n]+\\)\\*\\*" end t)
+    (let ((mb (match-beginning 0)) (me (match-end 0)))
+      (if (or (eq (char-before mb) ?*)
+              (eq (char-after  me) ?*)
+              (mutecipher-acp--md-inside-code-p mb))
+          (goto-char (1+ mb))
+        (mutecipher-acp--md-hide mb (+ mb 2))
+        (add-face-text-property (+ mb 2) (- me 2) 'bold)
+        (mutecipher-acp--md-hide (- me 2) me)))))
+
+(defun mutecipher-acp--md-pass-italic (beg end _line-starts)
+  "Render `*italic*' between BEG and END.  Skips already-hidden bold markers."
+  (goto-char beg)
+  (while (re-search-forward "\\*\\([^*\n]+\\)\\*" end t)
+    (let ((mb (match-beginning 0)) (me (match-end 0)))
+      (if (or (eq (char-before mb) ?*)
+              (eq (char-after  me) ?*)
+              (get-text-property mb 'invisible)
+              (mutecipher-acp--md-inside-code-p mb))
+          (goto-char (1+ mb))
+        (mutecipher-acp--md-hide mb (1+ mb))
+        (add-face-text-property (1+ mb) (1- me) 'italic)
+        (mutecipher-acp--md-hide (1- me) me)))))
+
+(defun mutecipher-acp--md-pass-strike (beg end _line-starts)
+  "Render `~~strike~~' between BEG and END."
+  (goto-char beg)
+  (while (re-search-forward "~~\\([^~\n]+\\)~~" end t)
+    (let ((mb (match-beginning 0)) (me (match-end 0)))
+      (unless (mutecipher-acp--md-inside-code-p mb)
+        (mutecipher-acp--md-hide mb (+ mb 2))
+        (add-face-text-property (+ mb 2) (- me 2) '(:strike-through t))
+        (mutecipher-acp--md-hide (- me 2) me)))))
+
+(defun mutecipher-acp--md-pass-links (beg end _line-starts)
+  "Render `[text](url)' inline links between BEG and END."
+  (goto-char beg)
+  (while (re-search-forward "\\[\\([^]\n]+\\)\\](\\([^)\n]+\\))" end t)
+    (let* ((mb       (match-beginning 0))
+           (me       (match-end 0))
+           (text-beg (match-beginning 1))
+           (text-end (match-end 1))
+           (url      (match-string-no-properties 2)))
+      (unless (mutecipher-acp--md-inside-code-p mb)
+        (mutecipher-acp--md-hide mb text-beg)
+        (add-face-text-property text-beg text-end 'link)
+        (add-text-properties text-beg text-end
+                             `(mouse-face highlight
+                               follow-link t
+                               keymap ,mutecipher-acp--md-link-keymap
+                               mutecipher-acp-md-link ,url))
+        (mutecipher-acp--md-hide text-end me)))))
+
+(defvar mutecipher-acp--md-passes
+  '(mutecipher-acp--md-pass-fenced-code
+    mutecipher-acp--md-pass-inline-code
+    mutecipher-acp--md-pass-headings
+    mutecipher-acp--md-pass-blockquotes
+    mutecipher-acp--md-pass-tables
+    mutecipher-acp--md-pass-checkboxes
+    mutecipher-acp--md-pass-bold
+    mutecipher-acp--md-pass-italic
+    mutecipher-acp--md-pass-strike
+    mutecipher-acp--md-pass-links)
+  "Ordered list of markdown rendering passes.
+Each is called as (FN BEG END LINE-STARTS).  Order matters: code passes
+run first so their content is opaque to later matchers; block-level
+runs before inline so contents compose.")
+
 (defun mutecipher-acp--apply-markdown (beg end)
   "Apply minimal markdown rendering to region BEG..END.
-
-Covers inline: `` `inline code` '', `**bold**', `*italic*',
-`~~strike~~', `[text](url)' links.  Block-level: fenced code blocks
-```` ``` ````, ATX headings (# / ## / ###), blockquotes (> …), tables
-(| … |), and task-list checkboxes (- [x] / - [ ]).  Markers that don't
-carry meaning post-render hide via `mutecipher-acp-md-markup'.
-
-Order runs code first so `*', `#', etc. inside code spans stay
-literal; block-level patterns before inline so header/quote/cell
-contents still compose bold/italic on top.  Idempotent — safe to call
-repeatedly after `ewoc-invalidate'."
+Idempotent — safe to call repeatedly after `ewoc-invalidate'.
+See `mutecipher-acp--md-passes' for the ordered set of rules."
   (save-excursion
     (let ((line-starts (mutecipher-acp--md-line-starts beg end)))
-      ;; 1. Fenced code blocks ``` … ``` (multi-line)
-      ;;    Fence lines hide; body gets constant-face so later matchers
-      ;;    skip via `--md-inside-code-p'.  A ```diff tag routes the body
-      ;;    through `diff-mode' fontification instead of the plain wash.
-      (let (open-beg open-body-beg open-lang)
-        (dolist (start line-starts)
-          (save-excursion
-            (goto-char start)
-            (when (looking-at "```\\([^\n]*\\)$")
-              (let ((fence-beg (point))
-                    (fence-eol (line-end-position))
-                    (lang (string-trim (match-string-no-properties 1))))
-                (cond
-                 ((null open-beg)
-                  (setq open-beg      fence-beg
-                        open-body-beg (min end (1+ fence-eol))
-                        open-lang     lang))
-                 (t
-                  (mutecipher-acp--md-hide open-beg open-body-beg)
-                  (if (string= (downcase open-lang) "diff")
-                      (let* ((body (buffer-substring-no-properties
-                                    open-body-beg fence-beg))
-                             (fontified
-                              (mutecipher-acp--fontify-diff-string body)))
-                        (mutecipher-acp--transfer-faces
-                         fontified open-body-beg))
-                    (add-face-text-property open-body-beg fence-beg
-                                            'font-lock-constant-face))
-                  (mutecipher-acp--md-hide fence-beg (min end (1+ fence-eol)))
-                  (setq open-beg nil open-body-beg nil open-lang nil)))))))
-        ;; Unclosed fence (still streaming) — face what we have so far.
-        (when open-beg
-          (mutecipher-acp--md-hide open-beg open-body-beg)
-          (add-face-text-property open-body-beg end 'font-lock-constant-face)))
-      ;; 2. Inline code `text`
-      (goto-char beg)
-      (while (re-search-forward "`\\([^`\n]+\\)`" end t)
-        (let ((mb (match-beginning 0)) (me (match-end 0))
-              (ib (match-beginning 1)) (ie (match-end 1)))
-          (unless (mutecipher-acp--md-inside-code-p mb)
-            (mutecipher-acp--md-hide mb (1+ mb))
-            (add-face-text-property ib ie 'font-lock-constant-face)
-            (mutecipher-acp--md-hide (1- me) me))))
-      ;; 3. ATX headings: # / ## / ### at line start (line-1 aware)
-      (dolist (start line-starts)
-        (save-excursion
-          (goto-char start)
-          (when (looking-at "\\(#\\{1,3\\}\\) \\(.+\\)$")
-            (let* ((hashes     (match-string 1))
-                   (marker-beg (match-beginning 1))
-                   (marker-end (1+ (match-end 1)))
-                   (text-beg   marker-end)
-                   (text-end   (match-end 2))
-                   (height     (pcase (length hashes)
-                                 (1 1.3) (2 1.2) (_ 1.1))))
-              (unless (mutecipher-acp--md-inside-code-p marker-beg)
-                (mutecipher-acp--md-hide marker-beg marker-end)
-                (add-face-text-property text-beg text-end
-                                        `(:weight bold :height ,height)))))))
-      ;; 4. Blockquotes: replace leading `> ' with a thin bar, italic body
-      (dolist (start line-starts)
-        (save-excursion
-          (goto-char start)
-          (when (looking-at "\\(> \\)\\(.*\\)$")
-            (let ((marker-beg (match-beginning 1))
-                  (marker-end (match-end 1))
-                  (text-beg   (match-beginning 2))
-                  (text-end   (match-end 2)))
-              (unless (mutecipher-acp--md-inside-code-p marker-beg)
-                (put-text-property marker-beg marker-end 'display
-                                   (propertize "▎ " 'face 'shadow))
-                (add-face-text-property text-beg text-end
-                                        '(:slant italic :inherit shadow)))))))
-      ;; 5. Tables: dim the `|' separators, shadow the separator rule row
-      (dolist (start line-starts)
-        (save-excursion
-          (goto-char start)
-          (cond
-           ;; `|---|:---:|---:|' separator row — all shadow
-           ((looking-at "|[-:| ]+|[ \t]*$")
-            (unless (mutecipher-acp--md-inside-code-p (point))
-              (add-face-text-property (match-beginning 0) (match-end 0) 'shadow)))
-           ;; Regular row `| foo | bar |' — face just the `|' columns
-           ((looking-at "|\\([^\n]*\\)|[ \t]*$")
-            (unless (mutecipher-acp--md-inside-code-p (point))
-              (let ((row-end (match-end 0)))
-                (goto-char (match-beginning 0))
-                (while (re-search-forward "|" row-end t)
-                  (add-face-text-property (1- (point)) (point) 'shadow))))))))
-      ;; 6. Checkboxes: `- [x]' / `- [ ]' → ☑ / ☐
-      (dolist (start line-starts)
-        (save-excursion
-          (goto-char start)
-          (when (looking-at "\\([ \t]*\\)- \\(\\[[ xX]\\]\\) \\(.*\\)$")
-            (let* ((box-beg (match-beginning 0)) ; swallow indent + "- [x]"
-                   (box-end (match-end 2))
-                   (text-beg (1+ box-end))       ; skip the trailing space
-                   (text-end (match-end 3))
-                   (indent  (match-string 1))
-                   (checked (member (match-string 2) '("[x]" "[X]"))))
-              (unless (mutecipher-acp--md-inside-code-p box-beg)
-                (put-text-property
-                 box-beg box-end 'display
-                 (concat indent
-                         (propertize (if checked "☑" "☐")
-                                     'face (if checked 'success 'shadow))))
-                (when checked
-                  (add-face-text-property text-beg text-end
-                                          '(:strike-through t :inherit shadow))))))))
-      ;; 7. Bold **text**
-      (goto-char beg)
-      (while (re-search-forward "\\*\\*\\([^*\n]+\\)\\*\\*" end t)
-        (let ((mb (match-beginning 0)) (me (match-end 0)))
-          (if (or (eq (char-before mb) ?*)
-                  (eq (char-after  me) ?*)
-                  (mutecipher-acp--md-inside-code-p mb))
-              (goto-char (1+ mb))
-            (mutecipher-acp--md-hide mb (+ mb 2))
-            (add-face-text-property (+ mb 2) (- me 2) 'bold)
-            (mutecipher-acp--md-hide (- me 2) me))))
-      ;; 8. Italic *text*
-      (goto-char beg)
-      (while (re-search-forward "\\*\\([^*\n]+\\)\\*" end t)
-        (let ((mb (match-beginning 0)) (me (match-end 0)))
-          (if (or (eq (char-before mb) ?*)
-                  (eq (char-after  me) ?*)
-                  (get-text-property mb 'invisible)
-                  (mutecipher-acp--md-inside-code-p mb))
-              (goto-char (1+ mb))
-            (mutecipher-acp--md-hide mb (1+ mb))
-            (add-face-text-property (1+ mb) (1- me) 'italic)
-            (mutecipher-acp--md-hide (1- me) me))))
-      ;; 9. Strikethrough ~~text~~
-      (goto-char beg)
-      (while (re-search-forward "~~\\([^~\n]+\\)~~" end t)
-        (let ((mb (match-beginning 0)) (me (match-end 0)))
-          (unless (mutecipher-acp--md-inside-code-p mb)
-            (mutecipher-acp--md-hide mb (+ mb 2))
-            (add-face-text-property (+ mb 2) (- me 2) '(:strike-through t))
-            (mutecipher-acp--md-hide (- me 2) me))))
-      ;; 10. Inline links [text](url)
-      (goto-char beg)
-      (while (re-search-forward "\\[\\([^]\n]+\\)\\](\\([^)\n]+\\))" end t)
-        (let* ((mb       (match-beginning 0))
-               (me       (match-end 0))
-               (text-beg (match-beginning 1))
-               (text-end (match-end 1))
-               (url      (match-string-no-properties 2)))
-          (unless (mutecipher-acp--md-inside-code-p mb)
-            (mutecipher-acp--md-hide mb text-beg)
-            (add-face-text-property text-beg text-end 'link)
-            (add-text-properties text-beg text-end
-                                 `(mouse-face highlight
-                                   follow-link t
-                                   keymap ,mutecipher-acp--md-link-keymap
-                                   mutecipher-acp-md-link ,url))
-            (mutecipher-acp--md-hide text-end me)))))))
+      (dolist (pass mutecipher-acp--md-passes)
+        (funcall pass beg end line-starts)))))
 
 ;;;; Session output buffer mode
 
@@ -1760,8 +2210,8 @@ ICON is nil when the mode is unrecognized and the server hasn't yet sent
 `:available-modes' — callers treat nil ICON as \"no pill to show\".
 When `:available-modes' is populated, MODE-NAME is suffixed with ` (N/M)'
 showing the current mode's 1-based position and total count."
-  (let* ((mode-id  (or (and session (plist-get session :current-mode-id)) "default"))
-         (avail    (and session (plist-get session :available-modes)))
+  (let* ((mode-id  (or (and session (macp-session-current-mode-id session)) "default"))
+         (avail    (and session (macp-session-available-modes session)))
          (lookup-id (if (string-match "#\\(.+\\)$" mode-id)
                         (match-string 1 mode-id)
                       mode-id))
@@ -1788,10 +2238,10 @@ Two-column layout: identity (agent + abbreviated cwd tail) on the left;
 state chunk, mode pill, and session-id prefix flush-right."
   (let* ((sid     mutecipher-acp--session-id)
          (session (and sid (gethash sid mutecipher-acp--sessions)))
-         (agent   (or (and session (plist-get session :agent)) "?"))
-         (cwd     (and session (plist-get session :cwd)))
-         (state   (or (and session (plist-get session :state)) 'idle))
-         (started (and session (plist-get session :state-started-at)))
+         (agent   (or (and session (macp-session-agent session)) "?"))
+         (cwd     (and session (macp-session-cwd session)))
+         (state   (or (and session (macp-session-state session)) 'idle))
+         (started (and session (macp-session-state-started-at session)))
          (mi      (mutecipher-acp--mode-indicator session))
          (m-icon  (nth 0 mi))
          (m-face  (nth 1 mi))
@@ -1853,6 +2303,11 @@ paired `mutecipher-acp-input-mode' buffer pinned below this window."
   (setq-local header-line-format
               '((:eval (mutecipher-acp--session-header-line))))
   (setq-local mode-line-format nil)
+  ;; Killing the buffer outside `mutecipher/acp-kill-session' must still
+  ;; cancel the state timer + clear the sessions hash + nuke the paired
+  ;; input buffer.  Without this, a 1Hz timer would keep firing forever.
+  (add-hook 'kill-buffer-hook
+            #'mutecipher-acp--on-session-buffer-killed nil t)
   ;; Create the ewoc on a fresh buffer; NOSEP so each pretty-printer
   ;; owns its own newlines.  Header/footer left empty — we use the
   ;; pinned `header-line-format' above instead of a scrolling banner.
@@ -2033,11 +2488,11 @@ M-p / M-n cycle the input history.  C-c C-c cancels; C-c C-k kills the session."
   "Refresh the mode-line in SESSION's input buffer, and header-line in output.
 Called by the 1Hz state timer so the elapsed-seconds counter ticks in
 both places while the agent is thinking/streaming."
-  (when-let ((input-buf (plist-get session :input-buffer)))
+  (when-let ((input-buf (macp-session-input-buffer session)))
     (when (buffer-live-p input-buf)
       (with-current-buffer input-buf
         (force-mode-line-update))))
-  (when-let ((buf (plist-get session :buffer)))
+  (when-let ((buf (macp-session-buffer session)))
     (when (buffer-live-p buf)
       (with-current-buffer buf
         (force-mode-line-update)))))
@@ -2047,7 +2502,7 @@ both places while the agent is thinking/streaming."
 Starts a 1Hz timer for `thinking' and `streaming' so the elapsed-seconds
 counter ticks; cancels it for every other state."
   (when-let ((session (gethash session-id mutecipher-acp--sessions)))
-    (when-let ((t0 (plist-get session :state-timer)))
+    (when-let ((t0 (macp-session-state-timer session)))
       (cancel-timer t0))
     (let* ((busy       (memq new-state '(thinking streaming)))
            (started-at (and busy (float-time)))
@@ -2056,13 +2511,11 @@ counter ticks; cancels it for every other state."
                              1 1
                              (lambda ()
                                (when-let ((s (gethash session-id mutecipher-acp--sessions)))
-                                 (mutecipher-acp--force-input-mode-line s))))))
-           (updated    (thread-first session
-                         (plist-put :state new-state)
-                         (plist-put :state-started-at started-at)
-                         (plist-put :state-timer timer))))
-      (puthash session-id updated mutecipher-acp--sessions)
-      (mutecipher-acp--force-input-mode-line updated))))
+                                 (mutecipher-acp--force-input-mode-line s)))))))
+      (setf (macp-session-state session) new-state
+            (macp-session-state-started-at session) started-at
+            (macp-session-state-timer session) timer)
+      (mutecipher-acp--force-input-mode-line session))))
 
 ;;;; Prompt submission
 
@@ -2071,8 +2524,8 @@ counter ticks; cancels it for every other state."
 Clears per-turn scratch (`:current-assistant', `:current-plan-node')
 and bumps `:turn-counter'.  Returns the turn-header node."
   (let* ((session (gethash session-id mutecipher-acp--sessions))
-         (buf     (plist-get session :buffer))
-         (counter (1+ (or (plist-get session :turn-counter) 0)))
+         (buf     (macp-session-buffer session))
+         (counter (1+ (or (macp-session-turn-counter session) 0)))
          (turn    (make-macp-turn :id counter :started-at (float-time)))
          (turn-node nil))
     (mutecipher-acp--with-sticky-tail buf
@@ -2084,21 +2537,21 @@ and bumps `:turn-counter'.  Returns the turn-header node."
          mutecipher-acp--ewoc
          (make-macp-node :kind 'user
                          :data (make-macp-user :text user-text)))))
-    (puthash session-id
-             (thread-first session
-               (plist-put :turn-counter counter)
-               (plist-put :current-turn-node turn-node)
-               (plist-put :current-assistant nil)
-               (plist-put :current-plan-node nil))
-             mutecipher-acp--sessions)
+    ;; Tool-call ids are turn-local — clear the index so the table
+    ;; doesn't grow without bound across long sessions.
+    (clrhash (macp-session-tool-call-index session))
+    (setf (macp-session-turn-counter session) counter
+          (macp-session-current-turn-node session) turn-node
+          (macp-session-current-assistant session) nil
+          (macp-session-current-plan-node session) nil)
     turn-node))
 
 (defun mutecipher-acp--close-turn (session-id stop-reason)
   "Finalize SESSION-ID's current turn with STOP-REASON, invalidate its header.
 Enters a trailer node for any non-normal STOP-REASON."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
-              (node    (plist-get session :current-turn-node))
-              (buf     (plist-get session :buffer))
+              (node    (macp-session-current-turn-node session))
+              (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
     (let* ((turn (macp-node-data (ewoc-data node))))
       (setf (macp-turn-ended-at   turn) (float-time))
@@ -2112,14 +2565,12 @@ Enters a trailer node for any non-normal STOP-REASON."
              (make-macp-node
               :kind 'trailer
               :data (make-macp-trailer :stop-reason stop-reason)))))))
-    (puthash session-id
-             (plist-put session :current-turn-node nil)
-             mutecipher-acp--sessions)))
+    (setf (macp-session-current-turn-node session) nil)))
 
 (defun mutecipher-acp--do-prompt (session-id text)
   "Send TEXT as a prompt for SESSION-ID."
   (let* ((session   (gethash session-id mutecipher-acp--sessions))
-         (conn      (plist-get session :conn))
+         (conn      (macp-session-conn session))
          (full-text text))
     (mutecipher-acp--open-turn session-id text)
     (mutecipher-acp--set-state session-id 'thinking)
@@ -2127,7 +2578,7 @@ Enters a trailer node for any non-normal STOP-REASON."
      conn "session/prompt"
      (list :sessionId session-id
            :prompt (mutecipher-acp--prompt-blocks
-                    full-text (plist-get session :cwd)))
+                    full-text (macp-session-cwd session)))
      :success-fn (lambda (result)
                    (let ((reason (or (plist-get result :stopReason) "end_turn")))
                      (mutecipher-acp--close-assistant session-id)
@@ -2185,8 +2636,8 @@ session buffer, and pins a small input buffer below it."
                                     (title (plist-get s :title)))
                                 (cons (if title
                                           (format "%s  [%s]" title
-                                                  (substring sid 0 (min 8 (length sid))))
-                                        (substring sid 0 (min 8 (length sid))))
+                                                  (mutecipher-acp--id-prefix sid))
+                                        (mutecipher-acp--id-prefix sid))
                                       sid)))
                             sessions)))
             (if (null entries)
@@ -2207,9 +2658,7 @@ session buffer, and pins a small input buffer below it."
   "Display output BUF (top) with a pinned, auto-resizing input buffer (bottom)."
   (let* ((input-buf (mutecipher-acp--get-or-create-input-buffer session-id)))
     (when-let ((session (gethash session-id mutecipher-acp--sessions)))
-      (puthash session-id
-               (plist-put session :input-buffer input-buf)
-               mutecipher-acp--sessions))
+      (setf (macp-session-input-buffer session) input-buf))
     (pop-to-buffer-same-window buf)
     (goto-char (point-max))
     (let* ((window-min-height 1)
@@ -2247,12 +2696,38 @@ session buffer, and pins a small input buffer below it."
     (unless session-id
       (user-error "ACP: no active session"))
     (let* ((session (gethash session-id mutecipher-acp--sessions))
-           (conn    (plist-get session :conn)))
+           (conn    (macp-session-conn session)))
       (mutecipher-acp--request
        conn "session/cancel"
        (list :sessionId session-id)
        :success-fn (lambda (_) (message "ACP: cancelled"))
        :error-fn   (lambda (_) (message "ACP: cancel failed"))))))
+
+(defun mutecipher-acp--teardown-session (session-id &optional skip-buffer)
+  "Cancel SESSION-ID's RPC, drop its timer + entry, and kill its buffers.
+When SKIP-BUFFER is non-nil, skip the output buffer (used by the
+`kill-buffer-hook' so we don't re-kill the buffer that's already dying)."
+  (when-let ((session (gethash session-id mutecipher-acp--sessions)))
+    (let ((conn      (macp-session-conn session))
+          (buf       (macp-session-buffer session))
+          (input-buf (macp-session-input-buffer session)))
+      (when (and conn (process-live-p (mutecipher-acp--conn-process conn)))
+        (mutecipher-acp--request
+         conn "session/cancel"
+         (list :sessionId session-id)
+         :success-fn (lambda (_) nil)
+         :error-fn   (lambda (_) nil)))
+      (when-let ((t0 (macp-session-state-timer session)))
+        (cancel-timer t0))
+      (remhash session-id mutecipher-acp--sessions)
+      (when (and (not skip-buffer) (buffer-live-p buf))
+        (kill-buffer buf))
+      (when (buffer-live-p input-buf) (kill-buffer input-buf)))))
+
+(defun mutecipher-acp--on-session-buffer-killed ()
+  "`kill-buffer-hook' on session output buffers — tear down the session."
+  (when-let ((sid mutecipher-acp--session-id))
+    (mutecipher-acp--teardown-session sid 'skip-buffer)))
 
 ;;;###autoload
 (defun mutecipher/acp-kill-session ()
@@ -2262,21 +2737,8 @@ session buffer, and pins a small input buffer below it."
                         (mutecipher-acp--pick-session))))
     (unless session-id
       (user-error "ACP: no active session"))
-    (let* ((session   (gethash session-id mutecipher-acp--sessions))
-           (conn      (plist-get session :conn))
-           (buf       (plist-get session :buffer))
-           (input-buf (plist-get session :input-buffer)))
-      (mutecipher-acp--request
-       conn "session/cancel"
-       (list :sessionId session-id)
-       :success-fn (lambda (_) nil)
-       :error-fn   (lambda (_) nil))
-      (when-let ((t0 (plist-get session :state-timer)))
-        (cancel-timer t0))
-      (remhash session-id mutecipher-acp--sessions)
-      (when (buffer-live-p buf)       (kill-buffer buf))
-      (when (buffer-live-p input-buf) (kill-buffer input-buf))
-      (message "ACP: session %s killed" session-id))))
+    (mutecipher-acp--teardown-session session-id)
+    (message "ACP: session %s killed" session-id)))
 
 ;;;###autoload
 (defun mutecipher/acp-set-config (key value)
@@ -2291,7 +2753,7 @@ session buffer, and pins a small input buffer below it."
     (unless session-id
       (user-error "ACP: no active session"))
     (let* ((session (gethash session-id mutecipher-acp--sessions))
-           (conn    (plist-get session :conn)))
+           (conn    (macp-session-conn session)))
       (mutecipher-acp--request
        conn "session/set_config_option"
        (list :sessionId session-id :configId key :value value)
@@ -2320,10 +2782,10 @@ session buffer, and pins a small input buffer below it."
                         (mutecipher-acp--pick-session))))
     (unless session-id (user-error "ACP: no active session"))
     (let* ((session (gethash session-id mutecipher-acp--sessions))
-           (conn    (plist-get session :conn))
-           (modes   (plist-get session :available-modes)))
+           (conn    (macp-session-conn session))
+           (modes   (macp-session-available-modes session)))
       (when (zerop (length modes)) (user-error "ACP: no mode list from server"))
-      (let* ((current (or (plist-get session :current-mode-id)
+      (let* ((current (or (macp-session-current-mode-id session)
                           (plist-get (aref modes 0) :id)))
              (ids     (mapcar (lambda (m) (plist-get m :id)) modes))
              (idx     (or (cl-position current ids :test #'string=) 0))
@@ -2334,10 +2796,10 @@ session buffer, and pins a small input buffer below it."
          (list :sessionId session-id :configId "mode" :value next-id)
          :success-fn (lambda (_) nil)
          :error-fn   (lambda (_err)
-                       (plist-put session :available-modes
-                                  (cl-remove-if
-                                   (lambda (m) (string= (plist-get m :id) next-id))
-                                   (plist-get session :available-modes)))
+                       (setf (macp-session-available-modes session)
+                             (cl-remove-if
+                              (lambda (m) (string= (plist-get m :id) next-id))
+                              (macp-session-available-modes session)))
                        (let ((mutecipher-acp--session-id session-id))
                          (mutecipher/acp-cycle-mode))))))))
 
@@ -2357,16 +2819,16 @@ session buffer, and pins a small input buffer below it."
     (let* ((entries (mapcar
                      (lambda (s)
                        (cons (format "%-10s  %-20s  %s"
-                                     (or (plist-get s :agent) "?")
-                                     (or (plist-get s :state) 'idle)
-                                     (mutecipher-acp--id-prefix (plist-get s :id)))
-                             (plist-get s :id)))
+                                     (or (macp-session-agent s) "?")
+                                     (or (macp-session-state s) 'idle)
+                                     (mutecipher-acp--id-prefix (macp-session-id s)))
+                             (macp-session-id s)))
                      sessions))
            (choice  (completing-read "ACP session: "
                                      (mapcar #'car entries) nil t))
            (sid     (cdr (assoc choice entries))))
       (when-let* ((s   (gethash sid mutecipher-acp--sessions))
-                  (buf (plist-get s :buffer)))
+                  (buf (macp-session-buffer s)))
         (pop-to-buffer buf)))))
 
 ;;;###autoload (autoload 'mutecipher/acp-dispatch "mutecipher-acp" nil t)
@@ -2384,8 +2846,10 @@ session buffer, and pins a small input buffer below it."
    ("t" "Thought level" mutecipher/acp-set-thought-level)
    ("o" "Other option"  mutecipher/acp-set-config)]
   ["Debug"
-   ("L" "Show log"      mutecipher/acp-show-log)
-   ("C" "Clear log"     mutecipher/acp-clear-log)]
+   ("L" "Show log"        mutecipher/acp-show-log)
+   ("C" "Clear log"       mutecipher/acp-clear-log)
+   ("F" "Cycle log format" mutecipher/acp-cycle-log-format)
+   ("N" "Toggle log noise" mutecipher/acp-toggle-log-noise)]
   ["Help"
    ("?" "Describe mode" describe-mode)])
 
