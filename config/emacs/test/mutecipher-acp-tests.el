@@ -20,7 +20,28 @@
   (should (= 0 (mutecipher-acp--tool-output-line-count nil)))
   (should (= 0 (mutecipher-acp--tool-output-line-count "")))
   (should (= 1 (mutecipher-acp--tool-output-line-count "single")))
-  (should (= 3 (mutecipher-acp--tool-output-line-count "a\nb\nc"))))
+  (should (= 3 (mutecipher-acp--tool-output-line-count "a\nb\nc")))
+  ;; Vector :rawOutput from MCP / ToolSearch tools must not crash and
+  ;; should count joined text lines.
+  (should (= 1 (mutecipher-acp--tool-output-line-count
+                [(:type "text" :text "hello")])))
+  (should (= 3 (mutecipher-acp--tool-output-line-count
+                [(:type "text" :text "a\nb")
+                 (:type "text" :text "c")]))))
+
+(ert-deftest macp-test-normalize-raw-output ()
+  (should (null (mutecipher-acp--normalize-raw-output nil)))
+  (should (equal "hi" (mutecipher-acp--normalize-raw-output "hi")))
+  (should (equal "hello"
+                 (mutecipher-acp--normalize-raw-output
+                  [(:type "text" :text "hello")])))
+  (should (equal "a\nb"
+                 (mutecipher-acp--normalize-raw-output
+                  [(:type "text" :text "a")
+                   (:type "text" :text "b")])))
+  (should (equal "→ mcp__foo__bar"
+                 (mutecipher-acp--normalize-raw-output
+                  [(:type "tool_reference" :tool_name "mcp__foo__bar")]))))
 
 (ert-deftest macp-test-format-tool-input-truncates ()
   (let ((mutecipher-acp-diff-max-lines 500))

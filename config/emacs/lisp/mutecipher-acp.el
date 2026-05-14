@@ -1533,7 +1533,8 @@ point of the call, so they always stay expanded."
         (when plan
           (setf (macp-tool-call-plan-body tc) plan))
         (when raw-out
-          (setf (macp-tool-call-raw-output tc) raw-out))
+          (setf (macp-tool-call-raw-output tc)
+                (mutecipher-acp--normalize-raw-output raw-out)))
         ;; Locations may arrive on the initial `tool_call' or on a later
         ;; `tool_call_update'.  Keep the latest synthesized vector so
         ;; diff line numbers can anchor at the file line.
@@ -2254,11 +2255,36 @@ re-renders don't re-read the file."
               (macp-tool-call-cached-start-key tc) key)
         start)))))
 
+(defun mutecipher-acp--raw-output-item-string (item)
+  "Render a single :rawOutput content ITEM (plist) as a string."
+  (cond
+   ((stringp item) item)
+   ((not (listp item)) (format "%S" item))
+   ((stringp (plist-get item :text)) (plist-get item :text))
+   ((stringp (plist-get item :tool_name))
+    (format "→ %s" (plist-get item :tool_name)))
+   (t (format "%S" item))))
+
+(defun mutecipher-acp--normalize-raw-output (raw)
+  "Coerce RAW (string, vector of content items, or nil) to a display string.
+Shell-style tool calls deliver :rawOutput as a JSON string; MCP and
+ToolSearch results deliver a vector of content items (each typically
+`{:type \"text\" :text ...}' or `{:type \"tool_reference\" :tool_name
+...}').  Flatten vectors to a newline-joined string so downstream
+helpers can treat the field as text."
+  (cond
+   ((null raw) nil)
+   ((stringp raw) raw)
+   ((vectorp raw)
+    (mapconcat #'mutecipher-acp--raw-output-item-string raw "\n"))
+   (t (format "%S" raw))))
+
 (defun mutecipher-acp--tool-output-line-count (raw)
   "Return the line count of RAW (0 if nil or empty)."
-  (cond
-   ((or (null raw) (string-empty-p raw)) 0)
-   (t (1+ (cl-count ?\n raw)))))
+  (let ((s (mutecipher-acp--normalize-raw-output raw)))
+    (cond
+     ((or (null s) (string-empty-p s)) 0)
+     (t (1+ (cl-count ?\n s))))))
 
 (defun mutecipher-acp--tool-kind-icon-key (kind)
   "Map a tool-call KIND string from ACP to a `mutecipher-icons-acp-alist' key."
@@ -2286,8 +2312,9 @@ re-renders don't re-read the file."
 
 (defun mutecipher-acp--first-output-line (raw)
   "Return the first line of RAW, or nil if RAW is empty/missing."
-  (and raw (not (string-empty-p raw))
-       (car (split-string raw "\n"))))
+  (let ((s (mutecipher-acp--normalize-raw-output raw)))
+    (and s (not (string-empty-p s))
+         (car (split-string s "\n")))))
 
 (defun mutecipher-acp--indent-block (text indent)
   "Return TEXT with INDENT (a string) prefixed to every line, no trailing newline."
