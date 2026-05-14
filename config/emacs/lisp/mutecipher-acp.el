@@ -67,6 +67,14 @@ single summary line is shown instead."
   :type 'integer
   :group 'mutecipher-acp)
 
+(defcustom mutecipher-acp-tool-output-max-lines 40
+  "Maximum line count rendered inline for a tool call's raw output.
+Outputs longer than this are truncated in the expanded card body with a
+trailing \"… N more lines\" marker; the full text is still kept on the
+struct so it remains available for copy or re-render at a higher cap."
+  :type 'integer
+  :group 'mutecipher-acp)
+
 (defcustom mutecipher-acp-variable-pitch nil
   "When non-nil, render session buffers with `variable-pitch-mode'.
 Prose reads nicer but table alignment, hanging-indent widths, and the
@@ -2316,6 +2324,19 @@ helpers can treat the field as text."
     (and s (not (string-empty-p s))
          (car (split-string s "\n")))))
 
+(defun mutecipher-acp--truncate-output-for-display (raw)
+  "Return RAW (a string) clipped to `mutecipher-acp-tool-output-max-lines'.
+If clipped, append a single dim marker noting how many lines were
+hidden.  RAW is assumed already normalized to a string."
+  (let* ((cap   (max 1 mutecipher-acp-tool-output-max-lines))
+         (lines (split-string raw "\n"))
+         (len   (length lines))
+         (extra (- len cap)))
+    (if (<= len cap)
+        raw
+      (concat (mapconcat #'identity (cl-subseq lines 0 cap) "\n")
+              (format "\n… %d more line%s" extra (if (= 1 extra) "" "s"))))))
+
 (defun mutecipher-acp--indent-block (text indent)
   "Return TEXT with INDENT (a string) prefixed to every line, no trailing newline."
   (let ((trimmed (string-trim-right text "\n")))
@@ -2492,9 +2513,10 @@ by searching the file at `:locations[0].path' for the diff's
                (concat (mutecipher-acp--indent-block plan "    ") "\n")
                'face 'shadow)))
     (when (and raw (not (string-empty-p raw)))
-      (insert (propertize
-               (concat (mutecipher-acp--indent-block raw "    ") "\n")
-               'face 'shadow)))
+      (let ((clipped (mutecipher-acp--truncate-output-for-display raw)))
+        (insert (propertize
+                 (concat (mutecipher-acp--indent-block clipped "    ") "\n")
+                 'face 'shadow))))
     (dolist (pair diffs)
       (when-let ((body (mutecipher-acp--diff-body-for
                         (car pair) (cdr pair) start)))

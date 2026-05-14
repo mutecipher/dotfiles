@@ -43,6 +43,17 @@
                  (mutecipher-acp--normalize-raw-output
                   [(:type "tool_reference" :tool_name "mcp__foo__bar")]))))
 
+(ert-deftest macp-test-truncate-output-for-display ()
+  (let ((mutecipher-acp-tool-output-max-lines 3))
+    (should (equal "a\nb\nc"
+                   (mutecipher-acp--truncate-output-for-display "a\nb\nc")))
+    (should (equal "a\nb\nc\n… 2 more lines"
+                   (mutecipher-acp--truncate-output-for-display
+                    "a\nb\nc\nd\ne")))
+    (should (equal "a\nb\nc\n… 1 more line"
+                   (mutecipher-acp--truncate-output-for-display
+                    "a\nb\nc\nd")))))
+
 (ert-deftest macp-test-format-tool-input-truncates ()
   (let ((mutecipher-acp-diff-max-lines 500))
     (should (equal "ls -la"
