@@ -187,6 +187,30 @@
           (should (macp-test--face-at 4 'bold)))
       (kill-buffer buf))))
 
+(ert-deftest macp-test-md-italic-underscore ()
+  (let ((buf (macp-test--render-md "_hi_ there")))
+    (unwind-protect
+        (with-current-buffer buf
+          ;; Body of `_hi_' is at positions 2..3 ("h", "i").
+          (should (macp-test--face-at 2 'italic))
+          (should (macp-test--face-at 3 'italic))
+          ;; Surrounding `_' chars are hidden.
+          (should (eq (get-text-property 1 'invisible)
+                      'mutecipher-acp-md-markup))
+          (should (eq (get-text-property 4 'invisible)
+                      'mutecipher-acp-md-markup)))
+      (kill-buffer buf))))
+
+(ert-deftest macp-test-md-italic-underscore-skips-intraword ()
+  (let ((buf (macp-test--render-md "tool_name and field_value")))
+    (unwind-protect
+        (with-current-buffer buf
+          ;; No `_' between alnum chars should be hidden.
+          (goto-char (point-min))
+          (while (search-forward "_" nil t)
+            (should-not (get-text-property (1- (point)) 'invisible))))
+      (kill-buffer buf))))
+
 (ert-deftest macp-test-md-inline-code-applies-constant-face ()
   (let ((buf (macp-test--render-md "use `let` in code")))
     (unwind-protect

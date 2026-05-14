@@ -2024,20 +2024,26 @@ inserted region (e.g. `--apply-markdown')."
 
 (defun mutecipher-acp--pp-assistant (node)
   "Render an assistant NODE: `assistant' icon gutter + hanging-indent prose.
-Applies minimal markdown overlays over the inserted body."
+Applies minimal markdown overlays over the inserted body.  Terminates
+with a blank-line spacer so adjacent nodes (including tool-call cards
+that follow inline tool invocations) get the same single-line gap as
+user → tool-call transitions."
   (let* ((text       (or (macp-assistant-text (macp-node-data node)) ""))
          (body-start (mutecipher-acp--insert-with-gutter 'assistant text)))
     (unless (or (string-empty-p text)
                 (eq (aref text (1- (length text))) ?\n))
       (insert "\n"))
-    (mutecipher-acp--apply-markdown body-start (point))))
+    (mutecipher-acp--apply-markdown body-start (point))
+    (insert "\n")))
 
 (defun mutecipher-acp--pp-thought (node)
-  "Render a thought NODE: `thought' icon gutter + italic shadow-faced text."
+  "Render a thought NODE: `thought' icon gutter + italic shadow-faced text.
+Trailing blank line keeps spacing uniform across node kinds."
   (let ((text (or (macp-thought-text (macp-node-data node)) "")))
     (mutecipher-acp--insert-with-gutter 'thought
                                          (concat text "\n")
-                                         'mutecipher-acp-thought-face)))
+                                         'mutecipher-acp-thought-face)
+    (insert "\n")))
 
 (defun mutecipher-acp--format-tool-input (raw &optional max-len)
   "Format RAW tool input as a short display string, truncated to MAX-LEN (default 60).
@@ -2803,6 +2809,34 @@ A ```diff tag routes the body through `diff-mode' fontification."
         (add-face-text-property (1+ mb) (1- me) 'italic)
         (mutecipher-acp--md-hide (1- me) me)))))
 
+(defun mutecipher-acp--md-word-char-p (ch)
+  "Non-nil when CH would extend an identifier (alnum or `_').
+Used to enforce CommonMark's intraword-underscore rule so `_' inside
+`snake_case' tokens doesn't open or close an italic span."
+  (and ch (or (and (>= ch ?0) (<= ch ?9))
+              (and (>= ch ?a) (<= ch ?z))
+              (and (>= ch ?A) (<= ch ?Z))
+              (eq ch ?_))))
+
+(defun mutecipher-acp--md-pass-italic-underscore (beg end _line-starts)
+  "Render `_italic_' between BEG and END.
+Intraword `_' (e.g. `snake_case', `tool_name') is left alone — only
+runs whose outer neighbours are not alnum/`_' qualify."
+  (goto-char beg)
+  (while (re-search-forward "_\\([^_\n]+\\)_" end t)
+    (let* ((mb     (match-beginning 0))
+           (me     (match-end 0))
+           (before (and (> mb (point-min)) (char-before mb)))
+           (after  (and (< me (point-max)) (char-after me))))
+      (if (or (mutecipher-acp--md-word-char-p before)
+              (mutecipher-acp--md-word-char-p after)
+              (get-text-property mb 'invisible)
+              (mutecipher-acp--md-inside-code-p mb))
+          (goto-char (1+ mb))
+        (mutecipher-acp--md-hide mb (1+ mb))
+        (add-face-text-property (1+ mb) (1- me) 'italic)
+        (mutecipher-acp--md-hide (1- me) me)))))
+
 (defun mutecipher-acp--md-pass-strike (beg end _line-starts)
   "Render `~~strike~~' between BEG and END."
   (goto-char beg)
@@ -2841,6 +2875,7 @@ A ```diff tag routes the body through `diff-mode' fontification."
     mutecipher-acp--md-pass-checkboxes
     mutecipher-acp--md-pass-bold
     mutecipher-acp--md-pass-italic
+    mutecipher-acp--md-pass-italic-underscore
     mutecipher-acp--md-pass-strike
     mutecipher-acp--md-pass-links)
   "Ordered list of markdown rendering passes.
