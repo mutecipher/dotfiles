@@ -40,6 +40,8 @@
 (require 'transient)
 (require 'url-util)
 
+(declare-function completion-preview-insert "completion-preview")
+
 ;;;; Customization
 
 (defgroup mutecipher-acp nil
@@ -3137,6 +3139,8 @@ disclosure on a tool-call node, otherwise no-op."
   "M-n"        #'mutecipher-acp--composer-history-next
   "TAB"        #'mutecipher-acp--tab-dwim
   "<tab>"      #'mutecipher-acp--tab-dwim
+  "M-TAB"      #'mutecipher-acp--tab-dwim
+  "M-<tab>"    #'mutecipher-acp--tab-dwim
   "<backtab>"  #'mutecipher/acp-cycle-mode
   "C-c TAB"    #'mutecipher/acp-toggle-tool-calls
   "C-c <tab>"  #'mutecipher/acp-toggle-tool-calls
@@ -3401,14 +3405,19 @@ starts from the most recent entry on the next iteration."
     (completion-at-point)))
 
 (defun mutecipher-acp--tab-dwim ()
-  "TAB inside the composer triggers `completion-at-point'.
-Outside the composer it's a no-op — use \\[mutecipher/acp-toggle-tool-calls]
-to fold/unfold tool calls (TAB is reserved for completion so it stays
-usable on every keystroke in the composer)."
+  "TAB inside the composer commits a visible completion preview, else
+falls back to `completion-at-point'.  Outside the composer it's a no-op
+— use \\[mutecipher/acp-toggle-tool-calls] to fold/unfold tool calls."
   (interactive)
-  (if (mutecipher-acp--composer-region-p (point))
-      (completion-at-point)
-    (message "ACP: TAB is composer-only — use C-c TAB to toggle tool calls")))
+  (cond
+   ((not (mutecipher-acp--composer-region-p (point)))
+    (message "ACP: TAB is composer-only — use C-c TAB to toggle tool calls"))
+   ;; Route through the preview's own commit path so the overlay is
+   ;; dismissed in the same step as the insertion — `completion-at-point'
+   ;; defers the preview cleanup, briefly double-rendering the suffix.
+   ((bound-and-true-p completion-preview-active-mode)
+    (completion-preview-insert))
+   (t (completion-at-point))))
 
 ;;;; State + state-driven display
 
