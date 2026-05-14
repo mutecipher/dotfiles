@@ -193,6 +193,10 @@ vector is rendered for in-flight tool calls."
   '((t :inherit font-lock-keyword-face :weight bold))
   "Face for user prompt labels in ACP session buffers.")
 
+(defface mutecipher-acp-slash-command-face
+  '((t :inherit font-lock-function-name-face :weight bold))
+  "Face for slash-command prefixes (e.g. /review) in rendered user prompts.")
+
 (defface mutecipher-acp-agent-face
   '((t :inherit font-lock-string-face :weight bold))
   "Face for agent response labels in ACP session buffers.")
@@ -243,6 +247,10 @@ vector is rendered for in-flight tool calls."
 Used for the corners (╭ ╰), left rail (│), and horizontal rules drawn
 across the top and bottom of the card.  Inherits `shadow' so theme-
 appropriate dim colors come along for free.")
+
+(defface mutecipher-acp-md-table-rule-face
+  '((t :inherit shadow))
+  "Face for border glyphs (corners, junctions, rules, `│') in rendered tables.")
 
 (defface mutecipher-acp-tool-card-rule-face
   '((t :inherit mutecipher-acp-tool-card-face :strike-through t))
@@ -1617,7 +1625,7 @@ point of the call, so they always stay expanded."
 
 (defun mutecipher-acp--update-available-commands (session-id update)
   "Handle an `available_commands_update' UPDATE for SESSION-ID."
-  (let ((cmds    (plist-get update :commands))
+  (let ((cmds    (plist-get update :availableCommands))
         (session (gethash session-id mutecipher-acp--sessions)))
     (when (and session cmds)
       (setf (macp-session-commands session) cmds))))
@@ -2017,9 +2025,17 @@ inserted region (e.g. `--apply-markdown')."
       (insert "\n"))))
 
 (defun mutecipher-acp--pp-user (node)
-  "Render a user NODE: `user' icon gutter + hanging-indent body."
-  (let ((text (or (macp-user-text (macp-node-data node)) "")))
-    (mutecipher-acp--insert-with-gutter 'user text 'mutecipher-acp-user-face)
+  "Render a user NODE: `user' icon gutter + hanging-indent body.
+A leading `/word' is overlaid with `mutecipher-acp-slash-command-face'
+so invoked slash commands stand out from surrounding prompt text."
+  (let* ((text       (or (macp-user-text (macp-node-data node)) ""))
+         (body-start (mutecipher-acp--insert-with-gutter
+                      'user text 'mutecipher-acp-user-face)))
+    (save-excursion
+      (goto-char body-start)
+      (when (looking-at "/[A-Za-z0-9_-]+")
+        (add-face-text-property (match-beginning 0) (match-end 0)
+                                'mutecipher-acp-slash-command-face)))
     (insert "\n\n")))
 
 (defun mutecipher-acp--pp-assistant (node)
@@ -2744,21 +2760,136 @@ A ```diff tag routes the body through `diff-mode' fontification."
             (add-face-text-property text-beg text-end
                                     '(:slant italic :inherit shadow))))))))
 
+(defconst mutecipher-acp--md-table-line-re "^[ \t]*|.*|[ \t]*$"
+  "Regexp matching a single pipe-delimited line of a GFM table.")
+
+(defun mutecipher-acp--md-table-parse-cells (line)
+  "Return trimmed cells from pipe-delimited LINE, or nil if not table-shaped."
+  (when (string-match "^[ \t]*|\\(.*\\)|[ \t]*$" line)
+    (mapcar #'string-trim (split-string (match-string 1 line) "|"))))
+
+(defun mutecipher-acp--md-table-sep-cells-p (cells)
+  "Non-nil if CELLS is a GFM separator row (each cell `:?-+:?')."
+  (and cells
+       (seq-every-p (lambda (c) (string-match-p "^:?-+:?$" c)) cells)))
+
+(defun mutecipher-acp--md-table-col-widths (all-cells)
+  "Vector of max column widths across ALL-CELLS, ignoring separator rows."
+  (let* ((data-cells (seq-remove #'mutecipher-acp--md-table-sep-cells-p
+                                 (delq nil all-cells)))
+         (ncols      (apply #'max 1 (mapcar #'length data-cells)))
+         (widths     (make-vector ncols 0)))
+    (dolist (cells data-cells)
+      (seq-do-indexed (lambda (cell i)
+                        (when (< i ncols)
+                          (aset widths i (max (aref widths i) (length cell)))))
+                      cells))
+    widths))
+
+(defun mutecipher-acp--md-table-box-line (widths left junc right fill)
+  "Build a horizontal border string from WIDTHS using LEFT/JUNC/RIGHT/FILL."
+  (let ((segs (mapcar (lambda (w) (make-string (+ w 2) fill))
+                      (append widths nil))))
+    (propertize (concat left (mapconcat #'identity segs junc) right)
+                'face 'mutecipher-acp-md-table-rule-face)))
+
+(defun mutecipher-acp--md-table-format-row (cells widths &optional align)
+  "Build a propertized data row string. ALIGN is `center' or nil (left)."
+  (let ((pipe (propertize "│" 'face 'mutecipher-acp-md-table-rule-face))
+        parts)
+    (dotimes (i (length cells))
+      (let* ((cell  (or (nth i cells) ""))
+             (w     (if (< i (length widths)) (aref widths i) (length cell)))
+             (slack (max 0 (- w (length cell))))
+             (lpad  (if (eq align 'center) (/ slack 2) 0))
+             (rpad  (- slack lpad)))
+        (push pipe parts)
+        (push (concat " "
+                      (make-string lpad ?\s)
+                      cell
+                      (make-string rpad ?\s)
+                      " ")
+              parts)))
+    (push pipe parts)
+    (apply #'concat (nreverse parts))))
+
+(defun mutecipher-acp--md-table-render-at (start)
+  "Render the GFM table beginning at line containing START.
+Requires a header + separator pair; otherwise returns START unchanged.
+On success, returns the buffer position just after the last consumed line."
+  (save-excursion
+    (goto-char start)
+    (let (line-starts raw-cells)
+      (while (and (not (eobp))
+                  (looking-at mutecipher-acp--md-table-line-re))
+        (push (point) line-starts)
+        (push (mutecipher-acp--md-table-parse-cells
+               (buffer-substring-no-properties (point) (line-end-position)))
+              raw-cells)
+        (forward-line 1))
+      (let* ((starts    (vconcat (nreverse line-starts)))
+             (cell-rows (nreverse raw-cells))
+             (seps      (vconcat (mapcar #'mutecipher-acp--md-table-sep-cells-p
+                                         cell-rows)))
+             (cells-vec (vconcat cell-rows))
+             (n         (length starts)))
+        (if (not (and (>= n 2) (aref seps 1)))
+            start
+          (let* ((widths   (mutecipher-acp--md-table-col-widths cell-rows))
+                 (top      (mutecipher-acp--md-table-box-line widths "┌" "┬" "┐" ?─))
+                 (row-sep  (mutecipher-acp--md-table-box-line widths "├" "┼" "┤" ?─))
+                 (bottom   (mutecipher-acp--md-table-box-line widths "└" "┴" "┘" ?─)))
+            (dotimes (i n)
+              (let* ((ls         (aref starts i))
+                     (cells      (aref cells-vec i))
+                     (sep-p      (aref seps i))
+                     (last-p     (= i (1- n)))
+                     (next-sep-p (and (not last-p) (aref seps (1+ i))))
+                     (inject-p   (and (not last-p) (not sep-p) (not next-sep-p)))
+                     (extend-p   (or last-p inject-p))
+                     (le         (save-excursion
+                                   (goto-char ls)
+                                   (if extend-p
+                                       (min (1+ (line-end-position)) (point-max))
+                                     (line-end-position))))
+                     (align      (when (= i 0) 'center))
+                     (base       (if sep-p
+                                     row-sep
+                                   (mutecipher-acp--md-table-format-row
+                                    cells widths align)))
+                     (disp       (if extend-p (concat base "\n") base))
+                     (ov         (make-overlay ls le nil t nil)))
+                (overlay-put ov 'display disp)
+                (when (= i 0)
+                  (overlay-put ov 'before-string (concat top "\n")))
+                (cond
+                 (last-p
+                  (overlay-put ov 'after-string (concat bottom "\n")))
+                 (inject-p
+                  (overlay-put ov 'after-string (concat row-sep "\n"))))
+                (overlay-put ov 'mutecipher-acp-md-table t)))
+            (point)))))))
+
+(defun mutecipher-acp--md-table-clear-overlays (beg end)
+  "Delete any rendered-table overlays inside BEG..END."
+  (dolist (ov (overlays-in beg end))
+    (when (overlay-get ov 'mutecipher-acp-md-table)
+      (delete-overlay ov))))
+
 (defun mutecipher-acp--md-pass-tables (_beg _end line-starts)
-  "Dim `|' separators in markdown table rows; shadow the separator-rule row."
-  (dolist (start line-starts)
-    (save-excursion
-      (goto-char start)
-      (cond
-       ((looking-at "|[-:| ]+|[ \t]*$")
-        (unless (mutecipher-acp--md-inside-code-p (point))
-          (add-face-text-property (match-beginning 0) (match-end 0) 'shadow)))
-       ((looking-at "|\\([^\n]*\\)|[ \t]*$")
-        (unless (mutecipher-acp--md-inside-code-p (point))
-          (let ((row-end (match-end 0)))
-            (goto-char (match-beginning 0))
-            (while (re-search-forward "|" row-end t)
-              (add-face-text-property (1- (point)) (point) 'shadow)))))))))
+  "Render GFM tables as an aligned Unicode grid via overlays.
+Walks LINE-STARTS, rendering at each table head and skipping subsequent
+starts that fall inside an already-rendered table region."
+  (let ((skip-until 0))
+    (dolist (start line-starts)
+      (when (> start skip-until)
+        (save-excursion
+          (goto-char start)
+          (when (and (looking-at mutecipher-acp--md-table-line-re)
+                     (not (mutecipher-acp--md-inside-code-p start)))
+            (let ((after (mutecipher-acp--md-table-render-at start)))
+              (when (> after start)
+                (setq skip-until after)))))))))
 
 (defun mutecipher-acp--md-pass-checkboxes (_beg _end line-starts)
   "Render `- [x]' / `- [ ]' as ☑ / ☐ at every applicable line start."
@@ -2886,7 +3017,10 @@ runs before inline so contents compose.")
 (defun mutecipher-acp--apply-markdown (beg end)
   "Apply minimal markdown rendering to region BEG..END.
 Idempotent — safe to call repeatedly after `ewoc-invalidate'.
-See `mutecipher-acp--md-passes' for the ordered set of rules."
+See `mutecipher-acp--md-passes' for the ordered set of rules.
+Stale table overlays inside the region are cleared first so that
+streaming re-renders don't accumulate them."
+  (mutecipher-acp--md-table-clear-overlays beg end)
   (save-excursion
     (let ((line-starts (mutecipher-acp--md-line-starts beg end)))
       (dolist (pass mutecipher-acp--md-passes)
