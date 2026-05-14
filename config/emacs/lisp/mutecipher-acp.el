@@ -1441,9 +1441,13 @@ string-valued key in `rawInput' listed by
       (mutecipher-acp--ingest-tool-content tc (plist-get update :content))
       (mutecipher-acp--with-sticky-tail buf
         (let* ((inhibit-read-only t)
+               (collapsed (and mutecipher-acp-collapse-tool-calls-by-default
+                               (not plan)))
                (node (ewoc-enter-last
                       mutecipher-acp--ewoc
-                      (make-macp-node :kind 'tool-call :data tc))))
+                      (make-macp-node :kind 'tool-call
+                                      :data tc
+                                      :collapsed collapsed))))
           (when call-id
             (puthash call-id node index))))
       (mutecipher-acp--reconcile-spinner-for-session session))))
