@@ -242,10 +242,42 @@
   .slide img {
     display: block;
     max-width: 100%;
-    max-height: 65vh;
+    max-height: 70vh;
     height: auto;
     width: auto;
     object-fit: contain;
+    cursor: zoom-in;
+  }
+  .slide.has-media {
+    display: none;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 4rem;
+  }
+  .slide.has-media.active { display: flex; }
+  .slide.has-media > .deck-left {
+    flex: 1 1 50%;
+    max-width: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    min-width: 0;
+  }
+  .slide.has-media > .deck-left > * { max-width: 100%; }
+  .slide.has-media > :is(img, figure) {
+    flex: 0 1 50%;
+    max-width: 50%;
+    max-height: 78vh;
+    margin: 0;
+  }
+  .slide.has-media > figure img {
+    max-width: 100%;
+    max-height: 78vh;
+  }
+  .slide.center:has(> :is(img, figure)):has(> :is(p, ul, blockquote)) :is(img, figure) {
+    max-height: 38vh;
   }
   .slide figure {
     margin: 0;
@@ -282,6 +314,26 @@
   .slide ul li::before {
     content: \"› \";
     color: var(--accent);
+  }
+
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: color-mix(in srgb, var(--bg) 88%, black);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 4vh 4vw;
+    cursor: zoom-out;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox img {
+    max-width: 100%;
+    max-height: 100%;
+    height: auto;
+    width: auto;
+    object-fit: contain;
   }
 
   .cursor {
@@ -341,7 +393,7 @@
       background: white;
     }
     body::before, body::after { display: none; }
-    .chrome, header.progress { display: none; }
+    .chrome, header.progress, .lightbox { display: none !important; }
     main {
       position: static;
       height: auto;
@@ -386,8 +438,23 @@
   const bar = document.getElementById('bar');
   const cur = document.getElementById('cur');
   const tot = document.getElementById('tot');
+  const lb = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lightbox-img');
   const pad = (n) => String(n).padStart(2, '0');
   tot.textContent = pad(slides.length);
+
+  function openLightbox(src, alt) {
+    lbImg.src = src;
+    lbImg.alt = alt || '';
+    lb.classList.add('open');
+    lb.setAttribute('aria-hidden', 'false');
+  }
+  function closeLightbox() {
+    lb.classList.remove('open');
+    lb.setAttribute('aria-hidden', 'true');
+    lbImg.removeAttribute('src');
+  }
+  lb.addEventListener('click', closeLightbox);
 
   const THEMES = ['paper', 'mono', 'newsprint', 'dark-paper', 'amber', 'blueprint'];
   function setTheme(t) {
@@ -417,6 +484,7 @@
     return '[' + '█'.repeat(filled) + '░'.repeat(width - filled) + ']';
   }
   function go(i) {
+    if (lb.classList.contains('open')) closeLightbox();
     current = Math.max(0, Math.min(slides.length - 1, i));
     slides.forEach((s, idx) => s.classList.toggle('active', idx === current));
     bar.textContent = renderBar(current, slides.length);
@@ -427,6 +495,13 @@
 
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (lb.classList.contains('open')) {
+      if (e.key === 'Escape' || e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        closeLightbox();
+      }
+      return;
+    }
     switch (e.key) {
       case 'ArrowRight': case 'ArrowDown': case 'PageDown': case ' ': case 'j':
         e.preventDefault(); go(current + 1); break;
@@ -448,7 +523,14 @@
 
   window.addEventListener('hashchange', () => go(indexFromHash()));
   document.addEventListener('click', (e) => {
+    if (lb.classList.contains('open')) return;
     if (e.target.closest('a, button, input, textarea, select, summary, [data-no-nav]')) return;
+    const img = e.target.closest('.slide img');
+    if (img) {
+      e.stopPropagation();
+      openLightbox(img.src, img.alt);
+      return;
+    }
     if (window.getSelection && window.getSelection().toString()) return;
     go(e.clientX < window.innerWidth / 2 ? current - 1 : current + 1);
   });
@@ -527,6 +609,23 @@ latter."
 
 ;; ─── Transcoders ─────────────────────────────────────────────────────────
 
+(defun mutecipher-deck--extract-media (body)
+  "Split BODY into a (TEXT-HTML . MEDIA-HTML) cons.
+Top-level standalone <img> tags and <figure> blocks are pulled into
+MEDIA-HTML so the headline transcoder can place them in a side column.
+Everything else stays in TEXT-HTML.  Assumes `ox-html' output shape:
+single-line lowercase tags, attribute values without literal `>'."
+  (if (or (null body) (string-empty-p body))
+      (cons "" "")
+    (let ((text body)
+          (media ""))
+      (dolist (re '("\\(?:^\\|\n\\)[ \t]*\\(<img\\b[^<>]*/?>\\)[ \t]*"
+                    "\\(?:^\\|\n\\)[ \t]*\\(<figure\\b[^>]*>\\(?:.\\|\n\\)*?</figure>\\)[ \t]*"))
+        (while (string-match re text)
+          (setq media (concat media (match-string 1 text) "\n"))
+          (setq text (replace-match "" t t text))))
+      (cons (string-trim text) (string-trim media)))))
+
 (defun mutecipher-deck--headline (headline contents info)
   "Render a top-level Org HEADLINE as a <section class=\"slide\">.
 Deeper headings and `:noexport:' subtrees are dropped. CONTENTS is the
@@ -538,7 +637,17 @@ already-rendered body. INFO is the export communication channel."
              (kicker (org-element-property :KICKER headline))
              (type (downcase (or (org-element-property :TYPE headline) "")))
              (centered (string= layout "center"))
-             (class (if centered "slide center" "slide"))
+             (body (and contents (string-trim contents)))
+             (split (and (not centered) body
+                         (mutecipher-deck--extract-media body)))
+             (text-html (or (car split) ""))
+             (media-html (or (cdr split) ""))
+             (has-media (and split
+                             (not (string-empty-p media-html))
+                             (not (string-empty-p text-html))))
+             (class (concat "slide"
+                            (when centered " center")
+                            (when has-media " has-media")))
              (title-html
               (cond
                ((string= type "stat")
@@ -549,15 +658,26 @@ already-rendered body. INFO is the export communication channel."
                 (format "<h1>%s</h1>" title))
                (t
                 (format "<h2>%s</h2>" title))))
-             (body (and contents (string-trim contents))))
+             (indent (if has-media "    " "  "))
+             (head-html
+              (concat
+               (when kicker
+                 (format "%s<div class=\"kicker\">%s</div>\n"
+                         indent (mutecipher-deck--esc kicker)))
+               (format "%s%s\n" indent title-html))))
         (concat
          (format "<section class=\"%s\">\n" class)
-         (when kicker
-           (format "  <div class=\"kicker\">%s</div>\n"
-                   (mutecipher-deck--esc kicker)))
-         (format "  %s\n" title-html)
-         (when (and body (not (string-empty-p body)))
-           (concat "  " body "\n"))
+         (cond
+          (has-media
+           (concat "  <div class=\"deck-left\">\n"
+                   head-html
+                   "    " text-html "\n"
+                   "  </div>\n"
+                   "  " media-html "\n"))
+          (t
+           (concat head-html
+                   (when (and body (not (string-empty-p body)))
+                     (concat "  " body "\n")))))
          "</section>\n"))
     ""))
 
@@ -565,9 +685,14 @@ already-rendered body. INFO is the export communication channel."
   "Drop ox-html's wrapping <div> for sections.  Just emit CONTENTS."
   (or contents ""))
 
-(defun mutecipher-deck--paragraph (_paragraph contents _info)
-  "Emit a plain <p> with CONTENTS, no class or id."
-  (format "<p>%s</p>" (string-trim (or contents ""))))
+(defun mutecipher-deck--paragraph (paragraph contents info)
+  "Emit a plain <p> with CONTENTS, or just the image when CONTENTS is one.
+Unwrapping standalone-image paragraphs makes the <img> a direct child of
+the slide so the grid layout for image+text slides can target it."
+  (let ((trimmed (string-trim (or contents ""))))
+    (if (org-html-standalone-image-p paragraph info)
+        trimmed
+      (format "<p>%s</p>" trimmed))))
 
 (defun mutecipher-deck--italic (_italic contents _info)
   "Render Org /italic/ as <em> so the deck's accent underline kicks in."
@@ -627,6 +752,9 @@ A closing slide is appended automatically when #+CONTACT is provided."
      contents
      (or closing-slide "")
      "</main>\n\n"
+     "<div id=\"lightbox\" class=\"lightbox\" aria-hidden=\"true\">\n"
+     "  <img id=\"lightbox-img\" alt=\"\">\n"
+     "</div>\n\n"
      "<script>\n"
      mutecipher-deck--js
      "</script>\n"
