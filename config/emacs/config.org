@@ -149,9 +149,6 @@ Global defaults that shape every session: key bindings, scrolling, selection, en
     ;; CamelCase word navigation
     (add-hook 'prog-mode-hook #'subword-mode)
 
-    ;; Visual column ruler
-    (add-hook 'prog-mode-hook #'display-fill-column-indicator-mode)
-
     (select-frame-set-input-focus (selected-frame))
     (blink-cursor-mode 0)
     (recentf-mode 1)
