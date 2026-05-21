@@ -20,6 +20,8 @@ sh ~/.dotfiles/setup.sh
 
 `setup.sh` is idempotent — safe to re-run. Existing files are backed up with a `.bak` suffix before being replaced; already-correct symlinks are skipped.
 
+Only files explicitly listed in `setup.sh` are symlinked — `Brewfile` and `ideas.org` live in the repo but stay there. To add a new dotfile, add a `link` call in `setup.sh`.
+
 Homebrew dependencies are tracked in `Brewfile`:
 
 ```sh
@@ -44,7 +46,11 @@ The Emacs config uses **literate programming** via Org-mode:
 - Generated: `config/emacs/config.el` (excluded from git, built at load time)
 - Custom modules: `config/emacs/lisp/` — naming convention `mutecipher-<feature>.el`, each is a standalone `provide`d feature
 - Custom themes: `config/emacs/themes/` (`liminal-dark-theme.el`, `liminal-light-theme.el`)
-- Tests: `config/emacs/test/` — ert tests, e.g. `emacs -Q --batch -L config/emacs/lisp -L config/emacs/test -l config/emacs/test/mutecipher-acp-tests.el -f ert-run-tests-batch-and-exit`
+- Tests: `config/emacs/test/` — ert tests. Run a single file with:
+  ```sh
+  emacs -Q --batch -L config/emacs/lisp -L config/emacs/test \
+    -l config/emacs/test/<name>-tests.el -f ert-run-tests-batch-and-exit
+  ```
 
 When modifying Emacs config, edit `config.org` — never edit `config.el` directly. The generated `config.el` is gitignored.
 
