@@ -44,6 +44,7 @@
 (require 'mutecipher-acp-model)
 (require 'mutecipher-acp-log)
 (require 'mutecipher-acp-markdown)
+(require 'mutecipher-acp-completion)
 
 (declare-function completion-preview-insert "completion-preview")
 
@@ -104,16 +105,6 @@ tool call in the session buffer is in flight."
 Each `mutecipher-acp-spinner-interval' seconds the next frame in the
 vector is rendered for in-flight tool calls."
   :type '(vector string)
-  :group 'mutecipher-acp)
-
-(defcustom mutecipher-acp-file-cache-ttl 30
-  "Seconds before `mutecipher-acp--session-files' re-walks a session's cwd."
-  :type 'integer
-  :group 'mutecipher-acp)
-
-(defcustom mutecipher-acp-file-cache-max-items 2000
-  "Maximum number of candidate files returned per session by `@'-completion."
-  :type 'integer
   :group 'mutecipher-acp)
 
 ;;;; NDJSON transport layer
@@ -1056,151 +1047,6 @@ somewhere to land before the success callback fires."
                    (kill-buffer buf)
                    (message "ACP session/load failed: %s"
                             (plist-get err :message))))))
-
-;;;; Prompt attachments (@-mentions)
-
-(defconst mutecipher-acp--file-exclude-dirs
-  '(".git" "node_modules" ".direnv" ".venv" "vendor" "elpa" ".cache")
-  "Directory basenames skipped by the fs fallback walker.")
-
-(defun mutecipher-acp--path->file-uri (abs-path)
-  "Return a file:// URI for ABS-PATH with path segments percent-encoded."
-  (concat "file://"
-          (mapconcat #'url-hexify-string
-                     (split-string (expand-file-name abs-path) "/")
-                     "/")))
-
-(defun mutecipher-acp--walk-cwd (cwd)
-  "Walk CWD collecting relative file paths, skipping excluded dirs.
-Returns a list sorted shallowest-first, capped at
-`mutecipher-acp-file-cache-max-items'."
-  (let ((root (file-name-as-directory (expand-file-name cwd)))
-        (acc '())
-        (count 0)
-        (queue (list (file-name-as-directory (expand-file-name cwd)))))
-    (while (and queue (< count mutecipher-acp-file-cache-max-items))
-      (let ((dir (pop queue))
-            (new-dirs nil))
-        (dolist (entry (ignore-errors
-                         (directory-files
-                          dir t directory-files-no-dot-files-regexp t)))
-          (cond
-           ((file-directory-p entry)
-            (unless (member (file-name-nondirectory entry)
-                            mutecipher-acp--file-exclude-dirs)
-              (push (file-name-as-directory entry) new-dirs)))
-           ((file-regular-p entry)
-            (push (file-relative-name entry root) acc)
-            (setq count (1+ count)))))
-        (when new-dirs
-          (setq queue (nconc queue (nreverse new-dirs))))))
-    (sort acc (lambda (a b)
-                (let ((da (cl-count ?/ a))
-                      (db (cl-count ?/ b)))
-                  (if (= da db) (string< a b) (< da db)))))))
-
-(defun mutecipher-acp--session-files (session)
-  "Return a cached (SOURCE . LIST) pair of relative paths for SESSION's :cwd.
-SOURCE is the symbol `project' or `fs'."
-  (let* ((cwd   (macp-session-cwd session))
-         (cache (macp-session-file-cache session))
-         (now   (float-time)))
-    (if (and cache
-             (< (- now (nth 0 cache)) mutecipher-acp-file-cache-ttl))
-        (cons (nth 1 cache) (nth 2 cache))
-      (let* ((proj  (and cwd
-                         (let ((default-directory cwd))
-                           (project-current nil cwd))))
-             (files (if proj
-                        (mapcar (lambda (f) (file-relative-name f cwd))
-                                (project-files proj))
-                      (and cwd (mutecipher-acp--walk-cwd cwd))))
-             (source (if proj 'project 'fs))
-             (capped (if (> (length files) mutecipher-acp-file-cache-max-items)
-                         (seq-take files mutecipher-acp-file-cache-max-items)
-                       files)))
-        (setf (macp-session-file-cache session) (list now source capped))
-        (cons source capped)))))
-
-(defun mutecipher-acp--extract-attachments (text cwd)
-  "Scan TEXT for @-mentions and return ((TOKEN . ABS-PATH) ...)."
-  (let ((seen (make-hash-table :test #'equal))
-        (out  '())
-        (case-fold-search nil))
-    (with-temp-buffer
-      (insert text)
-      (goto-char (point-min))
-      (while (re-search-forward "@\\([^ \t\n\r]+\\)" nil t)
-        (let* ((raw     (match-string-no-properties 1))
-               (trimmed (replace-regexp-in-string
-                         "[.,;:!?)}'\"]+\\'" "" raw))
-               (abs     (when (and cwd (> (length trimmed) 0))
-                          (if (file-name-absolute-p trimmed)
-                              (expand-file-name trimmed)
-                            (expand-file-name trimmed cwd)))))
-          (when (and abs
-                     (not (gethash abs seen))
-                     (file-regular-p abs))
-            (puthash abs t seen)
-            (push (cons trimmed abs) out)))))
-    (nreverse out)))
-
-(defun mutecipher-acp--prompt-blocks (text cwd)
-  "Return the :prompt vector for TEXT resolved against CWD."
-  (let* ((attachments (mutecipher-acp--extract-attachments text cwd))
-         (text-block  (list :type "text" :text text))
-         (link-blocks (mapcar
-                       (lambda (a)
-                         (let ((abs (cdr a)))
-                           (list :type "resource_link"
-                                 :uri  (mutecipher-acp--path->file-uri abs)
-                                 :name (file-name-nondirectory abs))))
-                       attachments)))
-    (apply #'vector text-block link-blocks)))
-
-;;;; Completion-at-point functions
-
-(defun mutecipher-acp--commands-capf ()
-  "Completion-at-point function for ACP slash commands.
-Activates when the current line begins with \"/\"."
-  (when-let* ((session-id mutecipher-acp--session-id)
-              (session    (gethash session-id mutecipher-acp--sessions))
-              (commands   (macp-session-commands session))
-              (_ (save-excursion
-                   (beginning-of-line)
-                   (looking-at "/"))))
-    (let* ((slash-pos (save-excursion (beginning-of-line) (point)))
-           (word-end  (point))
-           (cmd-map   (mapcar (lambda (c)
-                                (cons (concat "/" (plist-get c :name))
-                                      (plist-get c :description)))
-                              commands)))
-      (list slash-pos word-end (mapcar #'car cmd-map)
-            :annotation-function
-            (lambda (name)
-              (when-let ((desc (cdr (assoc name cmd-map))))
-                (concat "  " desc)))
-            :company-kind (lambda (_) 'keyword)))))
-
-(defun mutecipher-acp--files-capf ()
-  "Completion-at-point function for @-mention file attachments."
-  (when-let* ((session-id mutecipher-acp--session-id)
-              (session    (gethash session-id mutecipher-acp--sessions))
-              (at-pos     (save-excursion
-                            (skip-chars-backward "^ \t\n")
-                            (and (eq (char-after) ?@) (point)))))
-    (let* ((cache      (mutecipher-acp--session-files session))
-           (source     (car cache))
-           (files      (cdr cache))
-           (candidates (mapcar (lambda (f) (concat "@" f)) files))
-           (tag        (if (eq source 'project) "[project]" "[fs]")))
-      (list at-pos (point) candidates
-            :annotation-function (lambda (_) (concat "  " tag))
-            :exclusive 'no
-            :exit-function (lambda (_s status)
-                             (when (eq status 'finished)
-                               (insert " ")))
-            :company-kind (lambda (_) 'file)))))
 
 ;;;; Pretty-printer dispatch
 ;;
