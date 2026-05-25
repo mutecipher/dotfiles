@@ -31,7 +31,7 @@
 (require 'mutecipher-acp-model)
 (require 'mutecipher-acp-completion)
 
-(declare-function mutecipher-acp--do-prompt    "mutecipher-acp")
+(declare-function mutecipher-acp--do-prompt    "mutecipher-acp-session")
 (declare-function completion-preview-insert    "completion-preview")
 (defvar completion-preview-active-mode)
 
@@ -139,43 +139,67 @@ Used by history navigation and edit-and-resend.  Leaves point at
   (goto-char (point-max)))
 
 (defun mutecipher-acp--composer-slash-match (text)
-  "If TEXT starts with `/NAME', return (NAME . BODY) from the registry, else nil.
-BODY is the rest of TEXT after `/NAME ' (or the empty string)."
+  "If TEXT starts with `/NAME' and NAME is registered, return (NAME PLIST . BODY).
+BODY is the rest of TEXT after the name (or the empty string), and
+spans embedded newlines so `/quote line1\\nline2' delivers the full
+body to the registered handler."
   (when (and (stringp text)
-             (string-match "^/\\([A-Za-z0-9_-]+\\)\\(?:[ \t\n]+\\(.*\\)\\)?\\'" text))
-    (let* ((name (match-string 1 text))
-           (rest (or (match-string 2 text) ""))
+             ;; \\(?:.\\|\n\\) so BODY spans newlines — plain `.' doesn't.
+             (string-match
+              "\\`/\\([A-Za-z0-9_-]+\\)\\(?:[ \t\n]+\\(\\(?:.\\|\n\\)*\\)\\)?\\'"
+              text))
+    (let* ((name  (match-string 1 text))
+           (rest  (or (match-string 2 text) ""))
            (entry (assoc name mutecipher-acp--slash-commands)))
-      (and entry (cons (cdr entry) rest)))))
+      (and entry (cons name (cons (cdr entry) rest))))))
+
+(defun mutecipher-acp--composer-dispatch (text)
+  "Route TEXT through the slash registry → send-hook → agent in order.
+The slash registry takes priority over the abnormal hook so that a
+matched local command is never masked by a hook that always returns
+non-nil.  When TEXT matches a registered slash command, the input is
+considered consumed even when the registered entry has no `:handler'
+— this prevents the literal `/cmd' string from leaking to the agent."
+  (let ((match (mutecipher-acp--composer-slash-match text)))
+    (cond
+     (match
+      (let* ((name    (car match))
+             (plist   (cadr match))
+             (body    (cddr match))
+             (handler (plist-get plist :handler)))
+        (if handler
+            (funcall handler body)
+          (message "ACP: /%s has no handler" name))))
+     ((run-hook-with-args-until-success
+       'mutecipher-acp-composer-send-functions text))
+     (t (mutecipher-acp--do-prompt mutecipher-acp--session-id text)))))
 
 (defun mutecipher-acp--composer-send ()
   "Send the composer's contents as a prompt to the current ACP session.
-Empty input is silently ignored.  Resets the history index so M-p
-starts from the most recent entry on the next iteration.
+Empty input is silently ignored.  The composer is cleared and the
+entry recorded in history ONLY AFTER dispatch returns successfully —
+if a slash handler or send-hook signals, the user's text remains in
+the composer for them to fix and retry.
 
-Before reaching the agent, the input passes through
-`mutecipher-acp-composer-send-functions' (abnormal hook until success)
-and the `mutecipher-acp--slash-commands' local registry.  If either
-consumes the input it is NOT forwarded."
+Dispatch order: local slash registry, then
+`mutecipher-acp-composer-send-functions' (abnormal hook), then RPC to
+the agent.  A matched slash command is always consumed even when its
+registered entry has no `:handler', so registering a name never leaks
+the literal `/cmd' text to the agent."
   (interactive)
   (unless (mutecipher-acp--composer-region-p (point))
     (mutecipher-acp--composer-goto)
     (user-error "ACP: jump to composer first"))
   (let ((text (mutecipher-acp--composer-text)))
     (unless (or (null text) (string-empty-p text))
+      ;; Dispatch FIRST so errors leave the buffer state intact.
+      (mutecipher-acp--composer-dispatch text)
+      ;; Only on successful dispatch: record + clear.
       (when (and mutecipher-acp--composer-history
                  (ring-p mutecipher-acp--composer-history))
         (ring-insert mutecipher-acp--composer-history text))
       (setq mutecipher-acp--composer-history-index nil)
-      (mutecipher-acp--composer-clear)
-      (or (run-hook-with-args-until-success
-           'mutecipher-acp-composer-send-functions text)
-          (let ((match (mutecipher-acp--composer-slash-match text)))
-            (and match
-                 (let ((handler (plist-get (car match) :handler))
-                       (body    (cdr match)))
-                   (and handler (funcall handler body)))))
-          (mutecipher-acp--do-prompt mutecipher-acp--session-id text)))))
+      (mutecipher-acp--composer-clear))))
 
 (defun mutecipher-acp--composer-history-prev ()
   "Replace composer contents with the previous history entry."

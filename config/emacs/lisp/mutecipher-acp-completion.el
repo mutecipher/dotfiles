@@ -37,7 +37,17 @@ trimmed body string after the command name; returns non-nil if the
 input was consumed and should NOT be sent to the agent).")
 
 (defun mutecipher-acp-register-slash-command (name &rest plist)
-  "Register a client-side slash command NAME with PLIST options."
+  "Register a client-side slash command NAME with PLIST options.
+Call as (mutecipher-acp-register-slash-command NAME :handler FN ...) —
+NOT as (mutecipher-acp-register-slash-command NAME (list :handler ...))
+which collapses into a malformed plist with a silently-nil handler."
+  (when (and plist (not (keywordp (car plist))))
+    (error "mutecipher-acp-register-slash-command: PLIST must be keyword/value pairs, got %S"
+           plist))
+  (when-let ((h (plist-get plist :handler)))
+    (unless (functionp h)
+      (error "mutecipher-acp-register-slash-command: :handler must be a function, got %S"
+             h)))
   (setf (alist-get name mutecipher-acp--slash-commands nil nil #'equal) plist))
 
 (defun mutecipher-acp--path->file-uri (abs-path)
@@ -138,24 +148,37 @@ SOURCE is the symbol `project' or `fs'."
 (defun mutecipher-acp--commands-capf ()
   "Completion-at-point function for ACP slash commands.
 Activates when the current line begins with \"/\".  Merges server-
-provided commands with the local registry."
+provided commands with the local registry (local entries take
+precedence so a user override shadows the server's same-named
+command).  The completion region is just the `/word' at the start of
+the line — trailing body text on the same line is left untouched."
   (when-let* ((session-id mutecipher-acp--session-id)
               (session    (gethash session-id mutecipher-acp--sessions))
               (_ (save-excursion
                    (beginning-of-line)
                    (looking-at "/"))))
     (let* ((server   (macp-session-commands session))
-           (cmd-map  (nconc
-                      (mapcar (lambda (c)
-                                (cons (concat "/" (plist-get c :name))
-                                      (plist-get c :description)))
-                              server)
-                      (mapcar (lambda (entry)
-                                (cons (concat "/" (car entry))
-                                      (plist-get (cdr entry) :description)))
-                              mutecipher-acp--slash-commands)))
+           (local    (mapcar (lambda (entry)
+                               (cons (concat "/" (car entry))
+                                     (plist-get (cdr entry) :description)))
+                             mutecipher-acp--slash-commands))
+           ;; Local first; then any server entry whose name isn't shadowed.
+           (cmd-map  (append
+                      local
+                      (cl-remove-if
+                       (lambda (s) (assoc (car s) local))
+                       (mapcar (lambda (c)
+                                 (cons (concat "/" (plist-get c :name))
+                                       (plist-get c :description)))
+                               server))))
            (slash-pos (save-excursion (beginning-of-line) (point)))
-           (word-end  (point)))
+           ;; word-end = end of the leading "/word", NOT (point) — so
+           ;; choosing a candidate doesn't eat any body text the user
+           ;; has typed on the same line.
+           (word-end  (save-excursion
+                        (goto-char slash-pos)
+                        (skip-chars-forward "/A-Za-z0-9_-")
+                        (point))))
       (when cmd-map
         (list slash-pos word-end (mapcar #'car cmd-map)
               :annotation-function
