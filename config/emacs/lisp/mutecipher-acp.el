@@ -41,6 +41,7 @@
 (require 'url-util)
 
 (require 'mutecipher-acp-faces)
+(require 'mutecipher-acp-model)
 
 (declare-function completion-preview-insert "completion-preview")
 
@@ -151,79 +152,6 @@ vector is rendered for in-flight tool calls."
   "Maximum number of candidate files returned per session by `@'-completion."
   :type 'integer
   :group 'mutecipher-acp)
-
-;;;; Data model
-;;
-;; Every visible thing in the transcript buffer is an ewoc node whose
-;; `data' is a `macp-node'.  The master pretty-printer
-;; `mutecipher-acp--pp' dispatches on `macp-node-kind' to kind-specific
-;; renderers.  Kind-specific data lives in the dedicated structs below.
-;;
-;; Prefix convention: file-internal identifiers are `mutecipher-acp-…'
-;; (or `mutecipher/acp-…' for interactive entry points).  The shorter
-;; `macp-…' prefix is reserved for `cl-defstruct' types and accessors —
-;; cl's auto-generated names show up at every call site, so the long
-;; prefix would punish readability.  No other identifiers should use
-;; `macp-…'.
-
-(cl-defstruct macp-node
-  kind         ; 'turn-header 'user 'assistant 'thought 'tool-call 'plan 'trailer
-  data         ; kind-specific struct below
-  collapsed)   ; bool; only meaningful for 'tool-call
-
-(cl-defstruct macp-turn
-  id            ; monotonic counter per session
-  started-at    ; float-time
-  ended-at      ; float-time or nil
-  stop-reason   ; 'end_turn 'max_tokens 'cancelled 'error or nil
-  usage)        ; plist; reserved for a follow-on plan
-
-(cl-defstruct macp-user
-  text)
-
-(cl-defstruct macp-assistant
-  text)         ; accumulated chunks while streaming
-
-(cl-defstruct macp-thought
-  text)
-
-(cl-defstruct macp-tool-call
-  call-id name kind
-  input locations
-  status               ; 'pending 'running 'done 'error
-  started-at ended-at
-  raw-output
-  diffs                ; list of (old . new) strings
-  rendered-diff-count  ; int counter replacing :rendered-content-count
-  plan-body            ; full plan markdown (only for ExitPlanMode-style tools)
-  cached-start-line    ; memoized line number from --tool-call-start-line
-  cached-start-key)    ; (rendered-diff-count . locations) when last computed
-
-(cl-defstruct macp-plan
-  entries)      ; vec of plists (:content :priority :status)
-
-(cl-defstruct macp-trailer
-  stop-reason)  ; 'max_tokens 'cancelled 'error 'refusal, etc.
-
-(cl-defstruct macp-notice
-  text          ; plain-text line content
-  face)         ; face symbol applied to the line
-
-(cl-defstruct (macp-session (:constructor mutecipher-acp--make-session))
-  id conn buffer agent cwd
-  (state 'idle)
-  state-started-at
-  state-timer
-  commands
-  file-cache
-  (turn-counter 0)
-  current-turn-node
-  current-assistant
-  current-plan-node
-  available-modes
-  current-mode-id
-  title
-  (tool-call-index (make-hash-table :test #'equal)))
 
 ;;;; Protocol-trace log buffer
 ;;
@@ -777,20 +705,6 @@ Used to reply to inbound requests from the agent."
 (defconst mutecipher-acp--rpc-error-invalid-params  -32602)
 (defconst mutecipher-acp--rpc-error-server          -32000)
 
-;;;; State
-
-(defvar mutecipher-acp--connections (make-hash-table :test #'equal)
-  "Hash table mapping agent-name strings to mutecipher-acp--conn structs.")
-
-(defvar mutecipher-acp--sessions (make-hash-table :test #'equal)
-  "Hash table mapping session-id strings to session plists.")
-
-(defvar-local mutecipher-acp--session-id nil
-  "Session ID associated with the current ACP buffer (output or input).")
-
-(defvar-local mutecipher-acp--ewoc nil
-  "The ewoc managing the current ACP session buffer's transcript.")
-
 ;;;; Inbound agent-request dispatcher
 
 (defun mutecipher-acp--handle-agent-request (conn id method params)
@@ -809,15 +723,6 @@ METHOD is the method string, PARAMS is the decoded plist."
                                     (format "Method not found: %s" method)))))
 
 ;;;; fs/* handlers
-
-(defun mutecipher-acp--session-for-conn (conn)
-  "Return the session plist for CONN, or nil if none is active."
-  (let (found)
-    (maphash (lambda (_id session)
-               (when (eq (macp-session-conn session) conn)
-                 (setq found session)))
-             mutecipher-acp--sessions)
-    found))
 
 (defun mutecipher-acp--handle-fs-read (conn id params)
   "Handle an fs/read_text_file request from the agent.
@@ -1540,26 +1445,6 @@ correct as long as the agent honours that boundary."
                      #'mutecipher-acp--handle-notification)))
           (puthash agent-name conn mutecipher-acp--connections)
           conn)))))
-
-;;;; Session buffer management
-
-(defun mutecipher-acp--id-prefix (session-id)
-  "Return the first 8 characters of SESSION-ID for display."
-  (substring session-id 0 (min 8 (length session-id))))
-
-(defun mutecipher-acp--buffer-name (agent-name session-id)
-  "Return buffer name for AGENT-NAME and SESSION-ID."
-  (format "*ACP: %s [%s]*" agent-name (mutecipher-acp--id-prefix session-id)))
-
-(defun mutecipher-acp--get-or-create-buffer (session-id agent-name)
-  "Return (or create) the session buffer for SESSION-ID / AGENT-NAME."
-  (let* ((name (mutecipher-acp--buffer-name agent-name session-id))
-         (buf  (get-buffer-create name)))
-    (with-current-buffer buf
-      (unless (derived-mode-p 'mutecipher-acp-session-mode)
-        (mutecipher-acp-session-mode)
-        (setq mutecipher-acp--session-id session-id)))
-    buf))
 
 ;;;; Protocol helpers
 
