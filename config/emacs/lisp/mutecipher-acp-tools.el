@@ -758,5 +758,9 @@ include the indented body."
                                  'wrap-prefix line-prefix)))
     (insert "  " (propertize "╰" 'face rail-face) rule "\n\n")))
 
+;; Register the tool-call node kind in the ewoc dispatcher.
+(declare-function mutecipher-acp-register-node-kind "mutecipher-acp-ewoc")
+(mutecipher-acp-register-node-kind 'tool-call #'mutecipher-acp--pp-tool-call)
+
 (provide 'mutecipher-acp-tools)
 ;;; mutecipher-acp-tools.el ends here
