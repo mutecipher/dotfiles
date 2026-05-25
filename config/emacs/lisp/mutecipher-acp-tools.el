@@ -18,8 +18,7 @@
 (require 'mutecipher-acp-log)
 (require 'mutecipher-acp-ewoc)
 
-(declare-function mutecipher-acp--close-assistant      "mutecipher-acp")
-(declare-function mutecipher-acp--reconcile-spinner-for-session "mutecipher-acp-tools")
+(declare-function mutecipher-acp--close-assistant      "mutecipher-acp-ewoc")
 (declare-function mutecipher/icon-for-acp              "mutecipher-icons")
 
 (defcustom mutecipher-acp-diff-max-lines 500
