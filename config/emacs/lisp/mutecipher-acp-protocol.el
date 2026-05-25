@@ -24,7 +24,7 @@
 (require 'mutecipher-acp-tools)
 (require 'mutecipher-acp-ui)
 
-(declare-function mutecipher-acp--set-state             "mutecipher-acp")
+(declare-function mutecipher-acp--set-state             "mutecipher-acp-session")
 
 ;;;; Inbound agent-request dispatcher
 
@@ -311,16 +311,18 @@ especially during interactive prompts like permission requests."
   nil)
 
 (defvar mutecipher-acp--update-handlers
-  '(("agent_message_chunk"      . mutecipher-acp--update-agent-message-chunk)
-    ("tool_call"                . mutecipher-acp--update-tool-call-new)
-    ("tool_call_update"         . mutecipher-acp--update-tool-call-update)
-    ("thought"                  . mutecipher-acp--update-thought)
-    ("plan"                     . mutecipher-acp--update-plan)
-    ("session_info_update"      . mutecipher-acp--update-session-info)
-    ("available_commands_update". mutecipher-acp--update-available-commands)
-    ("current_mode_update"      . mutecipher-acp--update-current-mode)
-    ("config_option_update"     . mutecipher-acp--update-config-option)
-    ("usage_update"             . mutecipher-acp--update-usage))
+  ;; `list' (not quoted '(...)) so `setf alist-get' can replace built-in
+  ;; entries without mutating a read-only literal.
+  (list (cons "agent_message_chunk"       #'mutecipher-acp--update-agent-message-chunk)
+        (cons "tool_call"                 #'mutecipher-acp--update-tool-call-new)
+        (cons "tool_call_update"          #'mutecipher-acp--update-tool-call-update)
+        (cons "thought"                   #'mutecipher-acp--update-thought)
+        (cons "plan"                      #'mutecipher-acp--update-plan)
+        (cons "session_info_update"       #'mutecipher-acp--update-session-info)
+        (cons "available_commands_update" #'mutecipher-acp--update-available-commands)
+        (cons "current_mode_update"       #'mutecipher-acp--update-current-mode)
+        (cons "config_option_update"      #'mutecipher-acp--update-config-option)
+        (cons "usage_update"              #'mutecipher-acp--update-usage))
   "Alist of (sessionUpdate-type . handler-fn).
 HANDLER-FN is called as (SESSION-ID UPDATE-PLIST).  Register a new
 entry with `mutecipher-acp-register-update-handler' to add support for

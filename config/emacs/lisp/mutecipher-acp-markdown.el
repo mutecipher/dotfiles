@@ -35,14 +35,19 @@
 
 (defun mutecipher-acp--md-inside-code-p (pos)
   "Non-nil if the char at POS is inside a code span.
-Set by the fenced-code and inline-code passes via the dedicated
-`mutecipher-acp-md-code' text property — independent of which face
-the colorizer happens to apply.  Used to gate non-code matchers so
-`*asterisks*' etc. *inside* a code span don't get italicized/bolded.
+The fenced-code and inline-code passes set the dedicated
+`mutecipher-acp-md-code' text property; that property is the source
+of truth.  As a defence-in-depth fallback we also accept
+`font-lock-constant-face' on POS — that covers any caller that styled
+code via face but forgot the dedicated property (e.g. a future
+markdown-extension pass or a tool-call body containing inline code).
 Bold/italic spans that *wrap around* a code span still apply —
 checking only the starting position lets the faces compose via
 `add-face-text-property'."
-  (get-text-property pos 'mutecipher-acp-md-code))
+  (or (get-text-property pos 'mutecipher-acp-md-code)
+      (let ((f (get-text-property pos 'face)))
+        (or (eq f 'font-lock-constant-face)
+            (and (listp f) (memq 'font-lock-constant-face f))))))
 
 (defun mutecipher-acp--md-hide (beg end)
   "Mark region BEG..END invisible via `mutecipher-acp-md-markup'."
@@ -386,34 +391,41 @@ runs whose outer neighbours are not alnum/`_' qualify."
         (mutecipher-acp--md-hide text-end me)))))
 
 (defvar mutecipher-acp--md-passes
-  '(mutecipher-acp--md-pass-fenced-code
-    mutecipher-acp--md-pass-inline-code
-    mutecipher-acp--md-pass-headings
-    mutecipher-acp--md-pass-blockquotes
-    mutecipher-acp--md-pass-tables
-    mutecipher-acp--md-pass-checkboxes
-    mutecipher-acp--md-pass-bold
-    mutecipher-acp--md-pass-italic
-    mutecipher-acp--md-pass-italic-underscore
-    mutecipher-acp--md-pass-strike
-    mutecipher-acp--md-pass-links)
+  ;; `list' (not quoted '(...)) so `setcdr' in `register-md-pass' can
+  ;; safely splice without mutating a read-only literal.
+  (list 'mutecipher-acp--md-pass-fenced-code
+        'mutecipher-acp--md-pass-inline-code
+        'mutecipher-acp--md-pass-headings
+        'mutecipher-acp--md-pass-blockquotes
+        'mutecipher-acp--md-pass-tables
+        'mutecipher-acp--md-pass-checkboxes
+        'mutecipher-acp--md-pass-bold
+        'mutecipher-acp--md-pass-italic
+        'mutecipher-acp--md-pass-italic-underscore
+        'mutecipher-acp--md-pass-strike
+        'mutecipher-acp--md-pass-links)
   "Ordered list of markdown rendering passes.
 Each is called as (FN BEG END LINE-STARTS).  Order matters: code passes
 run first so their content is opaque to later matchers; block-level
 runs before inline so contents compose.")
 
 (defun mutecipher-acp-register-md-pass (fn &optional after)
-  "Add FN to `mutecipher-acp--md-passes'.
-With no AFTER, append.  With AFTER, insert FN immediately after the
-pass named AFTER (a symbol)."
-  (if (null after)
+  "Add FN to `mutecipher-acp--md-passes' if not already present.
+With no AFTER, append.  With AFTER (a symbol), insert FN immediately
+after that pass; signals an error if AFTER is not currently
+registered, since silently appending would violate the ordering the
+caller asked for."
+  (unless (memq fn mutecipher-acp--md-passes)
+    (cond
+     ((null after)
       (setq mutecipher-acp--md-passes
-            (append mutecipher-acp--md-passes (list fn)))
-    (let* ((tail (memq after mutecipher-acp--md-passes)))
-      (if tail
-          (setcdr tail (cons fn (cdr tail)))
-        (setq mutecipher-acp--md-passes
-              (append mutecipher-acp--md-passes (list fn)))))))
+            (append mutecipher-acp--md-passes (list fn))))
+     (t
+      (let ((tail (memq after mutecipher-acp--md-passes)))
+        (unless tail
+          (error "mutecipher-acp-register-md-pass: AFTER pass %S is not registered"
+                 after))
+        (setcdr tail (cons fn (cdr tail))))))))
 
 (defun mutecipher-acp--apply-markdown (beg end)
   "Apply minimal markdown rendering to region BEG..END.
