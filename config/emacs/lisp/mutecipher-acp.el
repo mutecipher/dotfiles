@@ -3,42 +3,41 @@
 ;; An Emacs client for the Agent Client Protocol — a JSON-RPC interface
 ;; spoken by coding agents (e.g. claude-code-acp) over stdio NDJSON.
 ;;
-;; Architecture, top to bottom:
+;; Layout (each submodule provides its own feature):
 ;;
-;;   • Transport: minimal NDJSON JSON-RPC layer over `make-process'
-;;     (Emacs's built-in `jsonrpc.el' uses Content-Length framing, which
-;;     ACP does not — hence the custom layer).
-;;   • Dispatch:  inbound lines split into responses, agent-initiated
-;;     requests (fs/*, session/request_permission), and notifications.
-;;   • Session:   `:cwd', `:state', `:current-*' scratch slots, plus
-;;     1Hz state-timer for the elapsed-seconds counter.
-;;   • Render:    every transcript element is an ewoc node whose data is
-;;     a `macp-node' wrapping a kind-specific struct (turn, user,
-;;     assistant, thought, tool-call, plan, trailer, notice).
-;;     `mutecipher-acp--pp' dispatches on kind to per-kind printers.
-;;   • Input:     a paired `mutecipher-acp-input-mode' buffer below the
-;;     output window — slash-command + @-file completion, history ring,
-;;     dynamic resize.
-;;   • Markdown:  a small imperative renderer for assistant prose
-;;     (fenced code, headings, blockquotes, tables, checkboxes,
-;;     bold/italic/strike, inline links).  Applies via text properties
-;;     so it composes with the icon-gutter face overlays.
+;;   faces       — defgroup, 23 faces, presentation customs
+;;   model       — cl-defstructs (macp-node, -turn, -user, -assistant,
+;;                 -thought, -tool-call, -plan, -trailer, -notice,
+;;                 -session) and the session/connection hash tables
+;;   log         — *ACP-log* buffer + summarizer + log commands
+;;   rpc         — NDJSON JSON-RPC transport (no Content-Length framing,
+;;                 unlike built-in jsonrpc.el)
+;;   markdown    — 11 markdown passes driven by --md-passes; extensible
+;;                 via mutecipher-acp-register-md-pass
+;;   ewoc        — sticky-tail macros, --pp dispatcher (registry of
+;;                 node kinds, register with -register-node-kind),
+;;                 gutter + non-tool-call per-kind printers
+;;   tools       — tool-call ingest/update, raw-input/output handling,
+;;                 unified diff with file-line anchoring, spinner timer,
+;;                 tool-call card pretty-printer
+;;   completion  — @-file capf, file cache, attachment extraction,
+;;                 slash-command capf + local registry
+;;   composer    — inline composer (writable region past the ewoc),
+;;                 history ring, send pipeline with the
+;;                 composer-send-functions abnormal hook and local
+;;                 slash-command interception
+;;   ui          — session major mode, header-line, mode-line, state
+;;                 glyph, streaming caret, tool-call disclosure cmds
+;;   protocol    — inbound agent-request and session/update handlers,
+;;                 each backed by a registry
+;;   session     — connect / new / load / state machine / prompt / teardown
 ;;
-;; No external dependencies — only built-in Emacs packages plus the
-;; `mutecipher-icons' module for tool/status glyphs.
+;; This entry point requires every submodule and defines the public
+;; `mutecipher/acp-*' interactive commands plus the transient menu.
 
 ;;; Code:
 
-(require 'cl-lib)
-(require 'diff)
-(require 'diff-mode)
-(require 'ewoc)
-(require 'json)
-(require 'mutecipher-icons)
-(require 'project)
-(require 'ring)
 (require 'transient)
-(require 'url-util)
 
 (require 'mutecipher-acp-faces)
 (require 'mutecipher-acp-model)
@@ -52,8 +51,6 @@
 (require 'mutecipher-acp-ui)
 (require 'mutecipher-acp-protocol)
 (require 'mutecipher-acp-session)
-
-(declare-function completion-preview-insert "completion-preview")
 
 ;;;; Customization
 
