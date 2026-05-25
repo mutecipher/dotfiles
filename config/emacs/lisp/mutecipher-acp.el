@@ -38,6 +38,11 @@
 ;;; Code:
 
 (require 'transient)
+;; Submodules only `(declare-function mutecipher/icon-for-acp ...)' and
+;; fall back to ASCII via `(fboundp ...)' if the feature is absent.
+;; Require it here so glyphs are guaranteed when this package is loaded
+;; in isolation (e.g. `emacs -Q -l mutecipher-acp').
+(require 'mutecipher-icons)
 
 (require 'mutecipher-acp-faces)
 (require 'mutecipher-acp-model)

@@ -15,6 +15,8 @@
 (require 'ewoc)
 (require 'pulse)
 (require 'mutecipher-acp-faces)
+(require 'mutecipher-acp-model)
+(require 'mutecipher-acp-log)
 
 (defmacro mutecipher-acp--with-sticky-tail (buf &rest body)
   "Run BODY with BUF current; preserve composer text + window points.
@@ -250,12 +252,18 @@ read-only via text properties.  `rear-nonsticky' on the trailing edge
 keeps the inline composer (text past the ewoc footer) writable —
 characters typed by the user just past the last node do not inherit
 the transcript's read-only property."
-  (let ((beg (point))
-        (kind (macp-node-kind node))
-        (fn   nil))
-    (setq fn (alist-get kind mutecipher-acp--pp-node-kinds nil nil #'eq))
+  (let* ((beg  (point))
+         (kind (macp-node-kind node))
+         (fn   (alist-get kind mutecipher-acp--pp-node-kinds nil nil #'eq)))
     (if fn
         (funcall fn node)
+      ;; Surface the registration miss in *ACP-log* so a missing
+      ;; `mutecipher-acp-register-node-kind' call doesn't only manifest
+      ;; as silent uneditable text inside the transcript.
+      (mutecipher-acp--log-warn
+       'agent-warn nil
+       (format "[--pp] unknown node kind: %s — register via mutecipher-acp-register-node-kind"
+               kind))
       (insert (format "[acp: unknown node kind: %s]\n" kind)))
     (add-text-properties beg (point)
                          '(read-only t

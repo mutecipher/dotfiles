@@ -13,6 +13,11 @@
 (require 'mutecipher-acp-faces)
 (require 'mutecipher-acp-model)
 (require 'mutecipher-acp-ewoc)
+;; `--update-streaming-caret' reads `mutecipher-acp--composer-start',
+;; a defvar-local declared in composer.el.  Without this require the
+;; symbol would only become bound transitively via the entry file,
+;; turning load-order glitches into silent fallthroughs.
+(require 'mutecipher-acp-composer)
 
 (declare-function mutecipher-acp--composer-install        "mutecipher-acp-composer")
 (declare-function mutecipher-acp--composer-send           "mutecipher-acp-composer")
@@ -22,7 +27,7 @@
 (declare-function mutecipher-acp--maybe-complete          "mutecipher-acp-composer")
 (declare-function mutecipher-acp--files-capf              "mutecipher-acp-completion")
 (declare-function mutecipher-acp--commands-capf           "mutecipher-acp-completion")
-(declare-function mutecipher-acp--on-session-buffer-killed "mutecipher-acp")
+(declare-function mutecipher-acp--on-session-buffer-killed "mutecipher-acp-session")
 (declare-function mutecipher/acp-cycle-mode               "mutecipher-acp")
 (declare-function mutecipher/acp-dispatch                 "mutecipher-acp")
 (declare-function mutecipher/acp-cancel                   "mutecipher-acp")
