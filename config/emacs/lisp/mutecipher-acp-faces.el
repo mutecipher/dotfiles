@@ -36,7 +36,8 @@ Set to nil to disable the streaming caret entirely."
   '((user      "▌" mutecipher-acp-user-face)
     (assistant "▌" mutecipher-acp-agent-face)
     (thought   "▌" shadow)
-    (notice    "▌" shadow))
+    (notice    "▌" shadow)
+    (queued    "▌" mutecipher-acp-queued-face))
   "Alist mapping message-role symbols to (GLYPH FACE) pairs.
 Overrides `mutecipher/icon-for-acp' for the four chat-message roles so
 the transcript shows a subtle single-character marker rather than a
@@ -159,6 +160,12 @@ width the buffer's window happens to have.")
 (defface mutecipher-acp-prompt-glyph-face
   '((t :inherit mutecipher-acp-user-face :weight bold))
   "Face for the `❯' prompt glyph in the ACP composer region.")
+
+(defface mutecipher-acp-queued-face
+  '((t :inherit shadow :slant italic))
+  "Face for queued prompt nodes waiting to be sent.
+Rendered between the active turn and the composer; dim + italic so the
+queue reads as held / pending text rather than transcript content.")
 
 (defface mutecipher-acp-streaming-caret-face
   '((t :inherit mutecipher-acp-agent-face :weight bold))

@@ -759,6 +759,355 @@ even though its handler does nothing."
               (cdr (assoc "usage_update" mutecipher-acp--update-handlers))))
   (should-not (mutecipher-acp--update-usage "x" nil)))
 
+;;;; Prompt queue
+
+(defmacro macp-test--with-queue-session (var-session &rest body)
+  "Install a fresh session-buffer wired up for queue testing and run BODY.
+Binds VAR-SESSION to the `macp-session' struct stored in
+`mutecipher-acp--sessions'.  Stubs `mutecipher-acp--request' to a no-op
+so prompts don't actually fire RPC.  The session and buffer are torn
+down unconditionally on exit."
+  (declare (indent 1) (debug ((symbolp) body)))
+  `(let* ((buf (generate-new-buffer " *macp-queue-test*"))
+          (sid (format "test-sid-%s" (random)))
+          (,var-session (mutecipher-acp--make-session
+                          :id sid :buffer buf :agent "claude"
+                          :cwd "/tmp")))
+     (puthash sid ,var-session mutecipher-acp--sessions)
+     (cl-letf (((symbol-function 'mutecipher-acp--request)
+                (lambda (&rest _) nil)))
+       (unwind-protect
+           (with-current-buffer buf
+             (mutecipher-acp-session-mode)
+             (setq mutecipher-acp--session-id sid)
+             ,@body)
+         (let ((kill-buffer-hook nil))
+           (when (buffer-live-p buf) (kill-buffer buf)))
+         (remhash sid mutecipher-acp--sessions)))))
+
+(defun macp-test--queued-nodes ()
+  "Return the list of `macp-queued' structs (unwrapped) for every queued node."
+  (mapcar #'macp-node-data
+          (ewoc-collect mutecipher-acp--ewoc
+                         (lambda (d) (eq (macp-node-kind d) 'queued)))))
+
+(ert-deftest macp-test-queue-do-prompt-idle-fires-rpc ()
+  "Idle session: --do-prompt opens a turn, sets thinking, queue stays empty."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session))
+          (fired 0))
+      (cl-letf (((symbol-function 'mutecipher-acp--request)
+                 (lambda (&rest _) (cl-incf fired))))
+        (mutecipher-acp--do-prompt sid "hello"))
+      (should (= 1 fired))
+      (should (null (macp-session-prompt-queue session)))
+      (should (null (macp-session-queue-head-node session)))
+      (should (eq 'thinking (macp-session-state session))))))
+
+(ert-deftest macp-test-queue-do-prompt-busy-enqueues ()
+  "Busy session: --do-prompt drops to enqueue, no RPC fires."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session))
+          (fired 0))
+      (setf (macp-session-state session) 'thinking)
+      (cl-letf (((symbol-function 'mutecipher-acp--request)
+                 (lambda (&rest _) (cl-incf fired))))
+        (mutecipher-acp--do-prompt sid "queued-1"))
+      (should (= 0 fired))
+      (should (equal '("queued-1") (macp-session-prompt-queue session)))
+      (should (macp-session-queue-head-node session))
+      (let ((data (macp-test--queued-nodes)))
+        (should (= 1 (length data)))
+        (should (equal "queued-1"
+                       (macp-queued-text (car data))))))))
+
+(ert-deftest macp-test-queue-multiple-items-stack-in-order ()
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'streaming)
+      (mutecipher-acp--do-prompt sid "first")
+      (mutecipher-acp--do-prompt sid "second")
+      (mutecipher-acp--do-prompt sid "third")
+      (should (equal '("first" "second" "third")
+                     (macp-session-prompt-queue session)))
+      (let ((data (macp-test--queued-nodes)))
+        (should (= 3 (length data)))
+        (should (equal "first"  (macp-queued-text (nth 0 data))))
+        (should (equal "second" (macp-queued-text (nth 1 data))))
+        (should (equal "third"  (macp-queued-text (nth 2 data))))))))
+
+(ert-deftest macp-test-queue-drain-pops-head-and-fires ()
+  "On idle + non-empty queue, --drain-queue pops head and recurses through
+do-prompt — which now fires the RPC because state is back to idle."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session))
+          (sent nil))
+      ;; Enqueue two while busy.
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "alpha")
+      (mutecipher-acp--do-prompt sid "beta")
+      ;; Simulate turn ending naturally → state idle, then drain.
+      (setf (macp-session-state session) 'idle)
+      (cl-letf (((symbol-function 'mutecipher-acp--request)
+                 (lambda (_conn _method params &rest _)
+                   (push (plist-get params :prompt) sent))))
+        (mutecipher-acp--drain-queue sid))
+      ;; Head popped, only "beta" remains.
+      (should (equal '("beta") (macp-session-prompt-queue session)))
+      ;; Exactly one RPC fired carrying "alpha".
+      (should (= 1 (length sent)))
+      ;; The new state should be thinking (alpha now in flight).
+      (should (eq 'thinking (macp-session-state session)))
+      ;; queue-head-node now points at the second (only remaining) queued node.
+      (should (macp-session-queue-head-node session))
+      (let ((data (macp-test--queued-nodes)))
+        (should (= 1 (length data)))
+        (should (equal "beta" (macp-queued-text (car data))))))))
+
+(ert-deftest macp-test-queue-drain-empties-clears-head-node ()
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "only-one")
+      (setf (macp-session-state session) 'idle)
+      (mutecipher-acp--drain-queue sid)
+      (should (null (macp-session-prompt-queue session)))
+      (should (null (macp-session-queue-head-node session)))
+      (should (= 0 (length (macp-test--queued-nodes)))))))
+
+(ert-deftest macp-test-queue-drain-from-foreign-buffer ()
+  "Drain is invoked from the JSON-dispatch callback, whose current-buffer
+is not the session buffer.  Reading `mutecipher-acp--ewoc' there would
+return nil — drain must switch into the session buffer first."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session))
+          (sent nil))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "alpha")
+      (mutecipher-acp--do-prompt sid "beta")
+      (setf (macp-session-state session) 'idle)
+      (cl-letf (((symbol-function 'mutecipher-acp--request)
+                 (lambda (_conn _method params &rest _)
+                   (push (plist-get params :prompt) sent))))
+        ;; Step OUT of the session buffer before draining — this mirrors
+        ;; how the success-fn callback fires from the RPC layer.
+        (with-temp-buffer
+          (should (null mutecipher-acp--ewoc))
+          (mutecipher-acp--drain-queue sid)))
+      (should (= 1 (length sent)))
+      (should (equal '("beta") (macp-session-prompt-queue session)))
+      (should (macp-session-queue-head-node session)))))
+
+(ert-deftest macp-test-queue-drain-noop-when-not-idle ()
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "a")
+      (mutecipher-acp--drain-queue sid)  ; state still thinking
+      (should (equal '("a") (macp-session-prompt-queue session))))))
+
+(defun macp-test--goto-queued (text)
+  "Move point inside the `queued' node whose text equals TEXT."
+  (cl-loop for n = (ewoc-nth mutecipher-acp--ewoc 0)
+           then (ewoc-next mutecipher-acp--ewoc n)
+           while n
+           when (and (eq (macp-node-kind (ewoc-data n)) 'queued)
+                     (equal text (macp-queued-text
+                                  (macp-node-data (ewoc-data n)))))
+           return (progn (ewoc-goto-node mutecipher-acp--ewoc n) n)))
+
+(ert-deftest macp-test-queue-remove-at-point-shrinks-queue ()
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "a")
+      (mutecipher-acp--do-prompt sid "b")
+      (mutecipher-acp--do-prompt sid "c")
+      (macp-test--goto-queued "b")
+      (should (mutecipher-acp--queue-remove-at-point))
+      (should (equal '("a" "c") (macp-session-prompt-queue session)))
+      (should (= 2 (length (macp-test--queued-nodes))))
+      ;; head node is still "a"
+      (should (equal "a"
+                     (macp-queued-text
+                      (macp-node-data
+                       (ewoc-data (macp-session-queue-head-node session)))))))))
+
+(ert-deftest macp-test-queue-edit-at-point-restores-to-composer ()
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "to-edit")
+      (macp-test--goto-queued "to-edit")
+      (should (mutecipher-acp--queue-edit-at-point))
+      (should (null (macp-session-prompt-queue session)))
+      (should (null (macp-session-queue-head-node session)))
+      (should (equal "to-edit" (mutecipher-acp--composer-text))))))
+
+(ert-deftest macp-test-queue-removing-head-shifts-head-node ()
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "first")
+      (mutecipher-acp--do-prompt sid "second")
+      (macp-test--goto-queued "first")
+      (mutecipher-acp--queue-remove-at-point)
+      (should (equal '("second") (macp-session-prompt-queue session)))
+      (should (macp-session-queue-head-node session))
+      (should (equal "second"
+                     (macp-queued-text
+                      (macp-node-data
+                       (ewoc-data (macp-session-queue-head-node session)))))))))
+
+(ert-deftest macp-test-queue-do-prompt-error-state-still-enqueues ()
+  "Sending while the session is in `error' state should enqueue (any
+non-idle state queues).  Drain stays gated on natural completion."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session))
+          (fired 0))
+      (setf (macp-session-state session) 'error)
+      (cl-letf (((symbol-function 'mutecipher-acp--request)
+                 (lambda (&rest _) (cl-incf fired))))
+        (mutecipher-acp--do-prompt sid "after-error"))
+      (should (= 0 fired))
+      (should (equal '("after-error") (macp-session-prompt-queue session))))))
+
+(ert-deftest macp-test-queue-edit-refuses-when-composer-has-draft ()
+  "RET on a queued node must NOT clobber an in-progress composer draft.
+Instead, signal a `user-error' so the user keeps their text."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "queued-text")
+      (mutecipher-acp--composer-set-text "draft I am still writing")
+      (macp-test--goto-queued "queued-text")
+      (should-error (mutecipher-acp--queue-edit-at-point) :type 'user-error)
+      ;; Draft preserved, queue intact.
+      (should (equal "draft I am still writing"
+                     (mutecipher-acp--composer-text)))
+      (should (equal '("queued-text") (macp-session-prompt-queue session)))
+      (should (= 1 (length (macp-test--queued-nodes)))))))
+
+(ert-deftest macp-test-queued-node-at-point-rejects-separator ()
+  "ewoc-locate returns the nearest preceding node, so on the read-only
+separator just before composer-start it falsely yields the last queued
+node.  --queued-node-at-point must filter that out via a range check."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "the-queued")
+      ;; Position point ON the read-only separator at (1- composer-start).
+      (goto-char (1- (marker-position mutecipher-acp--composer-start)))
+      (should-not (mutecipher-acp--queued-node-at-point))
+      ;; Sanity: same point sees a preceding node via raw ewoc-locate.
+      (should (eq 'queued
+                  (macp-node-kind
+                   (ewoc-data (ewoc-locate mutecipher-acp--ewoc))))))))
+
+(ert-deftest macp-test-do-prompt-user-errors-on-missing-session ()
+  "`--do-prompt' must signal rather than silently swallowing when the
+session-id resolves to nothing — otherwise `--composer-send' would clear
+the user's text after a no-op dispatch."
+  (should-error (mutecipher-acp--do-prompt "no-such-session" "hi")
+                :type 'user-error))
+
+(ert-deftest macp-test-queue-drains-after-cancelled-stop-reason ()
+  "Cancel mid-turn must auto-drain the queue on the resulting idle
+transition.  Encode the success-fn drain gate's behavior directly: any
+stop reason in '(end_turn max_tokens cancelled) should drive a drain;
+'error / 'refusal should not."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session))
+          (sent nil))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "queued-after-cancel")
+      (setf (macp-session-state session) 'idle)
+      (cl-letf (((symbol-function 'mutecipher-acp--request)
+                 (lambda (_conn _method params &rest _)
+                   (push (plist-get params :prompt) sent))))
+        ;; This is what the success-fn does for stopReason "cancelled".
+        (mutecipher-acp--drain-queue sid))
+      (should (= 1 (length sent)))
+      (should (null (macp-session-prompt-queue session))))))
+
+(ert-deftest macp-test-enqueue-prompt-order-keeps-stores-in-sync ()
+  "If ewoc-enter-last signals during enqueue, prompt-queue must NOT have
+grown — the list mutation runs only after the EWOC insert succeeds."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (cl-letf (((symbol-function 'ewoc-enter-last)
+                 (lambda (&rest _) (error "simulated ewoc failure"))))
+        (ignore-errors (mutecipher-acp--do-prompt sid "should-not-stick")))
+      (should (null (macp-session-prompt-queue session)))
+      (should (null (macp-session-queue-head-node session)))
+      (should (= 0 (length (macp-test--queued-nodes)))))))
+
+(ert-deftest macp-test-queue-remove-node-order-keeps-stores-in-sync ()
+  "Same invariant on the removal side: if ewoc-delete signals,
+prompt-queue must still contain the entry."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "a")
+      (mutecipher-acp--do-prompt sid "b")
+      (macp-test--goto-queued "a")
+      (cl-letf (((symbol-function 'ewoc-delete)
+                 (lambda (&rest _) (error "simulated ewoc failure"))))
+        (ignore-errors (mutecipher-acp--queue-remove-at-point)))
+      ;; List intact; both nodes still in the EWOC.
+      (should (equal '("a" "b") (macp-session-prompt-queue session)))
+      (should (= 2 (length (macp-test--queued-nodes)))))))
+
+(ert-deftest macp-test-drain-recovers-when-head-node-nil-but-queue-nonempty ()
+  "Stale state: `queue-head-node' is nil while prompt-queue still has an
+entry whose queued EWOC node lives in the buffer.  --drain-queue should
+recover by walking the EWOC for the actual head node."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session))
+          (sent nil))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "orphan")
+      ;; Simulate the stale state.
+      (setf (macp-session-queue-head-node session) nil)
+      (setf (macp-session-state session) 'idle)
+      (cl-letf (((symbol-function 'mutecipher-acp--request)
+                 (lambda (_conn _method params &rest _)
+                   (push (plist-get params :prompt) sent))))
+        (mutecipher-acp--drain-queue sid))
+      ;; Drain succeeded — node deleted, queue popped, RPC fired.
+      (should (= 1 (length sent)))
+      (should (null (macp-session-prompt-queue session)))
+      (should (= 0 (length (macp-test--queued-nodes)))))))
+
+(ert-deftest macp-test-queued-nodes-stay-below-new-content ()
+  "When a turn opens while the queue is non-empty, the new turn-header +
+user nodes must land ABOVE the queued suffix."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "queued-msg")
+      ;; Now drain.  The popped item becomes a real turn — should appear
+      ;; ABOVE remaining queued items (here, none remain, but exercise the
+      ;; insertion path with a second queued item still present).
+      (mutecipher-acp--do-prompt sid "stays-queued")
+      (setf (macp-session-state session) 'idle)
+      (mutecipher-acp--drain-queue sid)
+      ;; Walk the ewoc: turn-header + user (from drained "queued-msg") must
+      ;; precede the lone remaining queued node ("stays-queued").
+      (let* ((kinds (cl-loop for n = (ewoc-nth mutecipher-acp--ewoc 0)
+                              then (ewoc-next mutecipher-acp--ewoc n)
+                              while n
+                              collect (macp-node-kind (ewoc-data n)))))
+        (should (memq 'turn-header kinds))
+        (should (memq 'user kinds))
+        (should (memq 'queued kinds))
+        ;; turn-header index < queued index
+        (should (< (cl-position 'turn-header kinds)
+                   (cl-position 'queued kinds)))
+        (should (< (cl-position 'user kinds)
+                   (cl-position 'queued kinds)))))))
+
 ;;;; Code-health fixes
 
 (ert-deftest macp-test-update-tool-call-missing-id-logs ()

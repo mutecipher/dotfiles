@@ -137,6 +137,16 @@ markers are reconciled when one is installed."
         (pulse-momentary-highlight-region
          beg end 'mutecipher-acp-pulse-face)))))
 
+(defun mutecipher-acp--ewoc-enter-tail (ewoc anchor data)
+  "Enter DATA at the tail of EWOC.
+When ANCHOR is non-nil, insert just before it via `ewoc-enter-before' so
+new transcript content lands above the pending-queue suffix.  Otherwise
+falls through to `ewoc-enter-last'.  Callers pass the session's
+`queue-head-node' as ANCHOR — nil whenever the queue is empty."
+  (if anchor
+      (ewoc-enter-before ewoc anchor data)
+    (ewoc-enter-last ewoc data)))
+
 ;;;; Assistant-text streaming + node entry helpers
 
 (defun mutecipher-acp--append-assistant-chunk (session-id text)
@@ -154,8 +164,9 @@ a response with a stray `\\n' don't leave the icon alone on a line."
              (node (macp-session-current-assistant session))
              (inhibit-read-only t))
         (unless node
-          (setq node (ewoc-enter-last
+          (setq node (mutecipher-acp--ewoc-enter-tail
                       ewoc
+                      (macp-session-queue-head-node session)
                       (make-macp-node :kind 'assistant
                                       :data (make-macp-assistant :text ""))))
           (setf (macp-session-current-assistant session) node))
@@ -180,8 +191,9 @@ a response with a stray `\\n' don't leave the icon alone on a line."
               (_       (buffer-live-p buf)))
     (mutecipher-acp--with-sticky-tail buf
       (let ((inhibit-read-only t))
-        (ewoc-enter-last
+        (mutecipher-acp--ewoc-enter-tail
          mutecipher-acp--ewoc
+         (macp-session-queue-head-node session)
          (make-macp-node :kind 'notice
                          :data (make-macp-notice :text text :face face)))))))
 
@@ -192,8 +204,9 @@ a response with a stray `\\n' don't leave the icon alone on a line."
               (_       (buffer-live-p buf)))
     (mutecipher-acp--with-sticky-tail buf
       (let ((inhibit-read-only t))
-        (ewoc-enter-last
+        (mutecipher-acp--ewoc-enter-tail
          mutecipher-acp--ewoc
+         (macp-session-queue-head-node session)
          (make-macp-node :kind 'thought
                          :data (make-macp-thought :text text)))))))
 
@@ -214,8 +227,9 @@ node is invalidated.  Otherwise a fresh plan node is entered."
             (ewoc-invalidate mutecipher-acp--ewoc existing)
             (mutecipher-acp--pulse-node mutecipher-acp--ewoc existing)))
          (t
-          (let ((node (ewoc-enter-last
+          (let ((node (mutecipher-acp--ewoc-enter-tail
                        mutecipher-acp--ewoc
+                       (macp-session-queue-head-node session)
                        (make-macp-node :kind 'plan
                                        :data (make-macp-plan :entries tasks)))))
             (setf (macp-session-current-plan-node session) node))))))))
@@ -357,6 +371,15 @@ Trailing blank line keeps spacing uniform across node kinds."
          (face (or (macp-notice-face data) 'default)))
     (mutecipher-acp--insert-with-gutter 'notice (concat text "\n") face)))
 
+(defun mutecipher-acp--pp-queued (node)
+  "Render a queued NODE: dim italic line representing a pending prompt.
+Uses the `queued' icon-kind gutter (falls back to `…') so the queue
+visually echoes the composer prompt above without being mistaken for
+sent user content."
+  (let ((text (or (macp-queued-text (macp-node-data node)) "")))
+    (mutecipher-acp--insert-with-gutter
+     'queued (concat text "\n") 'mutecipher-acp-queued-face)))
+
 (defun mutecipher-acp--pp-trailer (node)
   "Render a trailer NODE: a single dim line naming the non-normal stop reason."
   (let* ((trailer (macp-node-data node))
@@ -410,6 +433,7 @@ at a glance."
 (mutecipher-acp-register-node-kind 'notice      #'mutecipher-acp--pp-notice)
 (mutecipher-acp-register-node-kind 'trailer     #'mutecipher-acp--pp-trailer)
 (mutecipher-acp-register-node-kind 'plan        #'mutecipher-acp--pp-plan)
+(mutecipher-acp-register-node-kind 'queued      #'mutecipher-acp--pp-queued)
 
 (provide 'mutecipher-acp-ewoc)
 ;;; mutecipher-acp-ewoc.el ends here

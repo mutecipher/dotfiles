@@ -25,6 +25,7 @@
 (declare-function mutecipher-acp--composer-history-next   "mutecipher-acp-composer")
 (declare-function mutecipher-acp--tab-dwim                "mutecipher-acp-composer")
 (declare-function mutecipher-acp--maybe-complete          "mutecipher-acp-composer")
+(declare-function mutecipher-acp--queue-delete-dwim       "mutecipher-acp-composer")
 (declare-function mutecipher-acp--files-capf              "mutecipher-acp-completion")
 (declare-function mutecipher-acp--commands-capf           "mutecipher-acp-completion")
 (declare-function mutecipher-acp--on-session-buffer-killed "mutecipher-acp-session")
@@ -112,6 +113,10 @@ state chunk, mode pill, and session-id prefix flush-right."
                                          'face 'mutecipher-acp-hint-face
                                          'help-echo cwd-abbr)))))
          (state-chunk (mutecipher-acp--state-label state started))
+         (qcount  (and session (length (macp-session-prompt-queue session))))
+         (q-chunk (when (and qcount (> qcount 0))
+                    (propertize (format "%d queued" qcount)
+                                'face 'mutecipher-acp-queued-face)))
          (mode-pill (when m-icon
                       (propertize (if m-name
                                       (format "%s %s" m-icon m-name)
@@ -122,6 +127,7 @@ state chunk, mode pill, and session-id prefix flush-right."
                                    'face 'shadow)
                      ""))
          (right (concat state-chunk
+                        (when q-chunk (concat sep q-chunk))
                         (when mode-pill (concat sep mode-pill))
                         "   "
                         id-chunk)))
@@ -236,6 +242,8 @@ disclosure on a tool-call node, otherwise no-op."
   "M-J"        #'newline
   "M-p"        #'mutecipher-acp--composer-history-prev
   "M-n"        #'mutecipher-acp--composer-history-next
+  "DEL"        #'mutecipher-acp--queue-delete-dwim
+  "<backspace>" #'mutecipher-acp--queue-delete-dwim
   "TAB"        #'mutecipher-acp--tab-dwim
   "<tab>"      #'mutecipher-acp--tab-dwim
   "M-TAB"      #'mutecipher-acp--tab-dwim

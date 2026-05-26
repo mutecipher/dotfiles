@@ -26,6 +26,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'ewoc)
 (require 'ring)
 (require 'mutecipher-acp-faces)
 (require 'mutecipher-acp-model)
@@ -174,6 +175,96 @@ considered consumed even when the registered entry has no `:handler'
        'mutecipher-acp-composer-send-functions text))
      (t (mutecipher-acp--do-prompt mutecipher-acp--session-id text)))))
 
+(defun mutecipher-acp--queued-node-at-point ()
+  "Return the EWOC node at point if point is strictly inside a `queued' node.
+`ewoc-locate' returns the NEAREST PRECEDING node, so on the read-only
+separator just before composer-start it would falsely report the last
+queued node.  We additionally require point to lie before the node's
+end (the next node's start, or composer-start if at the tail)."
+  (when (and mutecipher-acp--ewoc
+             (not (mutecipher-acp--composer-region-p (point))))
+    (let* ((ewoc mutecipher-acp--ewoc)
+           (node (ewoc-locate ewoc)))
+      (when (and node (eq (macp-node-kind (ewoc-data node)) 'queued))
+        (let* ((next     (ewoc-next ewoc node))
+               (node-end (cond
+                          (next (ewoc-location next))
+                          ;; The composer's separator newline sits at
+                          ;; `(1- composer-start)' and is NOT part of
+                          ;; the last EWOC node — point on it should
+                          ;; not count as "inside" the queued node.
+                          ((bound-and-true-p mutecipher-acp--composer-start)
+                           (1- (marker-position
+                                mutecipher-acp--composer-start)))
+                          (t (point-max)))))
+          (and (< (point) node-end) node))))))
+
+(defun mutecipher-acp--queue-remove-node (session node)
+  "Drop NODE from SESSION's prompt-queue + EWOC, repairing `queue-head-node'.
+Looks up NODE's position among `queued' nodes via `ewoc-collect' so the
+deletion targets the matching string in `prompt-queue' even when the
+user removes a middle entry.  EWOC mutation runs FIRST; the list is
+mutated only after `ewoc-delete' returns, so a signal in the buffer
+update leaves both stores intact.  Returns the dropped text."
+  (let* ((buf       (macp-session-buffer session))
+         (text      nil))
+    (mutecipher-acp--with-sticky-tail buf
+      (let* ((ewoc   mutecipher-acp--ewoc)
+             (queued (ewoc-collect ewoc
+                                   (lambda (d)
+                                     (eq (macp-node-kind d) 'queued))))
+             (data   (ewoc-data node))
+             (idx    (cl-position data queued :test #'eq))
+             (queue  (macp-session-prompt-queue session))
+             (inhibit-read-only t))
+        (when idx
+          (setq text (nth idx queue)))
+        (when (eq node (macp-session-queue-head-node session))
+          (let ((next (ewoc-next ewoc node)))
+            (setf (macp-session-queue-head-node session)
+                  (and next
+                       (eq (macp-node-kind (ewoc-data next)) 'queued)
+                       next))))
+        (ewoc-delete ewoc node)
+        ;; List mutation AFTER the ewoc-delete succeeds — keeps the two
+        ;; stores in lockstep if the buffer update signals.
+        (when idx
+          (setf (macp-session-prompt-queue session)
+                (append (cl-subseq queue 0 idx)
+                        (cl-subseq queue (1+ idx)))))))
+    (mutecipher-acp--refresh-mode-line session)
+    text))
+
+(defun mutecipher-acp--queue-edit-at-point ()
+  "Pop the queued node at point back into the composer and remove it.
+Mirrors the keymap idiom from `--tab-dwim': RET on a queued node is the
+edit gesture; RET inside the composer is send.
+
+Guarded against draft loss: if the composer already has non-empty text,
+the queue-edit gesture is refused with a `user-error' rather than
+silently replacing the draft.  Returns non-nil when a queued node was
+consumed, regardless of whether text recovery succeeded."
+  (when-let* ((sid     mutecipher-acp--session-id)
+              (session (gethash sid mutecipher-acp--sessions))
+              (node    (mutecipher-acp--queued-node-at-point)))
+    (let ((draft (mutecipher-acp--composer-text)))
+      (when (and draft (not (string-empty-p draft)))
+        (user-error
+         "ACP: composer has a draft — clear it before editing a queued item")))
+    (let ((text (mutecipher-acp--queue-remove-node session node)))
+      (when text
+        (mutecipher-acp--composer-set-text text))
+      (mutecipher-acp--composer-goto))
+    t))
+
+(defun mutecipher-acp--queue-remove-at-point ()
+  "Remove the queued node at point without restoring it into the composer."
+  (when-let* ((sid     mutecipher-acp--session-id)
+              (session (gethash sid mutecipher-acp--sessions))
+              (node    (mutecipher-acp--queued-node-at-point)))
+    (mutecipher-acp--queue-remove-node session node)
+    t))
+
 (defun mutecipher-acp--composer-send ()
   "Send the composer's contents as a prompt to the current ACP session.
 Empty input is silently ignored.  The composer is cleared and the
@@ -181,25 +272,36 @@ entry recorded in history ONLY AFTER dispatch returns successfully —
 if a slash handler or send-hook signals, the user's text remains in
 the composer for them to fix and retry.
 
-Dispatch order: local slash registry, then
-`mutecipher-acp-composer-send-functions' (abnormal hook), then RPC to
-the agent.  A matched slash command is always consumed even when its
-registered entry has no `:handler', so registering a name never leaks
-the literal `/cmd' text to the agent."
+When point sits on a `queued' node, RET instead pops that node's text
+back into the composer for editing.  Dispatch order otherwise: local
+slash registry, then `mutecipher-acp-composer-send-functions' (abnormal
+hook), then RPC to the agent.  A matched slash command is always
+consumed even when its registered entry has no `:handler', so
+registering a name never leaks the literal `/cmd' text to the agent."
   (interactive)
-  (unless (mutecipher-acp--composer-region-p (point))
+  (cond
+   ((mutecipher-acp--queue-edit-at-point) nil)
+   ((not (mutecipher-acp--composer-region-p (point)))
     (mutecipher-acp--composer-goto)
     (user-error "ACP: jump to composer first"))
-  (let ((text (mutecipher-acp--composer-text)))
-    (unless (or (null text) (string-empty-p text))
-      ;; Dispatch FIRST so errors leave the buffer state intact.
-      (mutecipher-acp--composer-dispatch text)
-      ;; Only on successful dispatch: record + clear.
-      (when (and mutecipher-acp--composer-history
-                 (ring-p mutecipher-acp--composer-history))
-        (ring-insert mutecipher-acp--composer-history text))
-      (setq mutecipher-acp--composer-history-index nil)
-      (mutecipher-acp--composer-clear))))
+   (t
+    (let ((text (mutecipher-acp--composer-text)))
+      (unless (or (null text) (string-empty-p text))
+        ;; Dispatch FIRST so errors leave the buffer state intact.
+        (mutecipher-acp--composer-dispatch text)
+        ;; Only on successful dispatch: record + clear.
+        (when (and mutecipher-acp--composer-history
+                   (ring-p mutecipher-acp--composer-history))
+          (ring-insert mutecipher-acp--composer-history text))
+        (setq mutecipher-acp--composer-history-index nil)
+        (mutecipher-acp--composer-clear))))))
+
+(defun mutecipher-acp--queue-delete-dwim ()
+  "DEL on a queued node drops it from the queue; elsewhere, normal backspace.
+Composer text deletion stays untouched so backspace works as usual."
+  (interactive)
+  (unless (mutecipher-acp--queue-remove-at-point)
+    (call-interactively #'delete-backward-char)))
 
 (defun mutecipher-acp--composer-history-prev ()
   "Replace composer contents with the previous history entry."

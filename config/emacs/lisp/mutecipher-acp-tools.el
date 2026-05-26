@@ -151,8 +151,9 @@ string-valued key in `rawInput' listed by
         (let* ((inhibit-read-only t)
                (collapsed (and mutecipher-acp-collapse-tool-calls-by-default
                                (not plan)))
-               (node (ewoc-enter-last
+               (node (mutecipher-acp--ewoc-enter-tail
                       mutecipher-acp--ewoc
+                      (macp-session-queue-head-node session)
                       (make-macp-node :kind 'tool-call
                                       :data tc
                                       :collapsed collapsed))))

@@ -59,6 +59,9 @@
   text          ; plain-text line content
   face)         ; face symbol applied to the line
 
+(cl-defstruct macp-queued
+  text)         ; pending prompt text waiting for the active turn to end
+
 (cl-defstruct (macp-session (:constructor mutecipher-acp--make-session))
   id conn buffer agent cwd
   (state 'idle)
@@ -73,7 +76,9 @@
   available-modes
   current-mode-id
   title
-  (tool-call-index (make-hash-table :test #'equal)))
+  (tool-call-index (make-hash-table :test #'equal))
+  prompt-queue        ; list of strings, FIFO (head = next to send)
+  queue-head-node)    ; ewoc node of the first queued entry, anchor for enter-before
 
 ;;;; Session/connection state tables
 
