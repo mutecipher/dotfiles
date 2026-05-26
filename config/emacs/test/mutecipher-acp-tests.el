@@ -1004,6 +1004,61 @@ node.  --queued-node-at-point must filter that out via a range check."
                   (macp-node-kind
                    (ewoc-data (ewoc-locate mutecipher-acp--ewoc))))))))
 
+(ert-deftest macp-test-ewoc-enter-tail-assigns-uuid-and-indexes ()
+  "Every node entered via --ewoc-enter-tail gets a stable uuid and is
+registered in the session's node-index for O(1) addressing."
+  (macp-test--with-queue-session session
+    (let* ((node (mutecipher-acp--ewoc-enter-tail
+                  mutecipher-acp--ewoc nil
+                  (make-macp-node :kind 'notice
+                                  :data (make-macp-notice :text "hi"))))
+           (uuid (macp-node-uuid (ewoc-data node))))
+      (should (stringp uuid))
+      (should (string-match-p "\\`n_[0-9a-f]\\{12\\}\\'" uuid))
+      (should (eq node (gethash uuid (macp-session-node-index session)))))))
+
+(ert-deftest macp-test-ewoc-enter-tail-preserves-existing-uuid ()
+  "Persistence-replay path: when DATA already carries a uuid, --ewoc-enter-tail
+keeps it instead of generating a fresh one."
+  (macp-test--with-queue-session session
+    (let* ((data (make-macp-node :uuid "n_deadbeef0000"
+                                 :kind 'notice
+                                 :data (make-macp-notice :text "hi")))
+           (node (mutecipher-acp--ewoc-enter-tail
+                  mutecipher-acp--ewoc nil data)))
+      (should (equal "n_deadbeef0000" (macp-node-uuid (ewoc-data node))))
+      (should (eq node (gethash "n_deadbeef0000"
+                                (macp-session-node-index session)))))))
+
+(ert-deftest macp-test-queue-remove-also-unindexes-node ()
+  "Removing a queued node from the EWOC must also drop its uuid from
+the session's node-index — otherwise the index leaks a pointer to a
+deleted ewoc node."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "to-remove")
+      (let* ((node (mutecipher-acp--queue-recover-head-node session))
+             (uuid (macp-node-uuid (ewoc-data node)))
+             (idx  (macp-session-node-index session)))
+        (should (gethash uuid idx))
+        (mutecipher-acp--queue-remove-node session node)
+        (should-not (gethash uuid idx))))))
+
+(ert-deftest macp-test-queue-drain-also-unindexes-head ()
+  "Draining a queued node must also drop its uuid from node-index."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (setf (macp-session-state session) 'thinking)
+      (mutecipher-acp--do-prompt sid "to-drain")
+      (let* ((node (mutecipher-acp--queue-recover-head-node session))
+             (uuid (macp-node-uuid (ewoc-data node)))
+             (idx  (macp-session-node-index session)))
+        (should (gethash uuid idx))
+        (setf (macp-session-state session) 'idle)
+        (mutecipher-acp--drain-queue sid)
+        (should-not (gethash uuid idx))))))
+
 (ert-deftest macp-test-do-prompt-user-errors-on-missing-session ()
   "`--do-prompt' must signal rather than silently swallowing when the
 session-id resolves to nothing — otherwise `--composer-send' would clear

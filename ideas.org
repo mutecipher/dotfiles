@@ -157,3 +157,88 @@ Anchor: config/emacs/lisp/mutecipher-acp.el:1336
 "Send staged diff as prompt", "summarize this PR" — small commands
 that wire project/vc context into a new prompt.
 Anchor: config/emacs/lisp/mutecipher-acp.el:1161
+
+* ACP client — agentic-IDE data layer
+Roadmap from the 2026-05-25 gap analysis on what =mutecipher-acp-*=
+needs to support a Cursor-style agentic dev environment.  These items
+are distinct from the polish/UX backlog above — they're about the data
+model under the transcript, not what's rendered on top of it.
+
+Related items already tracked above (don't re-file):
+- MCP server passthrough (#A) — covers the MCP slice.
+- Surface usage and cost (#B) — covers per-turn tokens / cost.
+- Rewind / edit last message (#B) — subsumed by "stable node
+  identity" below (id-per-message is the prerequisite).
+- Persist sessions across Emacs restarts (#B) — subsumed by
+  "on-disk transcript serialization" below (the existing item is
+  just the cwd→session-id index; the bigger lift is serializing
+  the transcript itself).
+- project.el / magit integration (#C) — adjacent to but smaller
+  than "repo signal as structured input" below.
+
+** TODO [#A] Stable node identity (UUIDs on user/assistant/tool-call)
+Only =macp-turn= has an =id=, and only =macp-tool-call= has
+=call-id=; =macp-user= / =macp-assistant= / =macp-thought= / =macp-plan=
+have no addressable identity.  Without ids you cannot fork from a
+turn, edit-and-rerun an arbitrary user message, or restore the file
+checkpoint associated with a turn.  Add a =:uuid= slot to every
+addressable struct, populate at enter-time, and key a per-session
+hash off them for O(1) lookup.
+Anchor: config/emacs/lisp/mutecipher-acp-model.el:19
+
+** TODO [#A] On-disk transcript serialization
+=session/load= replays state from the agent, but the agent isn't a
+durable store — auth changes, model deprecations, or simple GC will
+drop history.  Persist the full =macp-node= list per session to
+=~/.cache/emacs/acp/<session-id>.eld=, plus an index
+=~/.cache/emacs/acp/index.eld= of =(id agent cwd title last-active
+model)= for the session picker.  Extends the lighter "persist
+sessions" item above.
+Anchor: config/emacs/lisp/mutecipher-acp-session.el (load/new paths)
+
+** TODO [#A] Change-set as a first-class object
+Per-turn diffs currently live on individual =macp-tool-call= structs
+for rendering only.  Add a =macp-change-set= struct hung off
+=macp-turn= that groups every file mutation in a turn, tracks
+per-hunk staged / accepted / rejected state, and stores a pre-edit
+snapshot for restore.  This is the single biggest "agentic IDE" gap —
+no review-changes panel, no checkpoint/restore, no partial accept
+without it.
+Anchor: config/emacs/lisp/mutecipher-acp-model.el:40 (tool-call),
+         config/emacs/lisp/mutecipher-acp-tools.el (diff plumbing)
+
+** TODO [#B] Pinned context / always-include attachments
+Attachments are extracted per-prompt at composer-send time
+(=mutecipher-acp-composer.el=).  Add a =:pinned-attachments= slot to
+=macp-session= for "always include these paths" plus a slot for
+selection-based context (region from another buffer staged for the
+next prompt — Cursor's "Add to chat" gesture).
+Anchor: config/emacs/lisp/mutecipher-acp-composer.el,
+         config/emacs/lisp/mutecipher-acp-model.el:65 (session struct)
+
+** TODO [#B] Repo signal as structured input
+Today the agent reads git status / diff / branch / LSP diagnostics
+ad-hoc via tool calls.  Add a =macp-repo-state= struct refreshed on
+buffer save and exposed to the composer, so the user can stage "send
+current diff" / "send failing tests" / "send diagnostics for this
+file" without manual Bash dispatch.  Broader than the existing
+project.el / magit item.
+
+** TODO [#C] Nested tool-calls (subagent trees)
+=macp-tool-call= is flat in the ewoc.  Add a =:parent-call-id= slot so
+that when a tool call spawns subagent work (e.g. Task tool), the
+children can render under the parent in a collapsible tree.
+Anchor: config/emacs/lisp/mutecipher-acp-model.el:40
+
+** TODO [#C] Cross-session search index
+Once transcripts are on disk, build a per-project index keyed on
+content so "find the conversation where we discussed X" works without
+hand-grepping =.eld= files.  Depends on the on-disk serialization
+item above.
+
+** TODO [#C] Context-window pressure / compaction events
+Add a =:context-pct= slot to =macp-session= and a =macp-compaction=
+node kind so when the agent compacts, the event is visible in the
+transcript (and the header-line can warn before compaction hits).
+Adjacent to the usage/cost item but distinct — usage is per-turn,
+compaction is a window-pressure event.

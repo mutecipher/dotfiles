@@ -187,16 +187,17 @@ them via `--ewoc-enter-tail'.  The session's `queue-head-node' is set on
 first enqueue so subsequent insertions know where to anchor.
 
 The EWOC insertion runs FIRST; the list is mutated only after
-`ewoc-enter-last' returns successfully so a signal in the buffer update
-doesn't leave the two stores desynced.  Echoes a one-line acknowledgment
-to the minibuffer so M-x callers know their text was held."
+`mutecipher-acp--ewoc-enter-tail' returns successfully so a signal in
+the buffer update doesn't leave the two stores desynced.  Echoes a
+one-line acknowledgment to the minibuffer so M-x callers know their
+text was held."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
               (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
     (mutecipher-acp--with-sticky-tail buf
       (let* ((inhibit-read-only t)
-             (node (ewoc-enter-last
-                    mutecipher-acp--ewoc
+             (node (mutecipher-acp--ewoc-enter-tail
+                    mutecipher-acp--ewoc nil
                     (make-macp-node :kind 'queued
                                     :data (make-macp-queued :text text)))))
         ;; List mutation AFTER the ewoc-enter succeeds — keeps the two
@@ -255,6 +256,7 @@ whose current-buffer is not the session buffer — and
                        next))
             (mutecipher-acp--with-sticky-tail buf
               (let ((inhibit-read-only t))
+                (mutecipher-acp--unindex-node session head)
                 (ewoc-delete mutecipher-acp--ewoc head)))))
         ;; List mutation only after the EWOC update succeeded (or we
         ;; confirmed there was no head node to delete).

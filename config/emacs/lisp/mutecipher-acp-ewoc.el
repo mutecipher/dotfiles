@@ -142,10 +142,23 @@ markers are reconciled when one is installed."
 When ANCHOR is non-nil, insert just before it via `ewoc-enter-before' so
 new transcript content lands above the pending-queue suffix.  Otherwise
 falls through to `ewoc-enter-last'.  Callers pass the session's
-`queue-head-node' as ANCHOR — nil whenever the queue is empty."
-  (if anchor
-      (ewoc-enter-before ewoc anchor data)
-    (ewoc-enter-last ewoc data)))
+`queue-head-node' as ANCHOR — nil whenever the queue is empty.
+
+Also populates DATA's `:uuid' slot (unless already set — persistence
+replay reuses the stored id) and registers `(uuid . node)' in the
+current session's `node-index' for O(1) addressing."
+  (let ((node (if anchor
+                  (ewoc-enter-before ewoc anchor data)
+                (ewoc-enter-last ewoc data))))
+    ;; Stamp uuid AFTER the ewoc-enter succeeds — if the enter signals,
+    ;; the caller's struct stays untouched and a retry generates a fresh id.
+    (unless (macp-node-uuid data)
+      (setf (macp-node-uuid data) (mutecipher-acp--new-node-uuid)))
+    (when-let* ((session (gethash mutecipher-acp--session-id
+                                  mutecipher-acp--sessions))
+                (index   (macp-session-node-index session)))
+      (puthash (macp-node-uuid data) node index))
+    node))
 
 ;;;; Assistant-text streaming + node entry helpers
 

@@ -225,6 +225,7 @@ update leaves both stores intact.  Returns the dropped text."
                   (and next
                        (eq (macp-node-kind (ewoc-data next)) 'queued)
                        next))))
+        (mutecipher-acp--unindex-node session node)
         (ewoc-delete ewoc node)
         ;; List mutation AFTER the ewoc-delete succeeds — keeps the two
         ;; stores in lockstep if the buffer update signals.

@@ -17,9 +17,14 @@
 (require 'cl-lib)
 
 (cl-defstruct macp-node
+  ;; New slots MUST be added at the END.  `cl-defstruct' accessors are
+  ;; `defsubst'-inlined, so reordering shifts every call site's
+  ;; (aref struct N) and silently corrupts any stale `.elc' linked
+  ;; against the old layout.
   kind         ; 'turn-header 'user 'assistant 'thought 'tool-call 'plan 'trailer
   data         ; kind-specific struct below
-  collapsed)   ; bool; only meaningful for 'tool-call
+  collapsed    ; bool; only meaningful for 'tool-call
+  uuid)        ; stable string id, populated lazily by --ewoc-enter-tail
 
 (cl-defstruct macp-turn
   id            ; monotonic counter per session
@@ -77,8 +82,27 @@
   current-mode-id
   title
   (tool-call-index (make-hash-table :test #'equal))
+  (node-index (make-hash-table :test #'equal)) ; uuid -> ewoc node, populated by --ewoc-enter-tail
   prompt-queue        ; list of strings, FIFO (head = next to send)
   queue-head-node)    ; ewoc node of the first queued entry, anchor for enter-before
+
+;;;; Node identity
+
+;; Seed once at module load so uuids differ across Emacs sessions — without
+;; this, two cold-started Emacs instances produce identical uuid sequences,
+;; which would collide once persistence-replay loads transcripts from disk.
+(random t)
+
+(defun mutecipher-acp--new-node-uuid ()
+  "Generate a fresh node uuid: short hex string suitable for addressing."
+  (format "n_%012x" (random (expt 16 12))))
+
+(defun mutecipher-acp--unindex-node (session node)
+  "Remove NODE's uuid mapping from SESSION's `node-index'.
+No-op when the node has no uuid (constructed outside `--ewoc-enter-tail')."
+  (when-let* ((data (ewoc-data node))
+              (uuid (macp-node-uuid data)))
+    (remhash uuid (macp-session-node-index session))))
 
 ;;;; Session/connection state tables
 
