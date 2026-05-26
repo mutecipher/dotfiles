@@ -31,6 +31,7 @@
 ;;   protocol    — inbound agent-request and session/update handlers,
 ;;                 each backed by a registry
 ;;   session     — connect / new / load / state machine / prompt / teardown
+;;   changes     — per-turn change-set revert (mutecipher/acp-revert-turn)
 ;;
 ;; This entry point requires every submodule and defines the public
 ;; `mutecipher/acp-*' interactive commands plus the transient menu.
@@ -57,6 +58,7 @@
 (require 'mutecipher-acp-protocol)
 (require 'mutecipher-acp-persist)
 (require 'mutecipher-acp-session)
+(require 'mutecipher-acp-changes)
 
 ;;;; Customization
 

@@ -196,7 +196,7 @@ model)= for the session picker.  Extends the lighter "persist
 sessions" item above.
 Anchor: config/emacs/lisp/mutecipher-acp-session.el (load/new paths)
 
-** TODO [#A] Change-set as a first-class object
+** DONE [#A] Change-set as a first-class object
 Per-turn diffs currently live on individual =macp-tool-call= structs
 for rendering only.  Add a =macp-change-set= struct hung off
 =macp-turn= that groups every file mutation in a turn, tracks
@@ -204,6 +204,13 @@ per-hunk staged / accepted / rejected state, and stores a pre-edit
 snapshot for restore.  This is the single biggest "agentic IDE" gap —
 no review-changes panel, no checkpoint/restore, no partial accept
 without it.
+
+MVP shipped (May 2026): =macp-file-change= + =macp-change-set= structs
+hung off =macp-turn=, lazy per-file snapshot capture in
+=mutecipher-acp-tools.el= reverse-applying diffs against the post-edit
+disk state, =mutecipher/acp-revert-turn= command in a new
+=mutecipher-acp-changes.el= module.  Per-hunk state, review-changes
+panel, and visual badges remain — each is a clean follow-up.
 Anchor: config/emacs/lisp/mutecipher-acp-model.el:40 (tool-call),
          config/emacs/lisp/mutecipher-acp-tools.el (diff plumbing)
 

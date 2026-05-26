@@ -1569,5 +1569,625 @@ sessions can replay queued user input via --enqueue-prompt."
     ;; Original untouched.
     (should (equal 7 (macp-tool-call-cached-start-line tc)))))
 
+;;;; Change-sets
+
+(ert-deftest macp-test-file-change-defaults ()
+  "macp-file-change accessors return the slot values they were built with."
+  (let ((fc (make-macp-file-change
+             :path "/tmp/foo" :pre-turn-content "old"
+             :pre-turn-existed t :capture-status 'ok
+             :status 'accepted :tool-call-ids '("c1"))))
+    (should (equal "/tmp/foo" (macp-file-change-path fc)))
+    (should (equal "old" (macp-file-change-pre-turn-content fc)))
+    (should (eq t (macp-file-change-pre-turn-existed fc)))
+    (should (eq 'ok (macp-file-change-capture-status fc)))
+    (should (eq 'accepted (macp-file-change-status fc)))
+    (should (equal '("c1") (macp-file-change-tool-call-ids fc)))))
+
+(ert-deftest macp-test-change-set-files-alist ()
+  "macp-change-set stores files as an alist that supports assoc lookup."
+  (let* ((fc (make-macp-file-change :path "/tmp/a" :capture-status 'ok))
+         (cs (make-macp-change-set :files (list (cons "/tmp/a" fc)))))
+    (should (eq fc (cdr (assoc "/tmp/a" (macp-change-set-files cs)))))
+    (should (null (assoc "/tmp/missing" (macp-change-set-files cs))))))
+
+(ert-deftest macp-test-replace-unique-plain ()
+  (should (equal "abXcd" (mutecipher-acp--replace-unique "Y" "X" "abYcd")))
+  (should (null (mutecipher-acp--replace-unique "Z" "X" "abc")))
+  (should (null (mutecipher-acp--replace-unique "" "X" "abc")))
+  ;; Multi-match: ambiguous, refuses to guess.
+  (should (null (mutecipher-acp--replace-unique "y" "X" "yby")))
+  ;; Single-match works.
+  (should (equal "Xb" (mutecipher-acp--replace-unique "y" "X" "yb"))))
+
+(ert-deftest macp-test-reverse-apply-pairs-happy ()
+  "Reverse-apply maps post-edit content back to pre-edit content."
+  (let* ((post "hello brave new world")
+         (pairs (list (cons "old" "brave new")))  ; old→new during edit
+         (result (mutecipher-acp--reverse-apply-pairs post pairs)))
+    (should (eq 'ok (cdr result)))
+    (should (equal "hello old world" (car result)))))
+
+(ert-deftest macp-test-reverse-apply-pairs-multi-hunk ()
+  "Multiple hunks reverse in arrival order."
+  (let* ((post "AAA new1 BBB new2 CCC")
+         (pairs (list (cons "old1" "new1")
+                      (cons "old2" "new2")))
+         (result (mutecipher-acp--reverse-apply-pairs post pairs)))
+    (should (eq 'ok (cdr result)))
+    (should (equal "AAA old1 BBB old2 CCC" (car result)))))
+
+(ert-deftest macp-test-reverse-apply-pairs-missing ()
+  "Missing newText aborts with reverse-apply-failed and nil content."
+  (let ((result (mutecipher-acp--reverse-apply-pairs
+                 "no match here"
+                 (list (cons "old" "absent")))))
+    (should (eq 'reverse-apply-failed (cdr result)))
+    (should (null (car result)))))
+
+(ert-deftest macp-test-reverse-apply-pairs-empty-new-skipped ()
+  "Pair with empty newText is a no-op (creation marker)."
+  (let ((result (mutecipher-acp--reverse-apply-pairs
+                 "whole file"
+                 (list (cons "" "")))))
+    (should (eq 'ok (cdr result)))
+    (should (equal "whole file" (car result)))))
+
+(defmacro macp-test--with-temp-file (var content &rest body)
+  "Bind VAR to a temp file pre-populated with CONTENT, run BODY, then delete it."
+  (declare (indent 2) (debug (symbolp form body)))
+  `(let ((,var (make-temp-file "macp-cs-" nil ".txt")))
+     (unwind-protect
+         (progn
+           (with-temp-file ,var
+             (let ((coding-system-for-write 'utf-8))
+               (insert ,content)))
+           ,@body)
+       (when (file-exists-p ,var) (delete-file ,var)))))
+
+(ert-deftest macp-test-capture-snapshot-edit-single-hunk ()
+  "Disk has post-edit content; snapshot reconstructs pre-edit content."
+  (macp-test--with-temp-file path "hello brave new world"
+    (let ((snap (mutecipher-acp--capture-snapshot
+                 path (list (cons "old" "brave new")))))
+      (should (eq 'ok          (plist-get snap :capture-status)))
+      (should (eq t            (plist-get snap :pre-turn-existed)))
+      (should (equal "hello old world"
+                     (plist-get snap :pre-turn-content))))))
+
+(ert-deftest macp-test-capture-snapshot-edit-multi-hunk ()
+  (macp-test--with-temp-file path "AAA new1 BBB new2 CCC"
+    (let ((snap (mutecipher-acp--capture-snapshot
+                 path (list (cons "old1" "new1")
+                            (cons "old2" "new2")))))
+      (should (eq 'ok (plist-get snap :capture-status)))
+      (should (equal "AAA old1 BBB old2 CCC"
+                     (plist-get snap :pre-turn-content))))))
+
+(ert-deftest macp-test-capture-snapshot-write-overwrite ()
+  "Write that overwrites an existing file: oldText is full prior content."
+  (macp-test--with-temp-file path "BRAND NEW CONTENT\n"
+    (let ((snap (mutecipher-acp--capture-snapshot
+                 path (list (cons "OLD CONTENT\n" "BRAND NEW CONTENT\n")))))
+      (should (eq 'ok (plist-get snap :capture-status)))
+      (should (eq t   (plist-get snap :pre-turn-existed)))
+      (should (equal "OLD CONTENT\n" (plist-get snap :pre-turn-content))))))
+
+(ert-deftest macp-test-capture-snapshot-write-create ()
+  "Write that creates a new file: oldText empty, reverse yields empty content."
+  (macp-test--with-temp-file path "FILE CREATED BY AGENT"
+    (let ((snap (mutecipher-acp--capture-snapshot
+                 path (list (cons "" "FILE CREATED BY AGENT")))))
+      (should (eq 'ok  (plist-get snap :capture-status)))
+      (should (eq nil  (plist-get snap :pre-turn-existed)))
+      (should (null    (plist-get snap :pre-turn-content))))))
+
+(ert-deftest macp-test-capture-snapshot-too-large ()
+  (macp-test--with-temp-file path (make-string 4096 ?x)
+    (let ((mutecipher-acp-change-set-max-bytes 16))
+      (let ((snap (mutecipher-acp--capture-snapshot
+                   path (list (cons "old" "new")))))
+        (should (eq 'suppressed-too-large
+                    (plist-get snap :capture-status)))
+        (should (null (plist-get snap :pre-turn-content)))))))
+
+(ert-deftest macp-test-capture-snapshot-reverse-apply-failed ()
+  (macp-test--with-temp-file path "current content"
+    (let ((snap (mutecipher-acp--capture-snapshot
+                 path (list (cons "old" "absent-string")))))
+      (should (eq 'reverse-apply-failed
+                  (plist-get snap :capture-status)))
+      (should (null (plist-get snap :pre-turn-content))))))
+
+(ert-deftest macp-test-capture-snapshot-utf8 ()
+  "Multibyte content snapshots correctly."
+  (macp-test--with-temp-file path "こんにちは brave 🎉 world"
+    (let ((snap (mutecipher-acp--capture-snapshot
+                 path (list (cons "kind" "brave")))))
+      (should (eq 'ok (plist-get snap :capture-status)))
+      (should (equal "こんにちは kind 🎉 world"
+                     (plist-get snap :pre-turn-content))))))
+
+;;;; Change-set integration with session + turn
+
+(defmacro macp-test--with-turn-session (var-session &rest body)
+  "Like `macp-test--with-queue-session' but also opens a fresh turn.
+Binds VAR-SESSION to the session, leaves a turn-header node at the
+tail of the EWOC with `current-turn-node' pointing at it.  Stubs
+RPC and persistence I/O."
+  (declare (indent 1) (debug ((symbolp) body)))
+  `(macp-test--with-queue-session ,var-session
+     (mutecipher-acp--open-turn (macp-session-id ,var-session) "test prompt")
+     ,@body))
+
+(ert-deftest macp-test-change-set-lazy-alloc ()
+  "First mutation allocates the turn's change-set; second reuses it."
+  (macp-test--with-turn-session session
+    (macp-test--with-temp-file path "hello new world"
+      (let ((tc (make-macp-tool-call
+                 :call-id "c1" :name "Edit" :kind "edit"
+                 :locations (vector (list :path path)))))
+        (let ((turn (macp-node-data
+                     (ewoc-data (macp-session-current-turn-node session)))))
+          (should (null (macp-turn-change-set turn)))
+          (mutecipher-acp--maybe-capture-change-set
+           session tc (list (cons "old" "new")))
+          (should (macp-turn-change-set turn))
+          (let ((cs (macp-turn-change-set turn)))
+            (mutecipher-acp--maybe-capture-change-set
+             session tc (list (cons "old" "new")))
+            (should (eq cs (macp-turn-change-set turn)))))))))
+
+(ert-deftest macp-test-change-set-captures-pre-turn-content ()
+  (macp-test--with-turn-session session
+    (macp-test--with-temp-file path "AAA brave new BBB"
+      ;; file-truename canonicalizes (e.g. /tmp → /private/tmp on macOS),
+      ;; so look up by the same form `--resolve-loc-path' produced.
+      (let* ((tc (make-macp-tool-call
+                  :call-id "c1" :name "Edit" :kind "edit"
+                  :locations (vector (list :path path))))
+             (canon (file-truename path)))
+        (mutecipher-acp--maybe-capture-change-set
+         session tc (list (cons "old" "brave new")))
+        (let* ((turn (macp-node-data
+                      (ewoc-data (macp-session-current-turn-node session))))
+               (cs   (macp-turn-change-set turn))
+               (fc   (cdr (assoc canon (macp-change-set-files cs)))))
+          (should fc)
+          (should (eq 'ok (macp-file-change-capture-status fc)))
+          (should (equal "AAA old BBB"
+                         (macp-file-change-pre-turn-content fc)))
+          (should (equal '("c1") (macp-file-change-tool-call-ids fc))))))))
+
+(ert-deftest macp-test-change-set-repeat-edits-preserve-baseline ()
+  "Two chained edits to the same path: accumulated pairs reverse-apply
+to the ORIGINAL pre-turn content (not the intermediate state)."
+  (macp-test--with-turn-session session
+    (macp-test--with-temp-file path "STAGE_TWO"
+      ;; First call: disk reflects STAGE_ONE.
+      (with-temp-file path
+        (let ((coding-system-for-write 'utf-8-unix))
+          (insert "STAGE_ONE")))
+      (let ((tc1 (make-macp-tool-call
+                  :call-id "c1" :locations (vector (list :path path)))))
+        (mutecipher-acp--maybe-capture-change-set
+         session tc1 (list (cons "ORIGINAL" "STAGE_ONE"))))
+      ;; Second call: disk advanced to STAGE_TWO.
+      (with-temp-file path
+        (let ((coding-system-for-write 'utf-8-unix))
+          (insert "STAGE_TWO")))
+      (let ((tc2 (make-macp-tool-call
+                  :call-id "c2" :locations (vector (list :path path)))))
+        (mutecipher-acp--maybe-capture-change-set
+         session tc2 (list (cons "STAGE_ONE" "STAGE_TWO"))))
+      (let* ((turn (macp-node-data
+                    (ewoc-data (macp-session-current-turn-node session))))
+             (cs   (macp-turn-change-set turn))
+             (canon (file-truename path))
+             (fc   (cdr (assoc canon (macp-change-set-files cs)))))
+        (should (equal "ORIGINAL" (macp-file-change-pre-turn-content fc)))
+        (should (equal '("c1" "c2") (macp-file-change-tool-call-ids fc)))
+        ;; Both pairs accumulated in chronological order on the fc.
+        (should (equal '(("ORIGINAL" . "STAGE_ONE")
+                         ("STAGE_ONE" . "STAGE_TWO"))
+                       (macp-file-change-accumulated-pairs fc)))))))
+
+(ert-deftest macp-test-change-set-no-path-skipped ()
+  "Tool call with no resolvable location does not enter the change-set."
+  (macp-test--with-turn-session session
+    (let ((tc (make-macp-tool-call :call-id "c1" :name "Edit"
+                                    :locations nil)))
+      (mutecipher-acp--maybe-capture-change-set
+       session tc (list (cons "old" "new")))
+      (let* ((turn (macp-node-data
+                    (ewoc-data (macp-session-current-turn-node session)))))
+        (should (null (macp-turn-change-set turn)))))))
+
+(ert-deftest macp-test-change-set-no-current-turn-skipped ()
+  (macp-test--with-queue-session session
+    (let ((tc (make-macp-tool-call
+               :call-id "c1" :locations (vector (list :path "/tmp/x")))))
+      ;; Should not signal, should not allocate anything.
+      (mutecipher-acp--maybe-capture-change-set
+       session tc (list (cons "old" "new"))))))
+
+(ert-deftest macp-test-change-set-empty-pairs-skipped ()
+  (macp-test--with-turn-session session
+    (macp-test--with-temp-file path "anything"
+      (let ((tc (make-macp-tool-call
+                 :call-id "c1" :locations (vector (list :path path)))))
+        (mutecipher-acp--maybe-capture-change-set session tc nil)
+        (let ((turn (macp-node-data
+                     (ewoc-data (macp-session-current-turn-node session)))))
+          (should (null (macp-turn-change-set turn))))))))
+
+;;;; Revert command
+
+(ert-deftest macp-test-apply-file-revert-restores-edit ()
+  (macp-test--with-temp-file path "POST_EDIT_CONTENT"
+    (let ((fc (make-macp-file-change
+               :path path :pre-turn-content "PRE_EDIT_CONTENT"
+               :pre-turn-existed t :capture-status 'ok
+               :status 'accepted)))
+      (should (eq 'reverted (mutecipher-acp--apply-file-revert fc)))
+      (should (eq 'reverted (macp-file-change-status fc)))
+      (should (equal "PRE_EDIT_CONTENT"
+                     (with-temp-buffer
+                       (insert-file-contents path)
+                       (buffer-string)))))))
+
+(ert-deftest macp-test-apply-file-revert-deletes-created-file ()
+  (let ((path (make-temp-file "macp-cs-create-" nil ".txt")))
+    (with-temp-file path (insert "agent created me"))
+    (unwind-protect
+        (let ((fc (make-macp-file-change
+                   :path path :pre-turn-content nil
+                   :pre-turn-existed nil :capture-status 'ok
+                   :status 'accepted)))
+          (should (eq 'reverted (mutecipher-acp--apply-file-revert fc)))
+          (should (eq 'reverted (macp-file-change-status fc)))
+          (should-not (file-exists-p path)))
+      (when (file-exists-p path) (delete-file path)))))
+
+(ert-deftest macp-test-apply-file-revert-skips-non-ok ()
+  (let ((fc (make-macp-file-change
+             :path "/tmp/does-not-matter"
+             :capture-status 'suppressed-too-large
+             :status 'accepted)))
+    (should (eq 'skipped (mutecipher-acp--apply-file-revert fc)))
+    (should (eq 'accepted (macp-file-change-status fc))))
+  (let ((fc (make-macp-file-change
+             :path "/tmp/does-not-matter"
+             :capture-status 'ok
+             :status 'reverted)))
+    (should (eq 'skipped (mutecipher-acp--apply-file-revert fc)))))
+
+;;;; Persistence round-trip
+
+(ert-deftest macp-test-persist-change-set-roundtrip ()
+  "Turn node with a change-set survives prin1+read through the persist layer."
+  (let* ((fc (make-macp-file-change
+              :path "/tmp/foo.el"
+              :pre-turn-content "old content"
+              :pre-turn-existed t
+              :capture-status 'ok
+              :status 'accepted
+              :tool-call-ids '("c1" "c2")))
+         (cs   (make-macp-change-set :files (list (cons "/tmp/foo.el" fc))))
+         (turn (make-macp-turn :id 3 :started-at 1.0 :ended-at 2.0
+                               :stop-reason 'end_turn :change-set cs))
+         (node (make-macp-node :kind 'turn-header :data turn :uuid "n_turn"))
+         (tmp  (make-temp-file "macp-cs-rt-" nil ".eld")))
+    (unwind-protect
+        (progn
+          (mutecipher-acp--persist-write-sexp
+           tmp (list :schema-version
+                     mutecipher-acp--persist-schema-version
+                     :nodes (list node)))
+          (let* ((sexp     (mutecipher-acp--persist-read-sexp tmp))
+                 (got-node (car (plist-get sexp :nodes)))
+                 (got-turn (macp-node-data got-node))
+                 (got-cs   (macp-turn-change-set got-turn))
+                 (got-fc   (cdr (assoc "/tmp/foo.el"
+                                       (macp-change-set-files got-cs)))))
+            (should (macp-change-set-p got-cs))
+            (should got-fc)
+            (should (equal "old content"
+                           (macp-file-change-pre-turn-content got-fc)))
+            (should (eq t (macp-file-change-pre-turn-existed got-fc)))
+            (should (eq 'ok (macp-file-change-capture-status got-fc)))
+            (should (eq 'accepted (macp-file-change-status got-fc)))
+            (should (equal '("c1" "c2")
+                           (macp-file-change-tool-call-ids got-fc)))))
+      (when (file-exists-p tmp) (delete-file tmp)))))
+
+;;;; Change-set — post-review fix coverage
+
+(ert-deftest macp-test-reverse-apply-pairs-chained-multiedit ()
+  "MultiEdit-style chained pairs (edit N+1's old == edit N's new) reverse
+correctly only when iterated in REVERSE chronological order."
+  (let* ((post "z")
+         (pairs (list (cons "x" "y") (cons "y" "z")))
+         (result (mutecipher-acp--reverse-apply-pairs post pairs)))
+    (should (eq 'ok (cdr result)))
+    (should (equal "x" (car result)))))
+
+(ert-deftest macp-test-reverse-apply-pairs-deletion-fails ()
+  "A pair with non-empty oldText and empty newText is a deletion that
+can't be reversed without a position anchor; reverse-apply refuses."
+  (let ((result (mutecipher-acp--reverse-apply-pairs
+                 "post-deletion content"
+                 (list (cons "removed paragraph\n" "")))))
+    (should (eq 'reverse-apply-failed (cdr result)))
+    (should (null (car result)))))
+
+(ert-deftest macp-test-reverse-apply-pairs-multi-match-fails ()
+  "If newText appears more than once in the current content, the pair is
+ambiguous and reverse-apply refuses rather than guessing."
+  (let ((result (mutecipher-acp--reverse-apply-pairs
+                 "foo bar foo bar foo"
+                 (list (cons "qux" "foo")))))
+    (should (eq 'reverse-apply-failed (cdr result)))))
+
+(ert-deftest macp-test-resolve-loc-path-normalizes ()
+  "Relative paths, absolute paths with `/./', and symlinked paths all
+canonicalize to the same key."
+  (let* ((dir (file-name-as-directory (make-temp-file "macp-norm-" t)))
+         (real (expand-file-name "foo.el" dir))
+         (truedir (file-truename dir))
+         (truepath (expand-file-name "foo.el" truedir)))
+    (unwind-protect
+        (progn
+          (with-temp-file real (insert "content"))
+          (let* ((tc-rel (make-macp-tool-call
+                          :locations (vector (list :path "foo.el"))))
+                 (tc-dotted (make-macp-tool-call
+                              :locations
+                              (vector (list :path
+                                            (concat dir "./foo.el")))))
+                 (tc-abs (make-macp-tool-call
+                           :locations (vector (list :path real)))))
+            (should (equal truepath
+                           (mutecipher-acp--resolve-loc-path tc-rel dir)))
+            (should (equal truepath
+                           (mutecipher-acp--resolve-loc-path tc-dotted dir)))
+            (should (equal truepath
+                           (mutecipher-acp--resolve-loc-path tc-abs dir)))))
+      (delete-directory dir t))))
+
+(ert-deftest macp-test-capture-handles-disk-error-without-throwing ()
+  "I/O errors during capture are logged, not propagated — the agent's
+turn must not break because of a permission/read failure on one file."
+  (macp-test--with-turn-session session
+    (let* ((tc (make-macp-tool-call
+                :call-id "c1"
+                :locations (vector (list :path "/nonexistent/no/permission/foo.el")))))
+      ;; insert-file-contents on a missing file signals — but the wrapper
+      ;; must absorb it.  This call MUST NOT raise.
+      (should-not
+       (condition-case _err
+           (progn (mutecipher-acp--maybe-capture-change-set
+                   session tc (list (cons "old" "new")))
+                  nil)
+         (error t))))))
+
+(ert-deftest macp-test-capture-retroactive-when-locations-arrive-late ()
+  "When the first ingest has no resolvable path and a later update merges
+locations with no new pairs, capture happens retroactively from
+TC.diffs."
+  (macp-test--with-turn-session session
+    (macp-test--with-temp-file path "POST_EDIT"
+      (let ((tc (make-macp-tool-call
+                 :call-id "c1"
+                 :locations nil
+                 :diffs (list (cons "PRE_EDIT" "POST_EDIT")))))
+        ;; First call: no path, would-be new-pairs supplied but path
+        ;; resolution bails.  No capture.
+        (mutecipher-acp--maybe-capture-change-set
+         session tc (list (cons "PRE_EDIT" "POST_EDIT")))
+        (let* ((turn (macp-node-data
+                      (ewoc-data (macp-session-current-turn-node session)))))
+          (should (null (macp-turn-change-set turn))))
+        ;; Second call: locations now resolve; new-pairs nil (already
+        ;; ingested) but tc.diffs has them.  Retroactive capture.
+        (setf (macp-tool-call-locations tc)
+              (vector (list :path path)))
+        (mutecipher-acp--maybe-capture-change-set session tc nil)
+        (let* ((turn (macp-node-data
+                      (ewoc-data (macp-session-current-turn-node session))))
+               (cs   (macp-turn-change-set turn))
+               (canon (file-truename path))
+               (fc   (cdr (assoc canon (macp-change-set-files cs)))))
+          (should fc)
+          (should (eq 'ok (macp-file-change-capture-status fc)))
+          (should (equal "PRE_EDIT"
+                         (macp-file-change-pre-turn-content fc))))))))
+
+(ert-deftest macp-test-capture-retries-after-reverse-apply-failed ()
+  "An initial capture that failed (e.g. pending status before the
+mutation landed) retries on the next observation and can succeed.
+Mirrors the production flow: `--ingest-tool-content' populates
+`tc.diffs' on each delivery; the retry update arrives with no NEW pairs
+(rendered-diff-count already covers them) so `new-pairs' is nil but
+the prior pairs survive on the file-change."
+  (macp-test--with-turn-session session
+    (macp-test--with-temp-file path "PRE_EDIT"
+      ;; First capture: disk still pre-edit (status='pending arrival).
+      (let ((tc (make-macp-tool-call
+                 :call-id "c1"
+                 :locations (vector (list :path path))
+                 :diffs (list (cons "PRE_EDIT" "POST_EDIT")))))
+        (mutecipher-acp--maybe-capture-change-set
+         session tc (list (cons "PRE_EDIT" "POST_EDIT"))))
+      (let* ((turn (macp-node-data
+                    (ewoc-data (macp-session-current-turn-node session))))
+             (cs (macp-turn-change-set turn))
+             (canon (file-truename path))
+             (fc (cdr (assoc canon (macp-change-set-files cs)))))
+        (should (eq 'reverse-apply-failed
+                    (macp-file-change-capture-status fc))))
+      ;; Disk advances to post-edit; retry update arrives with no new pairs.
+      (with-temp-file path
+        (let ((coding-system-for-write 'utf-8-unix))
+          (insert "POST_EDIT")))
+      (let ((tc (make-macp-tool-call
+                 :call-id "c1"
+                 :locations (vector (list :path path))
+                 :diffs (list (cons "PRE_EDIT" "POST_EDIT")))))
+        (mutecipher-acp--maybe-capture-change-set session tc nil))
+      (let* ((turn (macp-node-data
+                    (ewoc-data (macp-session-current-turn-node session))))
+             (cs (macp-turn-change-set turn))
+             (canon (file-truename path))
+             (fc (cdr (assoc canon (macp-change-set-files cs)))))
+        (should (eq 'ok (macp-file-change-capture-status fc)))
+        (should (equal "PRE_EDIT"
+                       (macp-file-change-pre-turn-content fc)))))))
+
+(ert-deftest macp-test-refresh-deleted-file-marks-buffer-modified ()
+  "When the file underlying a buffer was just deleted, the buffer is
+marked modified (not killed) so the user can recover its contents."
+  (let* ((path (make-temp-file "macp-refresh-" nil ".txt"))
+         (canon (file-truename path)))
+    (with-temp-file path (insert "content"))
+    (let ((buf (find-file-noselect canon)))
+      (unwind-protect
+          (progn
+            (with-current-buffer buf
+              (should-not (buffer-modified-p)))
+            (delete-file path)
+            (mutecipher-acp--refresh-visiting-buffers canon)
+            (with-current-buffer buf
+              (should (buffer-modified-p))))
+        (let ((kill-buffer-query-functions nil))
+          (when (buffer-live-p buf)
+            (with-current-buffer buf (set-buffer-modified-p nil))
+            (kill-buffer buf)))
+        (when (file-exists-p path) (delete-file path))))))
+
+(ert-deftest macp-test-later-turns-after-orders-correctly ()
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (mutecipher-acp--open-turn sid "first")
+      (let ((t1 (macp-node-data
+                 (ewoc-data (macp-session-current-turn-node session)))))
+        (mutecipher-acp--close-turn sid 'end_turn)
+        (mutecipher-acp--open-turn sid "second")
+        (let ((t2 (macp-node-data
+                   (ewoc-data (macp-session-current-turn-node session)))))
+          (mutecipher-acp--close-turn sid 'end_turn)
+          (mutecipher-acp--open-turn sid "third")
+          (let ((t3 (macp-node-data
+                     (ewoc-data (macp-session-current-turn-node session)))))
+            ;; Turns after t1 are t2 and t3.
+            (let ((later (mutecipher-acp--later-turns-after t1)))
+              (should (equal (list t2 t3) later)))
+            ;; Turns after t3 (the current/last) is empty.
+            (should (null (mutecipher-acp--later-turns-after t3)))))))))
+
+(ert-deftest macp-test-paths-touched-by-later-turns-flags-overlap ()
+  "Cross-turn detection: if turn 2 touches path P that turn 1 also touched,
+reverting turn 1 must flag P as a conflict."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (mutecipher-acp--open-turn sid "first")
+      (let* ((t1 (macp-node-data
+                  (ewoc-data (macp-session-current-turn-node session))))
+             (cs1 (make-macp-change-set
+                   :files (list
+                           (cons "/canonical/foo.el"
+                                 (make-macp-file-change
+                                  :path "/canonical/foo.el"
+                                  :capture-status 'ok
+                                  :status 'accepted))))))
+        (setf (macp-turn-change-set t1) cs1)
+        (mutecipher-acp--close-turn sid 'end_turn)
+        (mutecipher-acp--open-turn sid "second")
+        (let* ((t2 (macp-node-data
+                    (ewoc-data (macp-session-current-turn-node session))))
+               (cs2 (make-macp-change-set
+                     :files (list
+                             (cons "/canonical/foo.el"
+                                   (make-macp-file-change
+                                    :path "/canonical/foo.el"
+                                    :capture-status 'ok
+                                    :status 'accepted))
+                             (cons "/canonical/bar.el"
+                                   (make-macp-file-change
+                                    :path "/canonical/bar.el"
+                                    :capture-status 'ok
+                                    :status 'accepted))))))
+          (setf (macp-turn-change-set t2) cs2)
+          ;; Reverting t1's foo.el conflicts with t2's foo.el.
+          (let ((conflicts (mutecipher-acp--paths-touched-by-later-turns
+                            t1 '("/canonical/foo.el"))))
+            (should (equal '("/canonical/foo.el") conflicts)))
+          ;; A path only t1 touched (bar) wouldn't be in t1's target
+          ;; list; if the caller passes only t1's paths, no conflict
+          ;; with bar — and a path with only t2 has no LATER turns
+          ;; against it.
+          (let ((conflicts (mutecipher-acp--paths-touched-by-later-turns
+                            t1 '("/canonical/bar.el"))))
+            (should (equal '("/canonical/bar.el") conflicts)))
+          ;; A path neither turn touched yields no conflict.
+          (let ((conflicts (mutecipher-acp--paths-touched-by-later-turns
+                            t1 '("/canonical/quux.el"))))
+            (should (null conflicts))))))))
+
+(ert-deftest macp-test-paths-touched-skips-already-reverted ()
+  "Later turns whose file-change is already reverted don't count as conflicts."
+  (macp-test--with-queue-session session
+    (let ((sid (macp-session-id session)))
+      (mutecipher-acp--open-turn sid "first")
+      (let ((t1 (macp-node-data
+                 (ewoc-data (macp-session-current-turn-node session)))))
+        (setf (macp-turn-change-set t1) (make-macp-change-set))
+        (mutecipher-acp--close-turn sid 'end_turn)
+        (mutecipher-acp--open-turn sid "second")
+        (let* ((t2 (macp-node-data
+                    (ewoc-data (macp-session-current-turn-node session))))
+               (cs2 (make-macp-change-set
+                     :files (list
+                             (cons "/canonical/foo.el"
+                                   (make-macp-file-change
+                                    :path "/canonical/foo.el"
+                                    :capture-status 'ok
+                                    :status 'reverted))))))
+          (setf (macp-turn-change-set t2) cs2)
+          (should (null (mutecipher-acp--paths-touched-by-later-turns
+                         t1 '("/canonical/foo.el")))))))))
+
+(ert-deftest macp-test-apply-file-revert-logs-narrow-errors ()
+  "Narrowed condition-case: `file-error' returns `failed' and logs;
+non-IO programmer errors (e.g. wrong-type-argument from a malformed fc)
+are NOT swallowed."
+  ;; File-error path: write to a directory that doesn't exist.
+  (let ((fc (make-macp-file-change
+             :path "/no/such/dir/file"
+             :pre-turn-content "x"
+             :pre-turn-existed t
+             :capture-status 'ok
+             :status 'accepted)))
+    (should (eq 'failed (mutecipher-acp--apply-file-revert fc))))
+  ;; Programmer-error path: a non-macp-file-change argument MUST raise
+  ;; (the old `(error 'failed)' catchall would have hidden this).
+  (should-error (mutecipher-acp--apply-file-revert "not-a-fc")
+                :type 'wrong-type-argument))
+
+(ert-deftest macp-test-buffers-visiting-uses-canonical-name ()
+  "Buffer matching uses canonicalized file names, so `/tmp/x' and
+`/private/tmp/x' (on macOS) resolve to the same set."
+  (let* ((path (make-temp-file "macp-bv-" nil ".txt"))
+         (canon (file-truename path)))
+    (with-temp-file path (insert "x"))
+    (let ((buf (find-file-noselect canon)))
+      (unwind-protect
+          (progn
+            (should (memq buf (mutecipher-acp--buffers-visiting canon)))
+            (should (memq buf (mutecipher-acp--buffers-visiting path))))
+        (let ((kill-buffer-query-functions nil))
+          (when (buffer-live-p buf) (kill-buffer buf)))
+        (when (file-exists-p path) (delete-file path))))))
+
 (provide 'mutecipher-acp-tests)
 ;;; mutecipher-acp-tests.el ends here

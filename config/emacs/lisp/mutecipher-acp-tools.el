@@ -36,6 +36,14 @@ struct so it remains available for copy or re-render at a higher cap."
   :type 'integer
   :group 'mutecipher-acp)
 
+(defcustom mutecipher-acp-change-set-max-bytes (* 256 1024)
+  "Maximum file size for which pre-turn snapshots are stored inline.
+Files larger than this are tracked in the change-set but with
+`capture-status' = `suppressed-too-large' — revert refuses to operate on
+them rather than ballooning the on-disk transcript."
+  :type 'integer
+  :group 'mutecipher-acp)
+
 (defcustom mutecipher-acp-collapse-tool-calls-by-default t
   "If non-nil, terminal-status tool calls render collapsed by default.
 Collapsed = a single summary line; expanded = the summary plus the
@@ -63,25 +71,28 @@ vector is rendered for in-flight tool calls."
 ;;;; Ingest / synthesize
 
 (defun mutecipher-acp--ingest-tool-content (tc content-vec)
-  "Append any new diff items from CONTENT-VEC onto TC, tracking rendered count.
-Mutates TC in place; returns non-nil if anything new was added."
+  "Append new diff items from CONTENT-VEC onto TC; return the list of new pairs.
+Each pair is a cons cell `(oldText . newText)'.  Returns nil when nothing
+new was added.  Mutates TC in place.  The returned list is in arrival
+order so callers (notably the change-set capture) can apply reversals
+in the order they happened."
   (when (and content-vec (vectorp content-vec))
     (let* ((total (length content-vec))
            (seen  (or (macp-tool-call-rendered-diff-count tc) 0))
-           (added nil))
+           (new-pairs nil))
       (when (< seen total)
         (let ((i seen))
           (while (< i total)
             (let ((item (aref content-vec i)))
               (when (equal (plist-get item :type) "diff")
-                (setf (macp-tool-call-diffs tc)
-                      (append (macp-tool-call-diffs tc)
-                              (list (cons (plist-get item :oldText)
-                                          (plist-get item :newText)))))
-                (setq added t)))
+                (let ((pair (cons (plist-get item :oldText)
+                                  (plist-get item :newText))))
+                  (setf (macp-tool-call-diffs tc)
+                        (append (macp-tool-call-diffs tc) (list pair)))
+                  (push pair new-pairs))))
             (setq i (1+ i))))
         (setf (macp-tool-call-rendered-diff-count tc) total))
-      added)))
+      (nreverse new-pairs))))
 
 (defun mutecipher-acp--raw-input-plan (raw-in)
   "Return the `:plan' string from RAW-IN, or nil.
@@ -116,6 +127,251 @@ string-valued key in `rawInput' listed by
                        mutecipher-acp--raw-input-path-keys)))
         (vector (list :path fp)))))))
 
+;;;; Change-set capture
+;;
+;; The ACP server applies edits BEFORE notifying us, so by the time a
+;; diff lands on a tool-call the file on disk is already in its
+;; post-edit state.  To support "revert this turn" we reverse-apply the
+;; just-arrived (old . new) pairs against the current disk content to
+;; reconstruct what the file looked like before the turn touched it.
+;;
+;; The snapshot is captured ONCE per file per turn — the first time we
+;; see any mutation against a given path within the active turn.  All
+;; subsequent edits to the same file in the turn append their call-ids
+;; to the existing file-change without disturbing `pre-turn-content',
+;; which is exactly the rollback target we want.
+
+(defun mutecipher-acp--resolve-loc-path (tc cwd)
+  "Return TC's first location's path canonicalized to an absolute path, or nil.
+Always passes through `expand-file-name' (handles `./', `..', trailing
+slashes, `~') and `file-truename' (resolves symlinks) so the same
+physical file keys identically across `assoc' lookups regardless of
+the form the agent reports."
+  (let* ((locs (macp-tool-call-locations tc))
+         (loc  (and locs (> (length locs) 0) (aref locs 0)))
+         (path (and loc (plist-get loc :path))))
+    (when (stringp path)
+      (let ((expanded (expand-file-name path cwd)))
+        (condition-case _err
+            (file-truename expanded)
+          (error expanded))))))
+
+(defun mutecipher-acp--replace-unique (needle replacement haystack)
+  "Return HAYSTACK with the unique occurrence of NEEDLE replaced by REPLACEMENT.
+Returns nil if NEEDLE is absent OR appears more than once — the reverse-
+apply must refuse ambiguous matches rather than silently rewriting the
+wrong span of an unrelated occurrence."
+  (when (and (stringp needle) (not (string-empty-p needle))
+             (stringp haystack))
+    (let* ((first  (string-search needle haystack))
+           (second (and first
+                        (string-search needle haystack (1+ first)))))
+      (cond
+       ((null first) nil)
+       (second       nil)  ; ambiguous — multiple matches
+       (t (concat (substring haystack 0 first)
+                  (or replacement "")
+                  (substring haystack (+ first (length needle)))))))))
+
+(defun mutecipher-acp--reverse-apply-pairs (content pairs)
+  "Reverse-apply PAIRS to CONTENT; return (RESULT . STATUS).
+PAIRS is a list of (oldText . newText) cons cells in chronological
+(arrival) order.  Iteration is REVERSE-chronological — for chained
+edits (MultiEdit-style, where edit N+1's oldText was edit N's newText)
+the last edit must be undone first against the post-edit content.
+
+Status outcomes:
+  `ok'                     all pairs reversed successfully
+  `reverse-apply-failed'   any pair's newText is missing OR ambiguous
+                           (multiple matches), OR a pair represents a
+                           deletion (non-empty oldText, empty newText)
+                           which cannot be reversed without a position
+                           anchor
+
+A pair with BOTH halves empty is a no-op and skipped."
+  (let ((work content)
+        (status 'ok))
+    (catch 'fail
+      (dolist (pair (reverse pairs))
+        (let* ((old (car pair))
+               (new (cdr pair))
+               (old-empty (or (null old) (string-empty-p old)))
+               (new-empty (or (null new) (string-empty-p new))))
+          (cond
+           ;; Both empty: trivial no-op pair.
+           ((and old-empty new-empty) nil)
+           ;; Deletion (non-empty old, empty new): we can't reinsert
+           ;; without knowing where, so refuse.
+           (new-empty
+            (setq status 'reverse-apply-failed)
+            (throw 'fail nil))
+           ;; Normal case: replace unique occurrence of new with old.
+           (t
+            (let ((replaced (mutecipher-acp--replace-unique new old work)))
+              (cond
+               (replaced (setq work replaced))
+               (t (setq status 'reverse-apply-failed)
+                  (throw 'fail nil)))))))))
+    (cons (and (eq status 'ok) work) status)))
+
+(defun mutecipher-acp--capture-snapshot (path pairs)
+  "Snapshot PATH's pre-turn content using PAIRS to reverse the on-disk state.
+Returns a plist `(:pre-turn-content C :pre-turn-existed E :capture-status S)'.
+Honors `mutecipher-acp-change-set-max-bytes' — files over the cap are
+recorded with status `suppressed-too-large' and no content.
+
+Heuristic for distinguishing Write-creates from Write-overwrites:
+when reverse-apply yields the empty string AND at least one pair had
+an empty `oldText', the file was created by the turn — revert will
+delete it.  An empty file overwritten to empty falls into the same
+branch, but deleting an empty file is benign."
+  (let* ((existed (file-exists-p path))
+         (attrs   (and existed (file-attributes path)))
+         (size    (and attrs (file-attribute-size attrs))))
+    (cond
+     ((not existed)
+      ;; Edge case: file is gone at capture time.  Nothing to snapshot;
+      ;; revert is a no-op.
+      (list :pre-turn-content nil
+            :pre-turn-existed nil
+            :capture-status   'ok))
+     ((and size (> size mutecipher-acp-change-set-max-bytes))
+      (list :pre-turn-content nil
+            :pre-turn-existed t
+            :capture-status   'suppressed-too-large))
+     (t
+      (let* ((current (with-temp-buffer
+                        ;; Force `-unix' so a CRLF file isn't EOL-detected
+                        ;; into LF in memory — otherwise `string-search'
+                        ;; matches the LF-normalized newText against the
+                        ;; LF buffer, snapshot is stored as LF, and revert
+                        ;; flips the file's line endings.  Match the
+                        ;; persist layer (mutecipher-acp-persist.el:87,99).
+                        (let ((coding-system-for-read 'utf-8-unix))
+                          (insert-file-contents path))
+                        (buffer-string)))
+             (result   (mutecipher-acp--reverse-apply-pairs current pairs))
+             (restored (car result))
+             (status   (cdr result))
+             (likely-creation
+              (and (eq status 'ok)
+                   (or (null restored) (string-empty-p restored))
+                   (cl-some (lambda (p)
+                              (or (null (car p))
+                                  (string-empty-p (car p))))
+                            pairs))))
+        (cond
+         ((not (eq status 'ok))
+          (list :pre-turn-content nil
+                :pre-turn-existed t
+                :capture-status   'reverse-apply-failed))
+         (likely-creation
+          (list :pre-turn-content nil
+                :pre-turn-existed nil
+                :capture-status   'ok))
+         (t
+          (list :pre-turn-content restored
+                :pre-turn-existed t
+                :capture-status   'ok))))))))
+
+(defun mutecipher-acp--cs-merge-call-id (fc call-id)
+  "Append CALL-ID to FC's tool-call-ids if not already present."
+  (when (and call-id
+             (not (member call-id (macp-file-change-tool-call-ids fc))))
+    (setf (macp-file-change-tool-call-ids fc)
+          (append (macp-file-change-tool-call-ids fc) (list call-id)))))
+
+(defun mutecipher-acp--cs-write-file-change (cs path fc)
+  "Insert or replace PATH's entry in change-set CS with FC.
+The alist is appended-to (rather than nconc'd at the head) so the
+visual order in any future review panel matches insertion order."
+  (let ((existing (assoc path (macp-change-set-files cs))))
+    (if existing
+        (setcdr existing fc)
+      (setf (macp-change-set-files cs)
+            (append (macp-change-set-files cs) (list (cons path fc)))))))
+
+(defun mutecipher-acp--maybe-capture-change-set (session tc new-pairs)
+  "Update SESSION's current-turn change-set from a mutation on TC.
+NEW-PAIRS is the just-ingested sublist of `(oldText . newText)' cells.
+May be nil — see retroactive-capture rules below.
+
+Capture decisions:
+
+  - First observation of TC's path: snapshot from disk reverse-applied
+    through every pair we have for this turn touching this path
+    (NEW-PAIRS, or fall back to the tc's full `:diffs' for retroactive
+    capture when locations arrived late on a follow-up update).
+  - Existing entry with NEW-PAIRS: accumulate the new pairs into the
+    file-change's history and re-snapshot.  Required so incremental
+    diff delivery on a single tool call doesn't bake intermediate
+    state into the pre-turn snapshot.
+  - Existing entry currently `capture-status'=`reverse-apply-failed':
+    retry — a failed capture during status='pending' (before the file
+    was mutated) may now succeed against the post-edit disk content.
+  - Existing entry with no new pairs and `ok' status: just record
+    CALL-ID against the file-change.
+
+All I/O is wrapped in `condition-case' so a permission or read failure
+on one file doesn't cascade out into the RPC handler and break the
+agent's turn — failures are logged and capture-status reflects the
+gap."
+  (when (and session (or new-pairs (macp-tool-call-diffs tc)))
+    (when-let* ((turn-node (macp-session-current-turn-node session))
+                (turn     (macp-node-data (ewoc-data turn-node)))
+                ((macp-turn-p turn))
+                (path     (mutecipher-acp--resolve-loc-path
+                           tc (macp-session-cwd session))))
+      (condition-case err
+          (let* ((cs (or (macp-turn-change-set turn)
+                         (setf (macp-turn-change-set turn)
+                               (make-macp-change-set :files nil))))
+                 (existing (cdr (assoc path (macp-change-set-files cs))))
+                 (call-id (macp-tool-call-call-id tc))
+                 (should-snapshot
+                  (or (null existing)
+                      new-pairs
+                      (eq (macp-file-change-capture-status existing)
+                          'reverse-apply-failed))))
+            (cond
+             (should-snapshot
+              (let* ((prior-pairs (and existing
+                                       (macp-file-change-accumulated-pairs
+                                        existing)))
+                     ;; For retroactive capture (first observation, no
+                     ;; new-pairs), fall back to the tc's full diffs —
+                     ;; that's the only history we have.
+                     (effective-new (or new-pairs
+                                        (and (null existing)
+                                             (macp-tool-call-diffs tc))))
+                     (all-pairs (append prior-pairs effective-new))
+                     (snap (mutecipher-acp--capture-snapshot path all-pairs))
+                     (fc (make-macp-file-change
+                          :path             path
+                          :pre-turn-content (plist-get snap :pre-turn-content)
+                          :pre-turn-existed (plist-get snap :pre-turn-existed)
+                          :capture-status   (plist-get snap :capture-status)
+                          :status           (or (and existing
+                                                     (macp-file-change-status
+                                                      existing))
+                                                'accepted)
+                          :tool-call-ids    (and existing
+                                                 (macp-file-change-tool-call-ids
+                                                  existing))
+                          :accumulated-pairs all-pairs)))
+                (mutecipher-acp--cs-merge-call-id fc call-id)
+                (mutecipher-acp--cs-write-file-change cs path fc)))
+             (t
+              (mutecipher-acp--cs-merge-call-id existing call-id)))
+            (mutecipher-acp--mark-dirty session))
+        (error
+         (mutecipher-acp--log-warn
+          'agent-warn (macp-session-agent session)
+          (format "[change-set] capture failed for %s: %s"
+                  path (error-message-string err))))))))
+
+(declare-function mutecipher-acp--mark-dirty "mutecipher-acp-persist")
+
 ;;;; Enter / update tool-call nodes
 
 (defun mutecipher-acp--enter-tool-call (session-id update)
@@ -146,7 +402,9 @@ string-valued key in `rawInput' listed by
                      :diffs      nil
                      :rendered-diff-count 0
                      :plan-body  plan)))
-      (mutecipher-acp--ingest-tool-content tc (plist-get update :content))
+      (let ((new-pairs (mutecipher-acp--ingest-tool-content
+                        tc (plist-get update :content))))
+        (mutecipher-acp--maybe-capture-change-set session tc new-pairs))
       (mutecipher-acp--with-sticky-tail buf
         (let* ((inhibit-read-only t)
                (collapsed (and mutecipher-acp-collapse-tool-calls-by-default
@@ -225,7 +483,9 @@ point of the call, so they always stay expanded."
                           'agent-warn agent
                           (format "[tool-call-update] unknown status %S"
                                   status-str))))
-        (mutecipher-acp--ingest-tool-content tc (plist-get update :content))
+        (let ((new-pairs (mutecipher-acp--ingest-tool-content
+                          tc (plist-get update :content))))
+          (mutecipher-acp--maybe-capture-change-set session tc new-pairs))
         (when (and (not (macp-node-collapsed wrapper))
                    (mutecipher-acp--should-auto-collapse-p tc))
           (setf (macp-node-collapsed wrapper) t))

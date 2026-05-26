@@ -31,7 +31,8 @@
   started-at    ; float-time
   ended-at      ; float-time or nil
   stop-reason   ; 'end_turn 'max_tokens 'cancelled 'error or nil
-  usage)        ; plist; reserved for a follow-on plan
+  usage         ; plist; reserved for a follow-on plan
+  change-set)   ; macp-change-set or nil; lazily created on first mutation
 
 (cl-defstruct macp-user
   text)
@@ -66,6 +67,24 @@
 
 (cl-defstruct macp-queued
   text)         ; pending prompt text waiting for the active turn to end
+
+(cl-defstruct macp-file-change
+  path                ; absolute path string (normalized via file-truename)
+  pre-turn-content    ; full file content as string, or nil
+  pre-turn-existed    ; t if file existed on disk before the turn began
+  capture-status      ; 'ok | 'suppressed-too-large | 'reverse-apply-failed
+  status              ; 'accepted (default) | 'reverted
+  tool-call-ids       ; list of call-ids that touched this path in the turn
+  accumulated-pairs)  ; chronological list of (oldText . newText) from every
+                      ; tool call in this turn that touched this path; the
+                      ; snapshot is re-derived from this list on every capture
+                      ; so incremental diff delivery doesn't bake intermediate
+                      ; state into pre-turn-content
+
+(cl-defstruct macp-change-set
+  files)              ; alist ((abs-path . macp-file-change) ...)
+                      ; alist not hash table — round-trips cleanly through
+                      ; the existing prin1/read persistence layer
 
 (cl-defstruct (macp-session (:constructor mutecipher-acp--make-session))
   id conn buffer agent cwd

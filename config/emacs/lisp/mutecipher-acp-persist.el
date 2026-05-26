@@ -26,10 +26,15 @@
 (require 'ewoc)
 (require 'mutecipher-acp-model)
 
-(defconst mutecipher-acp--persist-schema-version 1
+(defconst mutecipher-acp--persist-schema-version 2
   "Schema version for persisted ACP transcript files.
 Bump when the on-disk format changes incompatibly.  The loader
-silently skips files with an unknown version.")
+silently skips files with an unknown version.
+
+v2 (2026-05): added `change-set' slot to `macp-turn'.  Old v1 records
+are length-mismatched against the new struct layout and would signal
+args-out-of-range on accessor calls, so v1 files are dropped by the
+loader rather than partially migrated.")
 
 (defcustom mutecipher-acp-persist-idle-seconds 1.5
   "Idle-seconds threshold before the persist sweeper flushes dirty sessions."
