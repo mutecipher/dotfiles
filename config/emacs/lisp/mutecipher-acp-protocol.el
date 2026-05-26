@@ -181,7 +181,11 @@ they're authorizing without scrolling the transcript."
   (let* ((kind  (plist-get tc :kind))
          (title (plist-get tc :title))
          (raw   (plist-get tc :rawInput))
-         (input (and raw (mutecipher-acp--format-tool-input raw 60))))
+         ;; Pass `kind' so move / switch_mode / fetch render the same
+         ;; "from → to" / URL-preferred summary in the prompt as they do
+         ;; in the transcript card.  Without it, the generic plist scan
+         ;; might surface `:prompt' instead of `:url' for WebFetch.
+         (input (and raw (mutecipher-acp--format-tool-input raw 60 kind))))
     (format "[ACP] %s%s? "
             (or title kind "tool")
             (if input (format " (%s)" input) ""))))

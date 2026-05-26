@@ -53,7 +53,8 @@
   rendered-diff-count  ; int counter replacing :rendered-content-count
   plan-body            ; full plan markdown (only for ExitPlanMode-style tools)
   cached-start-line    ; memoized line number from --tool-call-start-line
-  cached-start-key)    ; (rendered-diff-count . locations) when last computed
+  cached-start-key    ; (rendered-diff-count . locations) when last computed
+  raw-input)           ; original :rawInput plist; consumed by per-tool body renderers
 
 (cl-defstruct macp-plan
   entries)      ; vec of plists (:content :priority :status)

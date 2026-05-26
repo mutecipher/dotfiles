@@ -16,6 +16,7 @@
 (require 'mutecipher-acp-rpc)
 (require 'mutecipher-acp-ewoc)
 (require 'mutecipher-acp-tools)
+(require 'mutecipher-acp-tool-card)
 (require 'mutecipher-acp-completion)
 (require 'mutecipher-acp-ui)
 (require 'mutecipher-acp-protocol)

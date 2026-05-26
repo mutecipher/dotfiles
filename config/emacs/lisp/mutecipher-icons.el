@@ -256,12 +256,19 @@ re-resolve."
     (thought         . (,(string #xf0eb) . shadow))                   ; nf-fa-lightbulb_o
     (notice          . (,(string #xf05a) . shadow))                   ; nf-fa-info_circle
     ;; Tool-call kinds
-    (tool-edit       . (,(string #xf040) . mutecipher-icon-orange))   ; nf-fa-pencil
-    (tool-write      . (,(string #xf040) . mutecipher-icon-orange))
-    (tool-bash       . (,(string #xf120) . mutecipher-icon-green))    ; nf-fa-terminal
-    (tool-read       . (,(string #xf0f6) . mutecipher-icon-blue))     ; nf-fa-file_text_o
-    (tool-grep       . (,(string #xf002) . mutecipher-icon-blue))     ; nf-fa-search
-    (tool-other      . (,(string #xf0ad) . shadow))                   ; nf-fa-wrench
+    (tool-edit        . (,(string #xf040) . mutecipher-icon-orange))   ; nf-fa-pencil
+    (tool-write       . (,(string #xf040) . mutecipher-icon-orange))
+    (tool-bash        . (,(string #xf120) . mutecipher-icon-green))    ; nf-fa-terminal
+    (tool-read        . (,(string #xf0f6) . mutecipher-icon-blue))     ; nf-fa-file_text_o
+    (tool-grep        . (,(string #xf002) . mutecipher-icon-blue))     ; nf-fa-search
+    (tool-delete      . (,(string #xf014) . error))                    ; nf-fa-trash_o
+    (tool-move        . (,(string #xf0ec) . mutecipher-icon-blue))     ; nf-fa-exchange
+    (tool-fetch       . (,(string #xf0ed) . mutecipher-icon-cyan))     ; nf-fa-cloud_download
+    (tool-think       . (,(string #xf0eb) . shadow))                   ; nf-fa-lightbulb_o
+    (tool-switch-mode . (,(string #xf205) . mutecipher-icon-purple))   ; nf-fa-toggle_on
+    (tool-todo        . (,(string #xf0ca) . mutecipher-icon-orange))   ; nf-fa-list_ul
+    (tool-task        . (,(string #xf0d0) . mutecipher-icon-purple))   ; nf-fa-magic
+    (tool-other       . (,(string #xf0ad) . shadow))                   ; nf-fa-wrench
     ;; Tool statuses — semantic faces
     (status-pending  . (,(string #xf10c) . shadow))                   ; nf-fa-circle_o
     (status-running  . (,(string #xf021) . warning))                  ; nf-fa-refresh

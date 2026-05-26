@@ -260,7 +260,7 @@ node is invalidated.  Otherwise a fresh plan node is entered."
 ;; touching the dispatcher.
 
 (declare-function mutecipher-acp--apply-markdown "mutecipher-acp-markdown")
-(declare-function mutecipher-acp--icon-or        "mutecipher-acp-tools")
+(declare-function mutecipher-acp--icon-or        "mutecipher-acp-tool-card")
 (declare-function mutecipher/icon-for-acp        "mutecipher-icons")
 
 (defvar mutecipher-acp--pp-node-kinds nil

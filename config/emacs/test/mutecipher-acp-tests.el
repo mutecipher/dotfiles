@@ -2189,5 +2189,317 @@ are NOT swallowed."
           (when (buffer-live-p buf) (kill-buffer buf)))
         (when (file-exists-p path) (delete-file path))))))
 
+;;;; Tool-kind icon mapping (post-split)
+
+(ert-deftest macp-test-tool-kind-icon-key-explicit-kinds ()
+  "ACP `:kind' values map to dedicated icon-keys."
+  (should (eq 'tool-edit        (mutecipher-acp--tool-kind-icon-key "edit")))
+  (should (eq 'tool-write       (mutecipher-acp--tool-kind-icon-key "write")))
+  (should (eq 'tool-bash        (mutecipher-acp--tool-kind-icon-key "execute")))
+  (should (eq 'tool-read        (mutecipher-acp--tool-kind-icon-key "read")))
+  (should (eq 'tool-grep        (mutecipher-acp--tool-kind-icon-key "search")))
+  (should (eq 'tool-delete      (mutecipher-acp--tool-kind-icon-key "delete")))
+  (should (eq 'tool-move        (mutecipher-acp--tool-kind-icon-key "move")))
+  (should (eq 'tool-fetch       (mutecipher-acp--tool-kind-icon-key "fetch")))
+  (should (eq 'tool-think       (mutecipher-acp--tool-kind-icon-key "think")))
+  (should (eq 'tool-switch-mode (mutecipher-acp--tool-kind-icon-key "switch_mode"))))
+
+(ert-deftest macp-test-tool-kind-icon-key-name-probe ()
+  "When kind is missing or `other', the claudeCode tool name still steers the icon."
+  (should (eq 'tool-todo        (mutecipher-acp--tool-kind-icon-key nil "TodoWrite")))
+  (should (eq 'tool-task        (mutecipher-acp--tool-kind-icon-key "other" "Task")))
+  (should (eq 'tool-fetch       (mutecipher-acp--tool-kind-icon-key nil "WebFetch")))
+  (should (eq 'tool-fetch       (mutecipher-acp--tool-kind-icon-key nil "WebSearch")))
+  (should (eq 'tool-edit        (mutecipher-acp--tool-kind-icon-key nil "NotebookEdit")))
+  (should (eq 'tool-read        (mutecipher-acp--tool-kind-icon-key nil "NotebookRead")))
+  (should (eq 'tool-grep        (mutecipher-acp--tool-kind-icon-key nil "Glob")))
+  (should (eq 'tool-switch-mode (mutecipher-acp--tool-kind-icon-key nil "ExitPlanMode")))
+  ;; Unknown name + unknown kind → tool-other (fallback never returns nil).
+  (should (eq 'tool-other       (mutecipher-acp--tool-kind-icon-key nil "Mystery")))
+  (should (eq 'tool-other       (mutecipher-acp--tool-kind-icon-key nil nil))))
+
+;;;; Kind-aware input formatting
+
+(ert-deftest macp-test-format-tool-input-move-renders-from-arrow-to ()
+  (let ((s (mutecipher-acp--format-tool-input
+            '(:source "/tmp/old.txt" :destination "/tmp/new.txt")
+            nil "move")))
+    (should s)
+    (should (string-match-p " → " s))))
+
+(ert-deftest macp-test-format-tool-input-switch-mode ()
+  (should (equal "plan"
+                 (mutecipher-acp--format-tool-input
+                  '(:mode "plan") nil "switch_mode")))
+  (should (equal "default → plan"
+                 (mutecipher-acp--format-tool-input
+                  '(:mode "plan" :previousMode "default")
+                  nil "switch_mode"))))
+
+(ert-deftest macp-test-format-tool-input-fetch-prefers-url ()
+  "WebFetch's :prompt should not shadow the URL the user wants to see."
+  (should (equal "https://example.test/page"
+                 (mutecipher-acp--format-tool-input
+                  '(:url "https://example.test/page"
+                    :prompt "extract the title")
+                  nil "fetch")))
+  (should (equal "claude code mcp"
+                 (mutecipher-acp--format-tool-input
+                  '(:query "claude code mcp") nil "fetch"))))
+
+;;;; Body-renderer registry
+
+(ert-deftest macp-test-tool-body-renderer-registry-defaults ()
+  "Tier-1 renderers are registered at module load, including the kind-keyed
+fetch fallback that fires for agents without claudeCode toolName."
+  (dolist (key '("TodoWrite" "Task" "WebFetch" "WebSearch" "fetch"))
+    (should (functionp (alist-get key mutecipher-acp-tool-body-renderers
+                                  nil nil #'equal)))))
+
+(ert-deftest macp-test-lookup-tool-body-renderer-falls-back-to-kind ()
+  "Lookup tries name first, then kind — an agent that ships `:kind \"fetch\"'
+without `_meta.claudeCode.toolName' (so `name' is the title or kind itself)
+still hits the fetch renderer."
+  (let ((fetch-fn (alist-get "fetch" mutecipher-acp-tool-body-renderers
+                             nil nil #'equal)))
+    ;; Name-keyed hit.
+    (should (eq fetch-fn
+                (mutecipher-acp--lookup-tool-body-renderer
+                 (make-macp-tool-call :name "WebFetch" :kind "fetch"))))
+    ;; Name miss → kind hit.
+    (should (eq fetch-fn
+                (mutecipher-acp--lookup-tool-body-renderer
+                 (make-macp-tool-call :name "Fetching..." :kind "fetch"))))
+    ;; Neither matches → nil.
+    (should (null
+             (mutecipher-acp--lookup-tool-body-renderer
+              (make-macp-tool-call :name "Unknown" :kind "other"))))))
+
+(ert-deftest macp-test-tool-body-renderer-registry-override ()
+  "`-register-tool-body-renderer' upserts under the same name."
+  (let ((mutecipher-acp-tool-body-renderers
+         (copy-sequence mutecipher-acp-tool-body-renderers)))
+    (mutecipher-acp-register-tool-body-renderer "TestTool" #'ignore)
+    (should (eq #'ignore
+                (alist-get "TestTool" mutecipher-acp-tool-body-renderers
+                           nil nil #'equal)))
+    (mutecipher-acp-register-tool-body-renderer
+     "TestTool" (lambda (_tc) (insert "x")))
+    (should-not (eq #'ignore
+                    (alist-get "TestTool" mutecipher-acp-tool-body-renderers
+                               nil nil #'equal)))))
+
+(ert-deftest macp-test-todo-item-icon-key-mapping ()
+  (should (eq 'plan-done       (mutecipher-acp--todo-item-icon-key "completed")))
+  (should (eq 'plan-inprogress (mutecipher-acp--todo-item-icon-key "in_progress")))
+  (should (eq 'plan-pending    (mutecipher-acp--todo-item-icon-key "pending")))
+  (should (eq 'plan-pending    (mutecipher-acp--todo-item-icon-key nil))))
+
+;;;; Body renderer smoke (inserts something non-empty)
+
+(defun macp-test--render-body (renderer tc)
+  "Run RENDERER on TC in a temp buffer and return the resulting string."
+  (with-temp-buffer
+    (funcall renderer tc)
+    (buffer-string)))
+
+(ert-deftest macp-test-render-todo-body-uses-active-form-while-running ()
+  (let* ((tc (make-macp-tool-call
+              :name "TodoWrite"
+              :raw-input
+              '(:todos
+                [(:content "Refactor X" :activeForm "Refactoring X"
+                  :status "in_progress")
+                 (:content "Write Y"    :activeForm "Writing Y"
+                  :status "pending")
+                 (:content "Ship Z"     :activeForm "Shipping Z"
+                  :status "completed")])))
+         (out (macp-test--render-body
+               #'mutecipher-acp--render-todo-body tc)))
+    ;; in_progress prefers `activeForm'.
+    (should (string-match-p "Refactoring X" out))
+    ;; pending uses plain content.
+    (should (string-match-p "Write Y" out))
+    ;; completed renders content (strike-through is a face, not text).
+    (should (string-match-p "Ship Z" out))))
+
+(ert-deftest macp-test-render-fetch-body-surfaces-url ()
+  (cl-letf (((symbol-function 'mutecipher-acp--pp-default-tool-body) #'ignore))
+    (let* ((tc (make-macp-tool-call
+                :name "WebFetch"
+                :raw-input '(:url "https://example.test/x" :prompt "extract")))
+           (out (macp-test--render-body
+                 #'mutecipher-acp--render-fetch-body tc)))
+      (should (string-match-p "https://example.test/x" out))
+      (should (string-match-p "url:" out)))))
+
+;;;; Ingest preserves raw-input
+
+(ert-deftest macp-test-tool-call-struct-has-raw-input-slot ()
+  "Body renderers depend on the struct carrying the original :rawInput."
+  (let ((tc (make-macp-tool-call :raw-input '(:url "https://x"))))
+    (should (equal '(:url "https://x") (macp-tool-call-raw-input tc)))))
+
+;;;; Render-side fixes for review findings
+
+(ert-deftest macp-test-pp-tool-call-line-renders-kind-icon ()
+  "The card summary line must include a kind glyph (when a Nerd-Font icon
+is available).  Pre-fix, the new kind icons were defined but never inserted."
+  (when (and (fboundp 'mutecipher/icon-for-acp)
+             (mutecipher/icon-for-acp 'tool-edit))
+    (let ((tc (make-macp-tool-call :name "Edit"
+                                   :kind "edit"
+                                   :status 'done
+                                   :input "foo.el")))
+      (with-temp-buffer
+        (mutecipher-acp--pp-tool-call-line tc t)
+        (should (string-match-p
+                 (regexp-quote (mutecipher/icon-for-acp 'tool-edit))
+                 (buffer-string)))))))
+
+(ert-deftest macp-test-todo-renderer-emits-attachments ()
+  "TodoWrite renderer must also emit diffs attached to the same tool-call,
+not silently drop them when falling through the structured-todos path."
+  (let ((tc (make-macp-tool-call
+             :name "TodoWrite"
+             :raw-input '(:todos
+                          [(:content "X" :status "pending")])
+             :diffs '(("old text\n" . "new text\n")))))
+    (with-temp-buffer
+      (mutecipher-acp--render-todo-body tc)
+      ;; Checklist content present.
+      (should (string-match-p "X" (buffer-string)))
+      ;; Diff content present (the diff renderer emits +/- lines).
+      (should (string-match-p "new text" (buffer-string))))))
+
+(ert-deftest macp-test-task-renderer-emits-attachments ()
+  "Task renderer must also emit diffs the subagent produced."
+  (let ((tc (make-macp-tool-call
+             :name "Task"
+             :raw-input '(:subagent_type "explore" :prompt "find foo")
+             :diffs '(("alpha\n" . "beta\n")))))
+    (with-temp-buffer
+      (mutecipher-acp--render-task-body tc)
+      (should (string-match-p "explore" (buffer-string)))
+      (should (string-match-p "beta" (buffer-string))))))
+
+(ert-deftest macp-test-task-renderer-falls-back-when-empty ()
+  "Task renderer with no structured fields and no output must NOT leave an
+empty body — fall through to the default renderer so plan/diffs still show."
+  (let ((tc (make-macp-tool-call
+             :name "Task"
+             :raw-input nil
+             :raw-output nil
+             :diffs '(("a\n" . "b\n")))))
+    (with-temp-buffer
+      (mutecipher-acp--render-task-body tc)
+      (should (string-match-p "b" (buffer-string))))))
+
+(ert-deftest macp-test-todo-renderer-handles-non-vector-todos ()
+  "`:todos' arriving as a list (or `:json-false', a number, …) must not crash;
+list todos render normally, non-sequence values fall back."
+  ;; List form.
+  (let ((tc (make-macp-tool-call
+             :raw-input '(:todos ((:content "L1" :status "pending")
+                                  (:content "L2" :status "completed"))))))
+    (with-temp-buffer
+      (mutecipher-acp--render-todo-body tc)
+      (should (string-match-p "L1" (buffer-string)))
+      (should (string-match-p "L2" (buffer-string)))))
+  ;; `:json-false' — must fall back, not signal.
+  (let ((tc (make-macp-tool-call :raw-input '(:todos :json-false))))
+    (with-temp-buffer
+      ;; Empty buffer is fine — the goal is no signal.
+      (mutecipher-acp--render-todo-body tc)
+      (should t))))
+
+(ert-deftest macp-test-synthesize-locations-single-plist ()
+  "A `:locations' arriving as a single plist must wrap into a 1-vector
+rather than being apply-vectored into a broken `[:key val :key val]'."
+  (let* ((update '(:locations (:path "/tmp/x" :line 42)))
+         (locs   (mutecipher-acp--synthesize-locations update)))
+    (should (vectorp locs))
+    (should (= 1 (length locs)))
+    ;; Downstream code does (plist-get (aref locs 0) :path); that must work.
+    (should (equal "/tmp/x" (plist-get (aref locs 0) :path)))))
+
+(ert-deftest macp-test-synthesize-locations-list-of-plists-still-works ()
+  "A `:locations' arriving as a list of location plists must vectorize
+each element separately, not be misread as a single plist."
+  (let* ((update '(:locations ((:path "/a") (:path "/b"))))
+         (locs   (mutecipher-acp--synthesize-locations update)))
+    (should (= 2 (length locs)))
+    (should (equal "/a" (plist-get (aref locs 0) :path)))
+    (should (equal "/b" (plist-get (aref locs 1) :path)))))
+
+(ert-deftest macp-test-probe-kind-notebook-editcell ()
+  "`NotebookEditCell' must route to tool-edit, not tool-read."
+  (should (eq 'tool-edit (mutecipher-acp--probe-kind-from-name "NotebookEditCell")))
+  (should (eq 'tool-edit (mutecipher-acp--probe-kind-from-name "NotebookEdit")))
+  (should (eq 'tool-read (mutecipher-acp--probe-kind-from-name "NotebookRead"))))
+
+(ert-deftest macp-test-render-fetch-body-query-not-link-face ()
+  "WebSearch `:query' should NOT carry the `link' face; URL should."
+  (with-temp-buffer
+    (mutecipher-acp--render-fetch-body
+     (make-macp-tool-call :name "WebSearch" :raw-input '(:query "claude code")))
+    (goto-char (point-min))
+    (search-forward "claude code")
+    (let ((face (get-text-property (1- (point)) 'face)))
+      (should-not (eq face 'link))
+      (should-not (and (listp face) (memq 'link face)))))
+  (with-temp-buffer
+    (mutecipher-acp--render-fetch-body
+     (make-macp-tool-call :name "WebFetch"
+                          :raw-input '(:url "https://example.test/x")))
+    (goto-char (point-min))
+    (search-forward "https://example.test/x")
+    (let ((face (get-text-property (1- (point)) 'face)))
+      (should (or (eq face 'link)
+                  (and (listp face) (memq 'link face)))))))
+
+(ert-deftest macp-test-update-preserves-original-raw-input ()
+  "tool_call_update with a stripped `:rawInput' must not destroy the
+structured payload the original tool_call carried."
+  (let* ((session-id "test-sess")
+         (buf (generate-new-buffer " *macp-update-test*"))
+         (session (mutecipher-acp--make-session
+                   :id session-id
+                   :buffer buf
+                   :tool-call-index (make-hash-table :test #'equal))))
+    (unwind-protect
+        (progn
+          (puthash session-id session mutecipher-acp--sessions)
+          ;; Plant a tool-call with the full rawInput.
+          (let* ((tc (make-macp-tool-call
+                      :call-id "c1" :name "TodoWrite" :status 'pending
+                      :raw-input '(:todos [(:content "X" :status "pending")])))
+                 (node-data (make-macp-node :kind 'tool-call :data tc)))
+            ;; Wrap node-data in a fake ewoc node by using ewoc-data
+            ;; via a real ewoc.  Simpler: stub the index directly with
+            ;; a cons that satisfies ewoc-data through our access path
+            ;; — but `--update-tool-call' calls `ewoc-data', so use a
+            ;; real ewoc.
+            (with-current-buffer buf
+              (setq mutecipher-acp--session-id session-id)
+              (setq mutecipher-acp--ewoc
+                    (ewoc-create (lambda (_) nil) "" ""))
+              (let ((node (ewoc-enter-last mutecipher-acp--ewoc node-data)))
+                (puthash "c1" node (macp-session-tool-call-index session))))
+            ;; Apply an update with a stripped rawInput.
+            (mutecipher-acp--update-tool-call
+             session-id
+             (list :toolCallId "c1"
+                   :status "completed"
+                   :rawInput '(:status "completed")))
+            ;; Original rawInput must survive — body renderer would
+            ;; otherwise lose `:todos'.
+            (should (equal '(:todos [(:content "X" :status "pending")])
+                           (macp-tool-call-raw-input tc)))))
+      (remhash session-id mutecipher-acp--sessions)
+      (when (buffer-live-p buf)
+        (let ((kill-buffer-query-functions nil))
+          (kill-buffer buf))))))
+
 (provide 'mutecipher-acp-tests)
 ;;; mutecipher-acp-tests.el ends here

@@ -17,9 +17,16 @@
 ;;   ewoc        — sticky-tail macros, --pp dispatcher (registry of
 ;;                 node kinds, register with -register-node-kind),
 ;;                 gutter + non-tool-call per-kind printers
-;;   tools       — tool-call ingest/update, raw-input/output handling,
-;;                 unified diff with file-line anchoring, spinner timer,
-;;                 tool-call card pretty-printer
+;;   persist     — on-disk transcript snapshots + resume index
+;;   changes     — per-turn change-set capture + revert
+;;                 (mutecipher/acp-revert-turn)
+;;   diff        — unified diff generation + GitHub-styled rendering
+;;                 with file-line anchoring
+;;   tool-card   — tool-call card pretty-printer + spinner + per-tool
+;;                 body-renderer registry (TodoWrite, Task, WebFetch,
+;;                 WebSearch); restyle here without touching ingest
+;;   tools       — tool-call ingest/update, raw-input/output
+;;                 normalization (data shape only; no rendering)
 ;;   completion  — @-file capf, file cache, attachment extraction,
 ;;                 slash-command capf + local registry
 ;;   composer    — inline composer (writable region past the ewoc),
@@ -31,7 +38,6 @@
 ;;   protocol    — inbound agent-request and session/update handlers,
 ;;                 each backed by a registry
 ;;   session     — connect / new / load / state machine / prompt / teardown
-;;   changes     — per-turn change-set revert (mutecipher/acp-revert-turn)
 ;;
 ;; This entry point requires every submodule and defines the public
 ;; `mutecipher/acp-*' interactive commands plus the transient menu.
@@ -51,14 +57,16 @@
 (require 'mutecipher-acp-rpc)
 (require 'mutecipher-acp-markdown)
 (require 'mutecipher-acp-ewoc)
+(require 'mutecipher-acp-persist)
+(require 'mutecipher-acp-changes)
+(require 'mutecipher-acp-diff)
+(require 'mutecipher-acp-tool-card)
 (require 'mutecipher-acp-tools)
 (require 'mutecipher-acp-completion)
 (require 'mutecipher-acp-composer)
 (require 'mutecipher-acp-ui)
 (require 'mutecipher-acp-protocol)
-(require 'mutecipher-acp-persist)
 (require 'mutecipher-acp-session)
-(require 'mutecipher-acp-changes)
 
 ;;;; Customization
 
