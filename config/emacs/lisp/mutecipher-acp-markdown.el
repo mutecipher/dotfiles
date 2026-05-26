@@ -156,6 +156,31 @@ A ```diff tag routes the body through `diff-mode' fontification."
 (defconst mutecipher-acp--md-table-line-re "^[ \t]*|.*|[ \t]*$"
   "Regexp matching a single pipe-delimited line of a GFM table.")
 
+(defcustom mutecipher-acp-md-table-max-width nil
+  "Optional hard cap on rendered GFM table width, in columns.
+When nil, tables fit the body width of the window showing them.  When an
+integer, the table never grows past that many columns even in a wide
+window."
+  :type '(choice (const :tag "Fit window" nil) integer)
+  :group 'mutecipher-acp)
+
+(defconst mutecipher-acp--md-table-min-col-width 5
+  "Preferred minimum content width for a column when shrinking to fit.
+Dropped automatically toward a fair per-column share when even this
+won't fit the available width.")
+
+(defvar mutecipher-acp--md-table-width-override nil
+  "When non-nil, the text width (columns) to lay tables out against.
+Bound by the resize handler so re-fitting uses the new width without
+re-querying the window.")
+
+(defvar-local mutecipher-acp--md-has-tables nil
+  "Non-nil once this buffer has rendered at least one GFM table.
+Gates the global resize handler so it skips table-free buffers.")
+
+(defvar-local mutecipher-acp--md-last-window-width nil
+  "Window body width (columns) used at the last table re-fit.")
+
 (defun mutecipher-acp--md-table-parse-cells (line)
   "Return trimmed cells from pipe-delimited LINE, or nil if not table-shaped."
   (when (string-match "^[ \t]*|\\(.*\\)|[ \t]*$" line)
@@ -167,7 +192,10 @@ A ```diff tag routes the body through `diff-mode' fontification."
        (seq-every-p (lambda (c) (string-match-p "^:?-+:?$" c)) cells)))
 
 (defun mutecipher-acp--md-table-col-widths (all-cells)
-  "Vector of max column widths across ALL-CELLS, ignoring separator rows."
+  "Vector of max column widths across ALL-CELLS, ignoring separator rows.
+Widths are measured in display columns (`string-width'), so double-width
+glyphs are budgeted correctly; `length' here counts cells-per-row to size
+the vector, not characters."
   (let* ((data-cells (seq-remove #'mutecipher-acp--md-table-sep-cells-p
                                  (delq nil all-cells)))
          (ncols      (apply #'max 1 (mapcar #'length data-cells)))
@@ -175,9 +203,106 @@ A ```diff tag routes the body through `diff-mode' fontification."
     (dolist (cells data-cells)
       (seq-do-indexed (lambda (cell i)
                         (when (< i ncols)
-                          (aset widths i (max (aref widths i) (length cell)))))
+                          (aset widths i (max (aref widths i) (string-width cell)))))
                       cells))
     widths))
+
+(defun mutecipher-acp--md-table-text-width (start)
+  "Columns available to lay out a table whose head sits at START.
+Honours `mutecipher-acp--md-table-width-override' when bound; otherwise
+queries the window showing the buffer (falling back to `fill-column' or
+80 when undisplayed).  Subtracts the body's hanging indent — read from
+the `wrap-prefix' at START — plus a one-column right margin so a fitted
+table never abuts the window edge and triggers a continuation glyph."
+  (let* ((cap    mutecipher-acp-md-table-max-width)
+         (full   (or mutecipher-acp--md-table-width-override
+                     (let ((win (get-buffer-window (current-buffer) 'visible)))
+                       (cond
+                        (win (window-body-width win))
+                        ((and (integerp fill-column) (> fill-column 0)) fill-column)
+                        (t 80)))))
+         (full   (if (integerp cap) (min full cap) full))
+         (pfx    (get-text-property start 'wrap-prefix))
+         (indent (cond ((stringp pfx)  (string-width pfx))
+                       ((integerp pfx) pfx)
+                       (t 0)))
+         ;; Floor the result so a degenerate window still gets a usable
+         ;; table — but never let the floor exceed an explicit small cap.
+         (floor  (if (integerp cap) (min 16 cap) 16)))
+    (max floor (- full indent 1))))
+
+(defun mutecipher-acp--md-table-fit-widths (natural text-width)
+  "Shrink NATURAL column widths so the rendered table fits TEXT-WIDTH.
+NATURAL is a vector of max-content widths; the result is a fresh vector
+never exceeding NATURAL and, where shrinking is forced, repeatedly
+trimming the widest column.  A per-column floor of
+`mutecipher-acp--md-table-min-col-width' is honoured but lowered toward
+an equal share of the available space when the window is too narrow to
+grant every column that floor — guaranteeing the fitted total never
+exceeds the budget, so rows never soft-wrap."
+  (let* ((ncols    (length natural))
+         (overhead (+ (* 3 ncols) 1))            ; │ + 2 pad per col, +1 closer
+         (avail    (max ncols (- text-width overhead)))
+         (min-w    (max 1 (min mutecipher-acp--md-table-min-col-width
+                               (/ avail (max 1 ncols)))))
+         (ws       (copy-sequence natural))
+         (total    (apply #'+ 0 (append ws nil))))
+    (while (and (> total avail)
+                (let ((shrinkable nil) (i 0))
+                  (while (< i ncols)
+                    (when (> (aref ws i) min-w) (setq shrinkable t))
+                    (setq i (1+ i)))
+                  shrinkable))
+      (let ((idx -1) (best -1) (i 0))
+        (while (< i ncols)
+          (when (and (> (aref ws i) min-w) (> (aref ws i) best))
+            (setq best (aref ws i) idx i))
+          (setq i (1+ i)))
+        (aset ws idx (1- (aref ws idx)))
+        (setq total (1- total))))
+    ws))
+
+(defun mutecipher-acp--md-take-columns (s width)
+  "Split S into (PREFIX . REST) at the most leading chars fitting WIDTH columns.
+Display-width aware (`char-width'), so double-width glyphs are not cut
+mid-cell and a single wide char wider than WIDTH still advances by one so
+callers can't loop forever."
+  (let ((i 0) (n (length s)) (w 0))
+    (while (and (< i n)
+                (<= (+ w (char-width (aref s i))) width))
+      (setq w (+ w (char-width (aref s i)))
+            i (1+ i)))
+    (when (and (= i 0) (> n 0)) (setq i 1))  ; force progress on a too-wide glyph
+    (cons (substring s 0 i) (substring s i))))
+
+(defun mutecipher-acp--md-wrap-cell (text width)
+  "Greedily word-wrap TEXT into a list of lines each at most WIDTH columns.
+Widths are display columns (`string-width'), so double-width glyphs are
+budgeted correctly.  A single word wider than WIDTH is hard-split at
+column boundaries, with its trailing remainder kept on its own line
+rather than glued to the following word.  Always returns at least one
+\(possibly empty) line."
+  (let ((text (string-trim text)))
+    (if (<= (string-width text) width)
+        (list text)
+      (let ((words (split-string text "[ \t]+" t))
+            (cur "") lines)
+        (dolist (word words)
+          (cond
+           ((> (string-width word) width)
+            (when (> (length cur) 0) (push cur lines) (setq cur ""))
+            (let ((w word))
+              (while (> (string-width w) width)
+                (let ((cut (mutecipher-acp--md-take-columns w width)))
+                  (push (car cut) lines)
+                  (setq w (cdr cut))))
+              (when (> (length w) 0) (push w lines))))
+           ((= (length cur) 0) (setq cur word))
+           ((<= (+ (string-width cur) 1 (string-width word)) width)
+            (setq cur (concat cur " " word)))
+           (t (push cur lines) (setq cur word))))
+        (when (> (length cur) 0) (push cur lines))
+        (nreverse (or lines (list "")))))))
 
 (defun mutecipher-acp--md-table-box-line (widths left junc right fill)
   "Build a horizontal border string from WIDTHS using LEFT/JUNC/RIGHT/FILL."
@@ -187,24 +312,36 @@ A ```diff tag routes the body through `diff-mode' fontification."
                 'face 'mutecipher-acp-md-table-rule-face)))
 
 (defun mutecipher-acp--md-table-format-row (cells widths &optional align)
-  "Build a propertized data row string. ALIGN is `center' or nil (left)."
-  (let ((pipe (propertize "│" 'face 'mutecipher-acp-md-table-rule-face))
-        parts)
-    (dotimes (i (length cells))
+  "Build a propertized data row, wrapping cells to WIDTHS.
+Returns a string of one or more newline-separated visual lines — a row
+is as tall as its most-wrapped cell, with shorter cells blank-padded.
+ALIGN is `center' or nil (left); each wrapped line is padded
+independently."
+  (let* ((pipe    (propertize "│" 'face 'mutecipher-acp-md-table-rule-face))
+         (ncols   (length widths))
+         (wrapped (make-vector ncols nil))
+         (height  1))
+    (dotimes (i ncols)
       (let* ((cell  (or (nth i cells) ""))
-             (w     (if (< i (length widths)) (aref widths i) (length cell)))
-             (slack (max 0 (- w (length cell))))
-             (lpad  (if (eq align 'center) (/ slack 2) 0))
-             (rpad  (- slack lpad)))
-        (push pipe parts)
-        (push (concat " "
-                      (make-string lpad ?\s)
-                      cell
-                      (make-string rpad ?\s)
-                      " ")
-              parts)))
-    (push pipe parts)
-    (apply #'concat (nreverse parts))))
+             (lines (mutecipher-acp--md-wrap-cell cell (aref widths i))))
+        (aset wrapped i lines)
+        (setq height (max height (length lines)))))
+    (let (out-lines)
+      (dotimes (k height)
+        (let (parts)
+          (dotimes (i ncols)
+            (let* ((w     (aref widths i))
+                   (line  (or (nth k (aref wrapped i)) ""))
+                   (slack (max 0 (- w (string-width line))))
+                   (lpad  (if (eq align 'center) (/ slack 2) 0))
+                   (rpad  (- slack lpad)))
+              (push pipe parts)
+              (push (concat " " (make-string lpad ?\s)
+                            line (make-string rpad ?\s) " ")
+                    parts)))
+          (push pipe parts)
+          (push (apply #'concat (nreverse parts)) out-lines)))
+      (mapconcat #'identity (nreverse out-lines) "\n"))))
 
 (defun mutecipher-acp--md-table-render-at (start)
   "Render the GFM table beginning at line containing START.
@@ -228,7 +365,9 @@ On success, returns the buffer position just after the last consumed line."
              (n         (length starts)))
         (if (not (and (>= n 2) (aref seps 1)))
             start
-          (let* ((widths   (mutecipher-acp--md-table-col-widths cell-rows))
+          (let* ((widths   (mutecipher-acp--md-table-fit-widths
+                            (mutecipher-acp--md-table-col-widths cell-rows)
+                            (mutecipher-acp--md-table-text-width start)))
                  (top      (mutecipher-acp--md-table-box-line widths "┌" "┬" "┐" ?─))
                  (row-sep  (mutecipher-acp--md-table-box-line widths "├" "┼" "┤" ?─))
                  (bottom   (mutecipher-acp--md-table-box-line widths "└" "┴" "┘" ?─)))
@@ -260,7 +399,10 @@ On success, returns the buffer position just after the last consumed line."
                   (overlay-put ov 'after-string (concat bottom "\n")))
                  (inject-p
                   (overlay-put ov 'after-string (concat row-sep "\n"))))
-                (overlay-put ov 'mutecipher-acp-md-table t)))
+                ;; Tag with the table's source head, not just t, so the
+                ;; resize handler can regroup a table's overlays and re-fit.
+                (overlay-put ov 'mutecipher-acp-md-table start)))
+            (setq mutecipher-acp--md-has-tables t)
             (point)))))))
 
 (defun mutecipher-acp--md-table-clear-overlays (beg end)
@@ -268,6 +410,78 @@ On success, returns the buffer position just after the last consumed line."
   (dolist (ov (overlays-in beg end))
     (when (overlay-get ov 'mutecipher-acp-md-table)
       (delete-overlay ov))))
+
+(defun mutecipher-acp--md-rerender-tables ()
+  "Re-fit every rendered GFM table in the current buffer to the live width.
+The underlying pipe-delimited source survives behind each table's
+overlays, so dropping them and re-rendering recomputes column widths
+against the current window (or `mutecipher-acp--md-table-width-override'
+when bound).  Re-render heads are taken from each table's live
+`overlay-start' — NOT the integer tag value, which froze at first-render
+position and goes stale once text above the table shifts (e.g. a
+tool-call card above it expands).  The tag is used only to group a
+table's overlays.  Clears `mutecipher-acp--md-has-tables' when no table
+overlays remain so a later resize stops scanning a now-tableless buffer."
+  (let ((groups (make-hash-table :test #'eql)))
+    (dolist (ov (overlays-in (point-min) (point-max)))
+      (let ((key (overlay-get ov 'mutecipher-acp-md-table)))
+        (when key
+          (push (overlay-start ov) (gethash key groups)))))
+    (if (zerop (hash-table-count groups))
+        (setq mutecipher-acp--md-has-tables nil)
+      (let (heads)
+        (maphash (lambda (_key starts) (push (apply #'min starts) heads))
+                 groups)
+        (mutecipher-acp--md-table-clear-overlays (point-min) (point-max))
+        (save-excursion
+          (dolist (start (sort heads #'<))
+            (goto-char start)
+            (when (looking-at mutecipher-acp--md-table-line-re)
+              (mutecipher-acp--md-table-render-at start))))))))
+
+(defun mutecipher-acp--md-refit-buffer (buf)
+  "Re-fit BUF's GFM tables to the narrowest window currently showing it.
+Fitting to the minimum body width across every window displaying BUF
+keeps the table within bounds in all of them (rather than reflowing to
+whichever window the caller happened to visit last).  No-ops unless that
+width actually changed since the last fit.  `window-start' is
+snapshotted and restored per window so a narrowing reflow that grows a
+table's height can't scroll the reader's position away."
+  (let* ((wins (get-buffer-window-list buf 'no-minibuffer t))
+         (w    (and wins (apply #'min (mapcar #'window-body-width wins)))))
+    (when w
+      (with-current-buffer buf
+        (unless (eql w mutecipher-acp--md-last-window-width)
+          (setq mutecipher-acp--md-last-window-width w)
+          (let ((mutecipher-acp--md-table-width-override w)
+                (snap (mapcar (lambda (win)
+                                (cons win (copy-marker (window-start win) nil)))
+                              wins)))
+            (with-demoted-errors "mutecipher-acp md table re-fit: %S"
+              (mutecipher-acp--md-rerender-tables))
+            (dolist (entry snap)
+              (when (and (window-live-p (car entry))
+                         (eq (window-buffer (car entry)) buf))
+                (set-window-start (car entry) (marker-position (cdr entry)) t))
+              (set-marker (cdr entry) nil))))))))
+
+(defun mutecipher-acp--md-on-window-change (frame)
+  "Re-fit GFM tables in FRAME's table-bearing buffers when their width changed.
+Registered on both `window-size-change-functions' (frame resize) and
+`window-buffer-change-functions' (a buffer rendered while undisplayed, at
+the fallback width, becoming visible).  Skips buffers that have never
+rendered a table; each buffer is refit at most once per call even when
+shown in several of FRAME's windows."
+  (let (seen)
+    (dolist (win (window-list frame 'no-minibuffer))
+      (let ((buf (window-buffer win)))
+        (when (and (not (memq buf seen))
+                   (buffer-local-value 'mutecipher-acp--md-has-tables buf))
+          (push buf seen)
+          (mutecipher-acp--md-refit-buffer buf))))))
+
+(add-hook 'window-size-change-functions   #'mutecipher-acp--md-on-window-change)
+(add-hook 'window-buffer-change-functions #'mutecipher-acp--md-on-window-change)
 
 (defun mutecipher-acp--md-pass-tables (_beg _end line-starts)
   "Render GFM tables as an aligned Unicode grid via overlays.
@@ -307,9 +521,13 @@ starts that fall inside an already-rendered table region."
                                       '(:strike-through t :inherit shadow)))))))))
 
 (defun mutecipher-acp--md-pass-bold (beg end _line-starts)
-  "Render `**bold**' between BEG and END."
+  "Render `**bold**' between BEG and END.
+The inner run admits lone `*' (matched as `* + non-*') so nested
+emphasis like `**bold *italic* bold**' is captured whole; the bold face
+covers the inner `*italic*' markers and the later italic pass — which
+skips the now-invisible `**' delimiters — composes italic on top."
   (goto-char beg)
-  (while (re-search-forward "\\*\\*\\([^*\n]+\\)\\*\\*" end t)
+  (while (re-search-forward "\\*\\*\\(\\(?:[^*\n]\\|\\*[^*\n]\\)+?\\)\\*\\*" end t)
     (let ((mb (match-beginning 0)) (me (match-end 0)))
       (if (or (eq (char-before mb) ?*)
               (eq (char-after  me) ?*)
