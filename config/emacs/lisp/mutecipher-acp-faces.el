@@ -157,6 +157,12 @@ width the buffer's window happens to have.")
   '((t :inherit pulse-highlight-start-face))
   "Face used by `pulse-momentary-highlight-region' after node invalidations.")
 
+(defface mutecipher-acp-change-set-face
+  '((t :inherit shadow))
+  "Face for the per-turn change-set badge in the transcript.
+Renders the file-count line, per-file list, and revert hint that sit
+above a turn whose tool calls captured file mutations.")
+
 (defface mutecipher-acp-prompt-glyph-face
   '((t :inherit mutecipher-acp-user-face :weight bold))
   "Face for the `❯' prompt glyph in the ACP composer region.")

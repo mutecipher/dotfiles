@@ -322,53 +322,71 @@ gap."
                 ((macp-turn-p turn))
                 (path     (mutecipher-acp--resolve-loc-path
                            tc (macp-session-cwd session))))
-      (condition-case err
-          (let* ((cs (or (macp-turn-change-set turn)
-                         (setf (macp-turn-change-set turn)
-                               (make-macp-change-set :files nil))))
-                 (existing (cdr (assoc path (macp-change-set-files cs))))
-                 (call-id (macp-tool-call-call-id tc))
-                 (should-snapshot
-                  (or (null existing)
-                      new-pairs
-                      (eq (macp-file-change-capture-status existing)
-                          'reverse-apply-failed))))
-            (cond
-             (should-snapshot
-              (let* ((prior-pairs (and existing
-                                       (macp-file-change-accumulated-pairs
-                                        existing)))
-                     ;; For retroactive capture (first observation, no
-                     ;; new-pairs), fall back to the tc's full diffs —
-                     ;; that's the only history we have.
-                     (effective-new (or new-pairs
-                                        (and (null existing)
-                                             (macp-tool-call-diffs tc))))
-                     (all-pairs (append prior-pairs effective-new))
-                     (snap (mutecipher-acp--capture-snapshot path all-pairs))
-                     (fc (make-macp-file-change
-                          :path             path
-                          :pre-turn-content (plist-get snap :pre-turn-content)
-                          :pre-turn-existed (plist-get snap :pre-turn-existed)
-                          :capture-status   (plist-get snap :capture-status)
-                          :status           (or (and existing
-                                                     (macp-file-change-status
-                                                      existing))
-                                                'accepted)
-                          :tool-call-ids    (and existing
-                                                 (macp-file-change-tool-call-ids
-                                                  existing))
-                          :accumulated-pairs all-pairs)))
-                (mutecipher-acp--cs-merge-call-id fc call-id)
-                (mutecipher-acp--cs-write-file-change cs path fc)))
-             (t
-              (mutecipher-acp--cs-merge-call-id existing call-id)))
-            (mutecipher-acp--mark-dirty session))
-        (error
-         (mutecipher-acp--log-warn
-          'agent-warn (macp-session-agent session)
-          (format "[change-set] capture failed for %s: %s"
-                  path (error-message-string err))))))))
+      (let ((badge-may-change nil))
+        (condition-case err
+            (let* ((cs (or (macp-turn-change-set turn)
+                           (setf (macp-turn-change-set turn)
+                                 (make-macp-change-set :files nil))))
+                   (existing (cdr (assoc path (macp-change-set-files cs))))
+                   (call-id (macp-tool-call-call-id tc))
+                   (should-snapshot
+                    (or (null existing)
+                        new-pairs
+                        (eq (macp-file-change-capture-status existing)
+                            'reverse-apply-failed))))
+              (cond
+               (should-snapshot
+                (let* ((prior-pairs (and existing
+                                         (macp-file-change-accumulated-pairs
+                                          existing)))
+                       ;; For retroactive capture (first observation, no
+                       ;; new-pairs), fall back to the tc's full diffs —
+                       ;; that's the only history we have.
+                       (effective-new (or new-pairs
+                                          (and (null existing)
+                                               (macp-tool-call-diffs tc))))
+                       (all-pairs (append prior-pairs effective-new))
+                       (snap (mutecipher-acp--capture-snapshot path all-pairs))
+                       (fc (make-macp-file-change
+                            :path             path
+                            :pre-turn-content (plist-get snap :pre-turn-content)
+                            :pre-turn-existed (plist-get snap :pre-turn-existed)
+                            :capture-status   (plist-get snap :capture-status)
+                            :status           (or (and existing
+                                                       (macp-file-change-status
+                                                        existing))
+                                                  'accepted)
+                            :tool-call-ids    (and existing
+                                                   (macp-file-change-tool-call-ids
+                                                    existing))
+                            :accumulated-pairs all-pairs)))
+                  (mutecipher-acp--cs-merge-call-id fc call-id)
+                  (mutecipher-acp--cs-write-file-change cs path fc)
+                  (setq badge-may-change t)))
+               (t
+                (mutecipher-acp--cs-merge-call-id existing call-id)))
+              (mutecipher-acp--mark-dirty session))
+          (error
+           (mutecipher-acp--log-warn
+            'agent-warn (macp-session-agent session)
+            (format "[change-set] capture failed for %s: %s"
+                    path (error-message-string err)))))
+        ;; Invalidation is intentionally OUTSIDE the capture's condition-case
+        ;; so a render-side signal isn't logged as a capture failure, and is
+        ;; skipped on the no-op merge-call-id branch where the badge text
+        ;; can't have changed.
+        (when badge-may-change
+          (condition-case render-err
+              (when-let* ((buf (macp-session-buffer session))
+                          ((buffer-live-p buf)))
+                (mutecipher-acp--with-sticky-tail buf
+                  (let ((inhibit-read-only t))
+                    (ewoc-invalidate mutecipher-acp--ewoc turn-node))))
+            (error
+             (mutecipher-acp--log-warn
+              'agent-warn (macp-session-agent session)
+              (format "[change-set] badge render failed for %s: %s"
+                      path (error-message-string render-err))))))))))
 
 (declare-function mutecipher-acp--mark-dirty "mutecipher-acp-persist")
 

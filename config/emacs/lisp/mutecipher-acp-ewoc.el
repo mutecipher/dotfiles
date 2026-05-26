@@ -333,12 +333,88 @@ inserted region (e.g. `--apply-markdown')."
     (insert (car g) (apply #'propertize text props))
     body-start))
 
+(defun mutecipher-acp--change-set-relativize (path)
+  "Relativize PATH against the current session's cwd, falling back to basename.
+`file-truename's the cwd before comparison so symlinked roots — macOS
+`/tmp' → `/private/tmp', `$TMPDIR' firmlinks, symlinked project roots —
+don't force absolute-path display.  Falls back to the basename when
+PATH lies outside cwd or no session is current."
+  (or (when-let* ((sid     mutecipher-acp--session-id)
+                  (session (gethash sid mutecipher-acp--sessions))
+                  (cwd     (macp-session-cwd session))
+                  (cwd-tn  (condition-case _err
+                               (file-truename cwd)
+                             (error cwd))))
+        (and (file-in-directory-p path cwd-tn)
+             (file-relative-name path cwd-tn)))
+      (file-name-nondirectory path)))
+
+(defun mutecipher-acp--change-set-file-glyph (fc)
+  "Return a status glyph for file-change FC.
+`⚠' marks files whose pre-edit snapshot wasn't captured (and which therefore
+can't be reverted); `✓' marks captured + still-applied edits; `↶' marks
+captured edits the user has already reverted; `?' marks an unknown future
+status so a missing migration is visible rather than silently rendered as
+accepted."
+  (let ((capture (macp-file-change-capture-status fc))
+        (status  (macp-file-change-status fc)))
+    (cond
+     ((not (eq capture 'ok)) "⚠")
+     ((eq status 'reverted)  "↶")
+     ((eq status 'accepted)  "✓")
+     (t                      "?"))))
+
+(defun mutecipher-acp--change-set-file-note (fc)
+  "Return a trailing parenthetical for file-change FC, or empty string."
+  (pcase (macp-file-change-capture-status fc)
+    ('suppressed-too-large "  (too large to capture)")
+    ('reverse-apply-failed "  (capture failed)")
+    (_ (if (eq (macp-file-change-status fc) 'reverted) "  (reverted)" ""))))
+
+(defun mutecipher-acp--change-set-revertable-count (cs)
+  "Return the count of file-changes in CS that `mutecipher/acp-revert-turn'
+would actually act on (capture-status `ok' AND status `accepted')."
+  (cl-loop for (_path . fc) in (macp-change-set-files cs)
+           when (and (eq (macp-file-change-capture-status fc) 'ok)
+                     (eq (macp-file-change-status fc) 'accepted))
+           count fc))
+
+(defun mutecipher-acp--pp-change-set-badge (cs)
+  "Insert the per-turn change-set badge for CS at point.
+No-op when CS holds no file-changes.  Non-revertible entries
+(`suppressed-too-large', `reverse-apply-failed') still render with a `⚠'
+glyph so the user can see the turn touched a file even when capture
+declined.  Drops the `revert:' suffix once no file is left to revert."
+  (when-let* ((files (cl-loop for (_p . fc) in (macp-change-set-files cs)
+                              collect fc))
+              (n      (length files))
+              (header (if (zerop (mutecipher-acp--change-set-revertable-count cs))
+                          (format "✎ %d file%s changed\n"
+                                  n (if (= n 1) "" "s"))
+                        (format "✎ %d file%s changed · revert: M-x mutecipher/acp-revert-turn\n"
+                                n (if (= n 1) "" "s")))))
+    (insert (propertize header 'face 'mutecipher-acp-change-set-face))
+    (dolist (fc files)
+      (let ((line (format "  %s %s%s\n"
+                          (mutecipher-acp--change-set-file-glyph fc)
+                          (mutecipher-acp--change-set-relativize
+                           (macp-file-change-path fc))
+                          (mutecipher-acp--change-set-file-note fc))))
+        (insert (propertize line 'face 'mutecipher-acp-change-set-face))))
+    (insert "\n")))
+
 (defun mutecipher-acp--pp-turn-header (node)
-  "Render a turn-header NODE: for turns >1, emit one blank line as a separator."
+  "Render a turn-header NODE.
+For turns >1, emit one blank line as a separator.  Then, if the turn
+has a non-empty `change-set' (any `macp-file-change' with `capture-status'
+`ok'), render a badge listing the modified files and their status."
   (let* ((turn (macp-node-data node))
-         (id   (macp-turn-id turn)))
+         (id   (macp-turn-id turn))
+         (cs   (macp-turn-change-set turn)))
     (when (and id (> id 1))
-      (insert "\n"))))
+      (insert "\n"))
+    (when cs
+      (mutecipher-acp--pp-change-set-badge cs))))
 
 (defun mutecipher-acp--pp-user (node)
   "Render a user NODE: `user' icon gutter + hanging-indent body.
