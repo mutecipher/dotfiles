@@ -84,7 +84,10 @@
   (tool-call-index (make-hash-table :test #'equal))
   (node-index (make-hash-table :test #'equal)) ; uuid -> ewoc node, populated by --ewoc-enter-tail
   prompt-queue        ; list of strings, FIFO (head = next to send)
-  queue-head-node)    ; ewoc node of the first queued entry, anchor for enter-before
+  queue-head-node     ; ewoc node of the first queued entry, anchor for enter-before
+  last-active         ; float-time of last user/agent activity, nil before any
+  persist-dirty       ; t when in-memory state has unsaved changes
+  loading)            ; t while session/load replay is in progress (suppresses persist)
 
 ;;;; Node identity
 

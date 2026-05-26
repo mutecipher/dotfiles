@@ -19,6 +19,7 @@
 (require 'mutecipher-acp-completion)
 (require 'mutecipher-acp-ui)
 (require 'mutecipher-acp-protocol)
+(require 'mutecipher-acp-persist)
 
 (defvar mutecipher-acp-agents)
 
@@ -82,20 +83,81 @@ correct as long as the agent honours that boundary."
 (defun mutecipher-acp--load-session (conn session-id agent-name cwd callback)
   "Resume SESSION-ID via session/load on CONN; call CALLBACK with (session-id buf).
 The session struct is created eagerly so replayed notifications have
-somewhere to land before the success callback fires."
-  (let* ((buf     (mutecipher-acp--get-or-create-buffer session-id agent-name))
-         (session (mutecipher-acp--make-session
-                   :id session-id :conn conn :buffer buf
-                   :agent agent-name :cwd cwd)))
+somewhere to land before the success callback fires.
+
+If a session with this id already exists in `mutecipher-acp--sessions'
+its struct is reused (conn/buffer updated in place) — preventing a
+state-timer leak and a dropped prompt-queue when the user
+double-resumes a running session.
+
+The session's `loading' flag is set t for the duration of the RPC.
+While set, `mutecipher-acp--mark-dirty' and `--bump-last-active'
+short-circuit, so replayed `session/update' notifications can't
+overwrite the on-disk transcript with a partial replay or reset
+`last-active' to now."
+  (let* ((existing (gethash session-id mutecipher-acp--sessions))
+         (buf      (if (and existing
+                            (buffer-live-p (macp-session-buffer existing)))
+                       (macp-session-buffer existing)
+                     (mutecipher-acp--get-or-create-buffer
+                      session-id agent-name)))
+         (session  (or existing
+                       (mutecipher-acp--make-session
+                        :id session-id :conn conn :buffer buf
+                        :agent agent-name :cwd cwd))))
+    (setf (macp-session-conn session) conn
+          (macp-session-buffer session) buf
+          (macp-session-loading session) t)
     (puthash session-id session mutecipher-acp--sessions)
-    (mutecipher-acp--request
-     conn "session/load" (list :sessionId session-id)
-     :success-fn (lambda (_) (funcall callback session-id buf))
-     :error-fn   (lambda (err)
-                   (remhash session-id mutecipher-acp--sessions)
-                   (kill-buffer buf)
-                   (message "ACP session/load failed: %s"
-                            (plist-get err :message))))))
+    ;; Render the prior transcript immediately from disk.  This also
+    ;; restores the session's original `cwd' from the snapshot, so
+    ;; the RPC below sends the directory the session was created in
+    ;; rather than wherever the user invoked resume from.  The
+    ;; `loading' flag set above gates `--save-session' so the disk
+    ;; snapshot we just read from isn't clobbered while in-flight
+    ;; notifications mutate state.
+    (mutecipher-acp--hydrate-session-from-disk session)
+    (let ((session-cwd (or (macp-session-cwd session) cwd)))
+      (setf (macp-session-cwd session) session-cwd)
+      (mutecipher-acp--request
+       conn "session/load"
+       ;; Per ACP spec, session/load takes the same `cwd' and
+       ;; `mcpServers' envelope as session/new — not just :sessionId.
+       ;; claude-code-acp rejects the shorter form with "Invalid params".
+       (list :sessionId session-id :cwd session-cwd :mcpServers [])
+       :success-fn
+       (lambda (result)
+         (when-let ((s (gethash session-id mutecipher-acp--sessions)))
+           ;; session/load returns the same `:modes' envelope as
+           ;; session/new — extract availableModes + currentModeId so
+           ;; mode-line/picker pick up authoritative server state.
+           (when-let ((modes-data (plist-get result :modes)))
+             (when-let ((avail (plist-get modes-data :availableModes)))
+               (setf (macp-session-available-modes s) avail))
+             (when-let ((mode-id (plist-get modes-data :currentModeId)))
+               (setf (macp-session-current-mode-id s) mode-id)))
+           ;; Mark dirty so the post-load save flushes the modes we
+           ;; just applied (and any mutations that happened during
+           ;; replay).  Clearing `loading' must come BEFORE the save
+           ;; — otherwise `--save-session' short-circuits.
+           (mutecipher-acp--mark-dirty s)
+           (setf (macp-session-loading s) nil)
+           (mutecipher-acp--refresh-mode-line s)
+           (when (macp-session-persist-dirty s)
+             (mutecipher-acp--save-session s)))
+         (funcall callback session-id buf))
+     :error-fn
+     (lambda (err)
+       (when-let ((s (gethash session-id mutecipher-acp--sessions)))
+         (setf (macp-session-loading s) nil))
+       (remhash session-id mutecipher-acp--sessions)
+       (when (buffer-live-p buf) (kill-buffer buf))
+       (message "ACP session/load failed: %s%s"
+                (plist-get err :message)
+                (if (mutecipher-acp--session-file session-id)
+                    (format " — M-x mutecipher/acp-forget-session to drop %s from picker"
+                            (mutecipher-acp--id-prefix session-id))
+                  "")))))))
 
 ;;;; State transitions
 
@@ -148,13 +210,16 @@ composer."
          mutecipher-acp--ewoc anchor
          (make-macp-node :kind 'user
                          :data (make-macp-user :text user-text)))))
-    ;; Tool-call ids are turn-local — clear the index so the table
-    ;; doesn't grow without bound across long sessions.
-    (clrhash (macp-session-tool-call-index session))
+    ;; Tool-call ids are agent-unique across a session — keeping the
+    ;; full index lets a post-load `tool_call_update' for a historical
+    ;; tool call still find its node after we re-registered them in
+    ;; `--hydrate-session-from-disk'.  Bound is tens-of-thousands per
+    ;; session in the worst case, which is fine.
     (setf (macp-session-turn-counter session) counter
           (macp-session-current-turn-node session) turn-node
           (macp-session-current-assistant session) nil
           (macp-session-current-plan-node session) nil)
+    (mutecipher-acp--bump-last-active session)
     turn-node))
 
 (defun mutecipher-acp--close-turn (session-id stop-reason)
@@ -177,7 +242,12 @@ Enters a trailer node for any non-normal STOP-REASON."
              (make-macp-node
               :kind 'trailer
               :data (make-macp-trailer :stop-reason stop-reason)))))))
-    (setf (macp-session-current-turn-node session) nil)))
+    (setf (macp-session-current-turn-node session) nil)
+    (mutecipher-acp--bump-last-active session)
+    ;; Clean-boundary commit: the turn is finalized — flush to disk
+    ;; synchronously so the most recent transcript survives a crash.
+    (mutecipher-acp--save-session session)
+    (mutecipher-acp--save-index)))
 
 (defun mutecipher-acp--enqueue-prompt (session-id text)
   "Append TEXT to SESSION-ID's prompt queue and render a `queued' node.
@@ -206,6 +276,9 @@ text was held."
               (append (macp-session-prompt-queue session) (list text)))
         (unless (macp-session-queue-head-node session)
           (setf (macp-session-queue-head-node session) node))))
+    ;; Persist the queue so a crash before the active turn ends doesn't
+    ;; drop pending user input.
+    (mutecipher-acp--bump-last-active session)
     (mutecipher-acp--refresh-mode-line session)
     (let ((n (length (macp-session-prompt-queue session))))
       (message "ACP: queued (%d pending)" n))))
@@ -280,6 +353,7 @@ manual resume."
      ((not (eq state 'idle))
       (mutecipher-acp--enqueue-prompt session-id text))
      (t
+      (mutecipher-acp--bump-last-active session)
       (let* ((conn      (macp-session-conn session))
              (full-text text))
         (mutecipher-acp--open-turn session-id text)
@@ -329,7 +403,11 @@ When SKIP-BUFFER is non-nil, skip the session buffer (used by the
       (when (buffer-live-p buf)
         (with-current-buffer buf
           (mutecipher-acp--stop-spinner)))
+      ;; Final flush before dropping the in-memory entry — the .eld file
+      ;; outlives teardown so the session is resumable later.
+      (mutecipher-acp--save-session session)
       (remhash session-id mutecipher-acp--sessions)
+      (mutecipher-acp--save-index)
       (when (and (not skip-buffer) (buffer-live-p buf))
         (kill-buffer buf)))))
 

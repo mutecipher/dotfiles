@@ -775,7 +775,11 @@ down unconditionally on exit."
                           :cwd "/tmp")))
      (puthash sid ,var-session mutecipher-acp--sessions)
      (cl-letf (((symbol-function 'mutecipher-acp--request)
-                (lambda (&rest _) nil)))
+                (lambda (&rest _) nil))
+               ;; Stub the persistence layer so queue tests don't leak
+               ;; `test-sid-*.eld' files into the real cache directory.
+               ((symbol-function 'mutecipher-acp--save-session) #'ignore)
+               ((symbol-function 'mutecipher-acp--save-index)   #'ignore))
        (unwind-protect
            (with-current-buffer buf
              (mutecipher-acp-session-mode)
@@ -1243,6 +1247,327 @@ user nodes must land ABOVE the queued suffix."
         (let ((kill-buffer-hook nil))
           (when (buffer-live-p buf) (kill-buffer buf)))
         (remhash session-id mutecipher-acp--sessions)))))
+
+;;;; Persistence
+
+(ert-deftest macp-test-persist-roundtrip-nodes ()
+  (let* ((tc      (make-macp-tool-call
+                   :call-id "tc-1" :name "Bash" :kind 'execute
+                   :input "ls -la"
+                   :locations [(:path "/tmp/x")]
+                   :status 'done
+                   :diffs '(("a" . "b"))
+                   :rendered-diff-count 1
+                   :cached-start-line 42
+                   :cached-start-key '(1 . 2)))
+         (nodes   (list (make-macp-node
+                         :kind 'user
+                         :data (make-macp-user :text "hello")
+                         :uuid "n_aaaaaaaaaaaa")
+                        (make-macp-node
+                         :kind 'assistant
+                         :data (make-macp-assistant :text "world")
+                         :uuid "n_bbbbbbbbbbbb")
+                        (make-macp-node
+                         :kind 'tool-call
+                         :data tc
+                         :uuid "n_cccccccccccc")
+                        (make-macp-node
+                         :kind 'trailer
+                         :data (make-macp-trailer :stop-reason 'end_turn)
+                         :uuid "n_dddddddddddd")))
+         (stripped (mapcar #'mutecipher-acp--strip-transient-from-node
+                           nodes))
+         (tmp      (make-temp-file "macp-persist-roundtrip-" nil ".eld")))
+    (unwind-protect
+        (progn
+          (mutecipher-acp--persist-write-sexp
+           tmp (list :schema-version
+                     mutecipher-acp--persist-schema-version
+                     :nodes stripped))
+          (let* ((sexp     (mutecipher-acp--persist-read-sexp tmp))
+                 (restored (plist-get sexp :nodes)))
+            (should (equal stripped restored))
+            (should (equal "n_aaaaaaaaaaaa"
+                           (macp-node-uuid (nth 0 restored))))
+            (should (equal "n_cccccccccccc"
+                           (macp-node-uuid (nth 2 restored))))))
+      (when (file-exists-p tmp) (delete-file tmp)))))
+
+(ert-deftest macp-test-persist-schema-version-mismatch ()
+  (let* ((dir (mutecipher-acp--persist-dir))
+         (sid "test-skip-version")
+         (path (expand-file-name (concat sid ".eld") dir))
+         (messages nil))
+    (unwind-protect
+        (cl-letf (((symbol-function 'message)
+                   (lambda (fmt &rest args)
+                     (push (apply #'format fmt args) messages))))
+          (mutecipher-acp--persist-write-sexp
+           path (list :schema-version 999
+                      :session (list :id sid :agent "claude"
+                                     :cwd "/tmp" :title nil
+                                     :last-active 0)
+                      :nodes nil))
+          (let ((snaps (mutecipher-acp--load-disk-snapshots)))
+            (should (null (assoc sid snaps)))
+            (should (cl-some (lambda (m)
+                               (string-match-p "schema" m))
+                             messages))))
+      (when (file-exists-p path) (delete-file path)))))
+
+(ert-deftest macp-test-persist-index-entry-shape ()
+  (let* ((modes [(:id "sonnet" :name "Claude Sonnet 4")
+                 (:id "opus"   :name "Claude Opus 4")])
+         (session (mutecipher-acp--make-session
+                   :id "abc-123" :agent "claude" :cwd "/tmp/proj"
+                   :title "demo" :available-modes modes
+                   :current-mode-id "sonnet"
+                   :last-active 1700000000.0))
+         (entry (mutecipher-acp--session->index-entry session)))
+    (should (equal "abc-123"           (plist-get entry :id)))
+    (should (equal "claude"            (plist-get entry :agent)))
+    (should (equal "/tmp/proj"         (plist-get entry :cwd)))
+    (should (equal "demo"              (plist-get entry :title)))
+    (should (equal 1700000000.0        (plist-get entry :last-active)))
+    (should (equal "Claude Sonnet 4"   (plist-get entry :model))))
+  ;; Falls back to mode-id string when not in available-modes.
+  (let* ((session (mutecipher-acp--make-session
+                   :id "abc-456" :agent "claude" :cwd "/tmp"
+                   :available-modes [(:id "sonnet" :name "Claude Sonnet 4")]
+                   :current-mode-id "haiku"))
+         (entry (mutecipher-acp--session->index-entry session)))
+    (should (equal "haiku" (plist-get entry :model)))))
+
+(ert-deftest macp-test-persist-loading-flag-suppresses-save ()
+  "While SESSION's `loading' is t, --save-session must not write
+and must NOT clear persist-dirty (a post-load save fires later)."
+  (let* ((tmp-dir (file-name-as-directory (make-temp-file "macp-test-" t)))
+         (sid "loading-test")
+         (path (expand-file-name (concat sid ".eld") tmp-dir))
+         (session (mutecipher-acp--make-session
+                   :id sid :agent "claude" :cwd "/tmp"
+                   :loading t :persist-dirty t)))
+    (cl-letf (((symbol-function 'mutecipher-acp--persist-dir)
+               (lambda () tmp-dir)))
+      (unwind-protect
+          (progn
+            (mutecipher-acp--save-session session)
+            (should-not (file-exists-p path))
+            (should (macp-session-persist-dirty session)))
+        (delete-directory tmp-dir t)))))
+
+(ert-deftest macp-test-persist-empty-ewoc-doesnt-clobber-existing ()
+  "An empty EWOC must not overwrite a previously-saved transcript."
+  (let* ((tmp-dir (file-name-as-directory (make-temp-file "macp-test-" t)))
+         (sid "clobber-test")
+         (path (expand-file-name (concat sid ".eld") tmp-dir))
+         (buf  (generate-new-buffer " *macp-clobber-test*"))
+         (session (mutecipher-acp--make-session
+                   :id sid :agent "claude" :cwd "/tmp"
+                   :buffer buf :persist-dirty t)))
+    (cl-letf (((symbol-function 'mutecipher-acp--persist-dir)
+               (lambda () tmp-dir)))
+      (unwind-protect
+          (progn
+            (mutecipher-acp--persist-write-sexp
+             path (list :schema-version
+                        mutecipher-acp--persist-schema-version
+                        :session (list :id sid :agent "claude"
+                                       :cwd "/tmp")
+                        :nodes (list (make-macp-node
+                                      :kind 'user
+                                      :data (make-macp-user :text "hi")
+                                      :uuid "n_x"))))
+            (should (file-exists-p path))
+            (let ((before-size (nth 7 (file-attributes path))))
+              (mutecipher-acp--save-session session)
+              (should (file-exists-p path))
+              (should (= before-size (nth 7 (file-attributes path)))))
+            (should-not (macp-session-persist-dirty session)))
+        (let ((kill-buffer-hook nil))
+          (when (buffer-live-p buf) (kill-buffer buf)))
+        (delete-directory tmp-dir t)))))
+
+(ert-deftest macp-test-persist-unsafe-id-clears-dirty ()
+  "Unsafe session id makes --save-session clear dirty (stops sweeper)."
+  (let ((session (mutecipher-acp--make-session
+                  :id "../escape" :persist-dirty t)))
+    (should-not (mutecipher-acp--session-file (macp-session-id session)))
+    (mutecipher-acp--save-session session)
+    (should-not (macp-session-persist-dirty session))))
+
+(ert-deftest macp-test-persist-bump-vs-mark-dirty ()
+  "mark-dirty sets dirty only; bump-last-active sets both.
+Both run during loading — the WRITE is gated by --save-session,
+not the dirty/bump primitives — so server-authoritative state
+changes during replay still reach disk on the post-load save."
+  (let ((s (mutecipher-acp--make-session :id "x")))
+    (mutecipher-acp--mark-dirty s)
+    (should      (macp-session-persist-dirty s))
+    (should-not  (macp-session-last-active   s))
+    (setf (macp-session-persist-dirty s) nil)
+    (mutecipher-acp--bump-last-active s)
+    (should      (macp-session-persist-dirty s))
+    (should      (numberp (macp-session-last-active s))))
+  ;; Loading does NOT suppress dirty/bump anymore.
+  (let ((s (mutecipher-acp--make-session :id "y" :loading t)))
+    (mutecipher-acp--mark-dirty s)
+    (should (macp-session-persist-dirty s))
+    (mutecipher-acp--bump-last-active s)
+    (should (numberp (macp-session-last-active s)))))
+
+(ert-deftest macp-test-persist-save-session-clears-dirty-on-error ()
+  "A signaling --save-session must clear persist-dirty so the idle
+sweeper doesn't burn CPU spam-logging the same failure forever."
+  (let* ((tmp-dir (file-name-as-directory (make-temp-file "macp-test-" t)))
+         (sid     "err-test")
+         (buf     (generate-new-buffer " *macp-err-test*"))
+         (session (mutecipher-acp--make-session
+                   :id sid :agent "claude" :cwd "/tmp"
+                   :buffer buf :persist-dirty t)))
+    (cl-letf (((symbol-function 'mutecipher-acp--persist-dir)
+               (lambda () tmp-dir))
+              ;; Force --collect-session-nodes to return non-empty so
+              ;; we reach the write path...
+              ((symbol-function 'mutecipher-acp--collect-session-nodes)
+               (lambda (_) (list (make-macp-node :kind 'user :uuid "n_x"))))
+              ;; ...then make the write itself blow up.
+              ((symbol-function 'mutecipher-acp--persist-write-sexp)
+               (lambda (&rest _) (error "synthetic write failure")))
+              ((symbol-function 'message) #'ignore))
+      (unwind-protect
+          (progn
+            (mutecipher-acp--save-session session)
+            (should-not (macp-session-persist-dirty session)))
+        (let ((kill-buffer-hook nil))
+          (when (buffer-live-p buf) (kill-buffer buf)))
+        (delete-directory tmp-dir t)))))
+
+(ert-deftest macp-test-persist-save-index-schema-mismatch-recovers ()
+  "When the existing `index.eld' has an unknown schema version,
+--save-index must recover the disk-only entries via load-disk-snapshots
+instead of silently dropping them."
+  (let* ((tmp-dir   (file-name-as-directory (make-temp-file "macp-test-" t)))
+         (orphan-id "orphan-from-future")
+         (saved-tbl mutecipher-acp--sessions))
+    (cl-letf (((symbol-function 'mutecipher-acp--persist-dir)
+               (lambda () tmp-dir)))
+      (unwind-protect
+          (progn
+            (setq mutecipher-acp--sessions (make-hash-table :test #'equal))
+            ;; Plant a v1-format snapshot file for the orphan session.
+            (mutecipher-acp--persist-write-sexp
+             (expand-file-name (concat orphan-id ".eld") tmp-dir)
+             (list :schema-version
+                   mutecipher-acp--persist-schema-version
+                   :session (list :id orphan-id :agent "claude"
+                                  :cwd "/tmp/orphan" :title nil
+                                  :last-active 50.0)
+                   :nodes nil))
+            ;; Plant a future-schema index file that our save would
+            ;; otherwise reject + erase.
+            (mutecipher-acp--persist-write-sexp
+             (mutecipher-acp--index-file)
+             (list :schema-version 999 :entries nil))
+            ;; Save with no live sessions — must NOT drop the orphan.
+            (mutecipher-acp--save-index)
+            (let* ((sexp (mutecipher-acp--persist-read-sexp
+                          (mutecipher-acp--index-file)))
+                   (ids  (mapcar (lambda (e) (plist-get e :id))
+                                 (plist-get sexp :entries))))
+              (should (member orphan-id ids))))
+        (setq mutecipher-acp--sessions saved-tbl)
+        (delete-directory tmp-dir t)))))
+
+(ert-deftest macp-test-persist-snapshot-includes-prompt-queue ()
+  "Session snapshot must carry the `prompt-queue' list so resumed
+sessions can replay queued user input via --enqueue-prompt."
+  (let* ((session (mutecipher-acp--make-session
+                   :id "q-test" :agent "claude" :cwd "/tmp"
+                   :prompt-queue '("first" "second")))
+         (snap    (mutecipher-acp--session-snapshot session)))
+    (should (equal '("first" "second") (plist-get snap :prompt-queue)))))
+
+(ert-deftest macp-test-persist-utf8-roundtrip ()
+  "Multibyte content survives prin1+read via UTF-8 coding."
+  (let* ((text "こんにちは 🎉 café")
+         (node (make-macp-node
+                :kind 'user
+                :data (make-macp-user :text text)
+                :uuid "n_utf8"))
+         (tmp (make-temp-file "macp-utf8-" nil ".eld")))
+    (unwind-protect
+        (progn
+          (mutecipher-acp--persist-write-sexp
+           tmp (list :schema-version
+                     mutecipher-acp--persist-schema-version
+                     :nodes (list node)))
+          (let* ((sexp (mutecipher-acp--persist-read-sexp tmp))
+                 (got  (car (plist-get sexp :nodes))))
+            (should (equal text (macp-user-text (macp-node-data got))))))
+      (when (file-exists-p tmp) (delete-file tmp)))))
+
+(ert-deftest macp-test-persist-format-label-nil-on-missing-id ()
+  "format-resume-label returns nil for an entry without a string `:id'."
+  (should (null (mutecipher-acp--format-resume-label
+                 (list :title "demo" :agent "claude"))))
+  (should (null (mutecipher-acp--format-resume-label
+                 (list :id nil :title "demo"))))
+  (should (stringp (mutecipher-acp--format-resume-label
+                    (list :id "abcd-1234" :title "demo"
+                          :cwd "/tmp" :model "Sonnet"
+                          :last-active (float-time))))))
+
+(ert-deftest macp-test-persist-save-index-preserves-disk-only ()
+  "save-index reads the existing index file and keeps entries not in --sessions."
+  (let* ((tmp-dir   (file-name-as-directory (make-temp-file "macp-test-" t)))
+         (kept-id   "kept-by-other-emacs")
+         (live-id   "live-here")
+         (saved-tbl mutecipher-acp--sessions))
+    (cl-letf (((symbol-function 'mutecipher-acp--persist-dir)
+               (lambda () tmp-dir)))
+      (unwind-protect
+          (progn
+            (setq mutecipher-acp--sessions (make-hash-table :test #'equal))
+            (mutecipher-acp--persist-write-sexp
+             (mutecipher-acp--index-file)
+             (list :schema-version
+                   mutecipher-acp--persist-schema-version
+                   :entries (list (list :id kept-id :agent "claude"
+                                        :cwd "/tmp/a" :last-active 100.0))))
+            (puthash live-id
+                     (mutecipher-acp--make-session
+                      :id live-id :agent "claude" :cwd "/tmp/b"
+                      :last-active 200.0)
+                     mutecipher-acp--sessions)
+            (mutecipher-acp--save-index)
+            (let* ((sexp (mutecipher-acp--persist-read-sexp
+                          (mutecipher-acp--index-file)))
+                   (ids  (mapcar (lambda (e) (plist-get e :id))
+                                 (plist-get sexp :entries))))
+              (should (member live-id ids))
+              (should (member kept-id ids))))
+        (setq mutecipher-acp--sessions saved-tbl)
+        (delete-directory tmp-dir t)))))
+
+(ert-deftest macp-test-persist-strips-tool-call-cache ()
+  (let* ((tc (make-macp-tool-call
+              :call-id "x" :name "Bash"
+              :status 'done
+              :cached-start-line 7
+              :cached-start-key '(3 . 4)))
+         (node (make-macp-node :kind 'tool-call :data tc :uuid "n_x"))
+         (stripped (mutecipher-acp--strip-transient-from-node node))
+         (sdata (macp-node-data stripped)))
+    (should (null (macp-tool-call-cached-start-line sdata)))
+    (should (null (macp-tool-call-cached-start-key  sdata)))
+    ;; Other fields preserved.
+    (should (equal "x"   (macp-tool-call-call-id sdata)))
+    (should (equal "Bash" (macp-tool-call-name sdata)))
+    (should (eq 'done    (macp-tool-call-status sdata)))
+    ;; Original untouched.
+    (should (equal 7 (macp-tool-call-cached-start-line tc)))))
 
 (provide 'mutecipher-acp-tests)
 ;;; mutecipher-acp-tests.el ends here

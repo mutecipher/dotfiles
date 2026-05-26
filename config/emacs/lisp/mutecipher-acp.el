@@ -55,6 +55,7 @@
 (require 'mutecipher-acp-composer)
 (require 'mutecipher-acp-ui)
 (require 'mutecipher-acp-protocol)
+(require 'mutecipher-acp-persist)
 (require 'mutecipher-acp-session)
 
 ;;;; Customization
@@ -95,20 +96,38 @@ session buffer, and pins a small input buffer below it."
           (message "ACP: session started (%s)" session-id)
           (mutecipher-acp--open-pane session-id buf agent-name)))))))
 
-;;;###autoload
-(defun mutecipher/acp-resume (agent-name)
-  "Resume an existing ACP session for AGENT-NAME."
-  (interactive
-   (list (completing-read "ACP agent: "
-                          (mapcar #'car mutecipher-acp-agents)
-                          nil t)))
+(defun mutecipher-acp--resume-from-disk-entry (agent-name session-id)
+  "Connect to AGENT-NAME and resume SESSION-ID via session/load.
+Shared tail of `mutecipher/acp-resume' — used after the picker
+selection regardless of whether candidates came from the on-disk
+index or the agent's `session/list'."
+  (let* ((conn (mutecipher-acp--connect agent-name))
+         (cwd  (expand-file-name default-directory)))
+    (mutecipher-acp--initialize
+     conn
+     (lambda (_)
+       (mutecipher-acp--load-session
+        conn session-id agent-name cwd
+        (lambda (sid buf)
+          (message "ACP: resumed session (%s)" sid)
+          (mutecipher-acp--open-pane sid buf agent-name)))))))
+
+(defun mutecipher-acp--resume-via-session-list (agent-name)
+  "Fall back to agent-side `session/list' when the disk index is empty.
+Not every agent supports `session/list'; on failure (or empty result),
+quietly tell the user there's nothing to resume and suggest
+`mutecipher/acp-start' rather than surfacing the RPC error."
   (let* ((conn (mutecipher-acp--connect agent-name))
          (cwd  (expand-file-name default-directory)))
     (mutecipher-acp--initialize
      conn
      (lambda (_)
        (mutecipher-acp--request
-        conn "session/list" (list)
+        conn "session/list"
+        ;; Empty params object — JSON-RPC params should be an Object
+        ;; or Array, never null.  Some agents reject (list) (which
+        ;; serializes to `null') with "Invalid params".
+        []
         :success-fn
         (lambda (result)
           (let* ((sessions (or result []))
@@ -123,18 +142,95 @@ session buffer, and pins a small input buffer below it."
                                       sid)))
                             sessions)))
             (if (null entries)
-                (message "ACP: no existing sessions for %s" agent-name)
+                (message "ACP: no sessions to resume — M-x mutecipher/acp-start")
               (let* ((choice     (completing-read "Resume session: "
                                                   (mapcar #'car entries) nil t))
-                     (session-id (cdr (assoc choice entries))))
-                (mutecipher-acp--load-session
-                 conn session-id agent-name cwd
-                 (lambda (sid buf)
-                   (message "ACP: resumed session (%s)" sid)
-                   (mutecipher-acp--open-pane sid buf agent-name)))))))
+                     (session-id (cdr (assoc choice entries)))
+                     (existing   (and session-id
+                                      (gethash session-id
+                                               mutecipher-acp--sessions))))
+                (cond
+                 ((and existing
+                       (buffer-live-p (macp-session-buffer existing)))
+                  (message "ACP: session already loaded (%s)" session-id)
+                  (mutecipher-acp--open-pane
+                   session-id (macp-session-buffer existing) agent-name))
+                 (t
+                  (mutecipher-acp--load-session
+                   conn session-id agent-name cwd
+                   (lambda (sid buf)
+                     (message "ACP: resumed session (%s)" sid)
+                     (mutecipher-acp--open-pane sid buf agent-name)))))))))
         :error-fn
-        (lambda (err)
-          (message "ACP session/list failed: %s" (plist-get err :message))))))))
+        (lambda (_err)
+          ;; Agent rejected (or doesn't support) session/list.  No
+          ;; disk entries either (we wouldn't be on this path
+          ;; otherwise) — degrade gracefully.
+          (message
+           "ACP: no sessions to resume — M-x mutecipher/acp-start")))))))
+
+;;;###autoload
+(defun mutecipher/acp-resume (agent-name)
+  "Resume an existing ACP session for AGENT-NAME.
+Prefers the on-disk index (`index.eld') for richer picker labels —
+title, cwd, last-active, model.  Falls back to the agent-side
+`session/list' RPC when no on-disk entries exist for AGENT-NAME.
+
+Bails before showing the picker if AGENT-NAME isn't configured in
+`mutecipher-acp-agents' — the binary won't be reachable, so there's
+no point making the user pick a session.
+
+If the chosen session is already loaded in this Emacs, re-uses its
+buffer instead of issuing a fresh `session/load' (which would leak
+the running state-timer and drop the pending prompt-queue)."
+  (interactive
+   (list (completing-read "ACP agent: "
+                          (mapcar #'car mutecipher-acp-agents)
+                          nil t)))
+  (unless (assoc agent-name mutecipher-acp-agents)
+    (user-error "ACP: no agent named %S in `mutecipher-acp-agents'"
+                agent-name))
+  ;; Fail before showing the picker if the agent binary isn't on PATH
+  ;; — saves the user from picking a session they can't actually open.
+  (let* ((spec (cdr (assoc agent-name mutecipher-acp-agents)))
+         (cmd  (plist-get spec :command)))
+    (when (and cmd (not (executable-find cmd)))
+      (user-error "ACP: agent %S command %S not found on PATH"
+                  agent-name cmd)))
+  (let* ((index-entries (mutecipher-acp--read-index))
+         (entries
+          (cl-remove-if-not
+           (lambda (e)
+             (and (equal (plist-get e :agent) agent-name)
+                  (stringp (plist-get e :id))))
+           (or index-entries nil))))
+    (if (null entries)
+        (mutecipher-acp--resume-via-session-list agent-name)
+      (let* ((alist (delq nil
+                          (mapcar
+                           (lambda (e)
+                             (when-let
+                                 ((label
+                                   (mutecipher-acp--format-resume-label e)))
+                               (cons label (plist-get e :id))))
+                           entries))))
+        (if (null alist)
+            (mutecipher-acp--resume-via-session-list agent-name)
+          (let* ((choice     (completing-read "Resume session: "
+                                              (mapcar #'car alist) nil t))
+                 (session-id (cdr (assoc choice alist)))
+                 (existing   (and session-id
+                                  (gethash session-id
+                                           mutecipher-acp--sessions))))
+            (cond
+             ((and existing
+                   (buffer-live-p (macp-session-buffer existing)))
+              (message "ACP: session already loaded (%s)" session-id)
+              (mutecipher-acp--open-pane
+               session-id (macp-session-buffer existing) agent-name))
+             (session-id
+              (mutecipher-acp--resume-from-disk-entry
+               agent-name session-id)))))))))
 
 (defun mutecipher-acp--open-pane (session-id buf _agent-name)
   "Open the session BUF for SESSION-ID in the current window.

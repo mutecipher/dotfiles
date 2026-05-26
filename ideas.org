@@ -176,7 +176,7 @@ Related items already tracked above (don't re-file):
 - project.el / magit integration (#C) — adjacent to but smaller
   than "repo signal as structured input" below.
 
-** TODO [#A] Stable node identity (UUIDs on user/assistant/tool-call)
+** DONE [#A] Stable node identity (UUIDs on user/assistant/tool-call)
 Only =macp-turn= has an =id=, and only =macp-tool-call= has
 =call-id=; =macp-user= / =macp-assistant= / =macp-thought= / =macp-plan=
 have no addressable identity.  Without ids you cannot fork from a
@@ -186,7 +186,7 @@ addressable struct, populate at enter-time, and key a per-session
 hash off them for O(1) lookup.
 Anchor: config/emacs/lisp/mutecipher-acp-model.el:19
 
-** TODO [#A] On-disk transcript serialization
+** DONE [#A] On-disk transcript serialization
 =session/load= replays state from the agent, but the agent isn't a
 durable store — auth changes, model deprecations, or simple GC will
 drop history.  Persist the full =macp-node= list per session to

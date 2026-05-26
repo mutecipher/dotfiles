@@ -23,6 +23,7 @@
 (require 'mutecipher-acp-ewoc)
 (require 'mutecipher-acp-tools)
 (require 'mutecipher-acp-ui)
+(require 'mutecipher-acp-persist)
 
 (declare-function mutecipher-acp--set-state             "mutecipher-acp-session")
 
@@ -348,12 +349,48 @@ interactions stay clean."
            (handler    (and type (cdr (assoc type
                                              mutecipher-acp--update-handlers)))))
       (when session-id
-        (cond
-         (handler (funcall handler session-id update))
-         (type    (let ((inhibit-message t))
-                    (message "ACP [%s] update: %s (unhandled)"
-                             (mutecipher-acp--id-prefix session-id)
-                             type)))))))
+        (let* ((session  (gethash session-id mutecipher-acp--sessions))
+               (loading  (and session (macp-session-loading session)))
+               ;; During session/load, the agent replays history via
+               ;; `session/update' notifications.  We already hydrated
+               ;; the buffer from disk, so suppress the *node-creating*
+               ;; kinds (chunk, tool_call, thought, plan) to avoid
+               ;; duplicates.  `tool_call_update' is NOT suppressed:
+               ;; it mutates an existing node addressed by call-id
+               ;; (hydrate populated the index), so in-flight tools
+               ;; that finished between disk-save and resume can still
+               ;; transition to their terminal state.
+               (replay-dup
+                (and loading
+                     (member type '("agent_message_chunk"
+                                    "tool_call"
+                                    "thought"
+                                    "plan")))))
+          (cond
+           (replay-dup nil)
+           (handler (funcall handler session-id update))
+           (type    (let ((inhibit-message t))
+                      (message "ACP [%s] update: %s (unhandled)"
+                               (mutecipher-acp--id-prefix session-id)
+                               type))))
+          ;; Persist-dirty bookkeeping is by update type:
+          ;;   - `usage_update' is metadata noise — no flag.
+          ;;   - session-level updates (mode/info/commands/config)
+          ;;     change state that should reach disk but aren't user
+          ;;     activity — mark dirty WITHOUT bumping last-active.
+          ;;   - everything else is real activity — bump.
+          ;; Mark/bump always run; the WRITE is gated by --save-session.
+          (when (and handler (not replay-dup))
+            (cond
+             ((equal type "usage_update")
+              nil)
+             ((member type '("session_info_update"
+                             "available_commands_update"
+                             "current_mode_update"
+                             "config_option_update"))
+              (mutecipher-acp--mark-dirty-by-id session-id))
+             (t
+              (mutecipher-acp--bump-last-active-by-id session-id))))))))
    (t
     (let ((inhibit-message t))
       (message "ACP notification: %s" method)))))
