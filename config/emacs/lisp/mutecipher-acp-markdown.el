@@ -391,6 +391,14 @@ On success, returns the buffer position just after the last consumed line."
                                     cells widths align)))
                      (disp       (if extend-p (concat base "\n") base))
                      (ov         (make-overlay ls le nil t nil)))
+                ;; `evaporate' auto-deletes the overlay if it ever
+                ;; collapses to zero length, e.g. when ewoc-invalidate
+                ;; deletes the assistant node's text during streaming.
+                ;; Without it, orphan zero-length overlays survive in
+                ;; the buffer with their before/after-strings still
+                ;; visible, painting stray border lines that escape the
+                ;; next `apply-markdown's range-scoped clear.
+                (overlay-put ov 'evaporate t)
                 (overlay-put ov 'display disp)
                 (when (= i 0)
                   (overlay-put ov 'before-string (concat top "\n")))
