@@ -62,7 +62,8 @@ When modifying Emacs config, edit `config.org` — never edit `config.el` direct
 | Editing / display | `mutecipher-centered.el`, `mutecipher-ligatures.el`, `mutecipher-tidy.el`, `mutecipher-flymake-inline.el`, `mutecipher-hover.el`, `mutecipher-vc-gutter.el`, `mutecipher-org-table.el` |
 | Language / treesit | `mutecipher-treesit.el` |
 | Content / modes | `mutecipher-blog.el`, `mutecipher-markdown.el`, `mutecipher-todo-keywords.el`, `mutecipher-deck.el` |
-| Tools / integrations | `mutecipher-acp.el`, `mutecipher-containers.el`, `mutecipher-git-blame.el` |
+| Tools / integrations | `mutecipher-containers.el`, `mutecipher-git-blame.el` |
+| ACP client | `mutecipher-acp.el` (entry point) + sub-modules: `-model`, `-protocol`, `-rpc`, `-session`, `-ui`, `-ewoc`, `-composer`, `-completion`, `-changes`, `-persist`, `-tools`, `-markdown`, `-faces`, `-log`. EWOC-based transcript rendering. |
 
 ## Neovim Configuration
 
