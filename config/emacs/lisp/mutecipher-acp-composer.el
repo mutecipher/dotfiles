@@ -346,9 +346,9 @@ Composer text deletion stays untouched so backspace works as usual."
 (defun mutecipher-acp--tab-dwim ()
   "TAB inside the composer commits a visible completion preview, else
 falls back to `completion-at-point'.  When point sits on a tool-call
-node in the transcript, TAB folds/unfolds that card — the in-buffer
-affordance for the per-card toggle, since the disclosure glyph has
-been removed in favour of the gutter-status layout."
+or tool-group node in the transcript, TAB folds/unfolds that card —
+the in-buffer affordance for the per-card toggle, since the disclosure
+glyph has been removed in favour of the gutter-status layout."
   (interactive)
   (cond
    ((mutecipher-acp--composer-region-p (point))
@@ -362,7 +362,8 @@ been removed in favour of the gutter-status layout."
          mutecipher-acp--ewoc
          (let* ((node (ewoc-locate mutecipher-acp--ewoc)))
            (and node
-                (eq (macp-node-kind (ewoc-data node)) 'tool-call))))
+                (memq (macp-node-kind (ewoc-data node))
+                      '(tool-call tool-group)))))
     (call-interactively #'mutecipher/acp-toggle-tool-call))
    (t
     (message "ACP: TAB toggles tool-calls in the transcript or completes in the composer"))))

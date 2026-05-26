@@ -79,6 +79,17 @@ the whole transcript with `mutecipher/acp-toggle-tool-calls'."
   :type 'boolean
   :group 'mutecipher-acp)
 
+(defcustom mutecipher-acp-group-read-only-tool-calls t
+  "If non-nil, fold adjacent read-only tool calls into one `Explored …' group.
+A run of consecutive Read / Grep / Glob / WebFetch / WebSearch
+invocations renders as a single summary line (\"Explored 6 files,
+3 searches\") that the user can expand on demand.  A subsequent
+write/edit/bash, an assistant chunk, a new turn, or any non-read node
+closes the group; the next read opens a fresh one.  Set to nil to fall
+back to the original one-card-per-tool layout."
+  :type 'boolean
+  :group 'mutecipher-acp)
+
 (defcustom mutecipher-acp-spinner-interval 0.1
   "Interval in seconds between spinner-frame updates.
 Drives the rotating glyph rendered for tool calls in `pending' or
@@ -134,6 +145,31 @@ tools that ship without a precise `:kind' still get a meaningful icon."
       (mutecipher-acp--probe-kind-from-name name)
       'tool-other))
 
+(defconst mutecipher-acp--tool-group-bucket-alist
+  '((tool-read  . files)
+    (tool-grep  . searches)
+    (tool-fetch . searches))
+  "Maps a read-only icon-key to its `Explored …' summary bucket.
+A key with an entry here is foldable into an adjacent tool-group AND
+counts toward the named bucket on the summary line.  Adding a new
+read-only category (e.g. `tool-readdir' → `files') only needs one
+entry here — the fold predicate `--tool-call-read-only-p' and the
+per-bucket counter `--tool-group-counts' both consult this alist so
+they can't drift apart.  Bash, edits, writes, deletes, moves,
+`think', `switch_mode', and unclassified tools have no entry and stay
+out of groups.")
+
+(defun mutecipher-acp--tool-call-read-only-p (tc)
+  "Non-nil when tool-call TC has a bucket in `--tool-group-bucket-alist'.
+Routes through `--tool-kind-icon-key' so the ACP `kind' string and
+the claudeCode name-based fallback (Glob, WebFetch, WebSearch) yield
+consistent classification."
+  (and (assq (mutecipher-acp--tool-kind-icon-key
+              (macp-tool-call-kind tc)
+              (macp-tool-call-name tc))
+             mutecipher-acp--tool-group-bucket-alist)
+       t))
+
 (defun mutecipher-acp--status-icon-key (status)
   "Map a macp-tool-call STATUS symbol to an icon alist key."
   (pcase status
@@ -188,10 +224,18 @@ Animated for `pending' / `running' via the spinner; static glyph from
     (_      (mutecipher-acp--icon-or 'status-pending "○"))))
 
 (defun mutecipher-acp--tool-call-active-p (data)
-  "Non-nil if ewoc node DATA is a tool-call in `pending' / `running' state."
-  (and (eq (macp-node-kind data) 'tool-call)
-       (memq (macp-tool-call-status (macp-node-data data))
-             '(pending running))))
+  "Non-nil if ewoc node DATA carries any `pending' / `running' tool call.
+Recognizes both stand-alone `tool-call' wrappers and `tool-group'
+wrappers (the spinner needs to keep ticking while a grouped read is
+still in flight)."
+  (pcase (macp-node-kind data)
+    ('tool-call
+     (memq (macp-tool-call-status (macp-node-data data))
+           '(pending running)))
+    ('tool-group
+     (cl-some (lambda (tc)
+                (memq (macp-tool-call-status tc) '(pending running)))
+              (macp-tool-group-children (macp-node-data data))))))
 
 (defun mutecipher-acp--has-active-tool-calls-p ()
   "Non-nil when any tool-call in this buffer is `pending' or `running'.
@@ -609,6 +653,138 @@ transition still gets one blank line of padding."
         (insert "  " (propertize "╰" 'face rail-face) rule "\n\n")))))
 
 (mutecipher-acp-register-node-kind 'tool-call #'mutecipher-acp--pp-tool-call)
+
+;;;; Tool-group pretty-printer
+;;
+;; A run of adjacent read-only tool calls (Read, Grep, Glob, WebFetch,
+;; WebSearch) renders as a single `Explored N files, M searches' card
+;; instead of stacked individual cards.  Single-child groups delegate
+;; to the standard tool-call card so a lone read looks identical to
+;; today; multi-child groups switch to the summary line, with TAB
+;; expanding to a terse one-line-per-child list (no card chrome — the
+;; chrome belongs to the group, not each child).
+
+(defun mutecipher-acp--tool-group-status (children)
+  "Return an aggregate status symbol for CHILDREN.
+Resolves to `running'/`pending' (any in-flight child), `error' (every
+child terminal but at least one failed), or `done' (every child
+completed cleanly).  The collapsed group summary line uses this to
+pick its gutter glyph so the user can tell at a glance whether reads
+are still landing — same role the per-card status glyph plays for
+stand-alone tool-call nodes."
+  (let ((has-running nil) (has-pending nil) (has-error nil))
+    (dolist (tc children)
+      (pcase (macp-tool-call-status tc)
+        ('running (setq has-running t))
+        ('pending (setq has-pending t))
+        ('error   (setq has-error t))))
+    (cond (has-running 'running)
+          (has-pending 'pending)
+          (has-error   'error)
+          (t           'done))))
+
+(defun mutecipher-acp--tool-group-counts (children)
+  "Return (FILES . SEARCHES) counts for CHILDREN.
+Routes each child's icon-key through
+`mutecipher-acp--tool-group-bucket-alist' so this counter shares its
+vocabulary with the fold predicate — they can't drift apart.  An
+unclassified child (e.g. a future kind added to the predicate without
+a bucket here) is silently skipped; `--tool-group-summary' has a
+fallback for the all-zero case."
+  (let ((files 0) (searches 0))
+    (dolist (tc children)
+      (pcase (cdr (assq (mutecipher-acp--tool-kind-icon-key
+                         (macp-tool-call-kind tc)
+                         (macp-tool-call-name tc))
+                        mutecipher-acp--tool-group-bucket-alist))
+        ('files    (cl-incf files))
+        ('searches (cl-incf searches))))
+    (cons files searches)))
+
+(defun mutecipher-acp--tool-group-summary (children)
+  "Return the `Explored N files, M searches' summary string for CHILDREN.
+Omits the absent half when only one category is present so a pure
+search run reads `Explored 3 searches' rather than `Explored 0 files,
+3 searches'.  Defensive fallback handles a group whose classification
+shifted under us and produced zero counts."
+  (let* ((counts   (mutecipher-acp--tool-group-counts children))
+         (files    (car counts))
+         (searches (cdr counts))
+         (parts    nil))
+    (when (> files 0)
+      (push (format "%d file%s" files (if (= files 1) "" "s")) parts))
+    (when (> searches 0)
+      (push (format "%d search%s" searches (if (= searches 1) "" "es"))
+            parts))
+    (if parts
+        (concat "Explored " (mapconcat #'identity (nreverse parts) ", "))
+      (format "Explored %d call%s"
+              (length children)
+              (if (= 1 (length children)) "" "s")))))
+
+(defun mutecipher-acp--pp-tool-group (node)
+  "Render a tool-group NODE.
+N=1: delegate to `--pp-tool-call' with a synthetic wrapper that
+carries the group's uuid + collapsed state, so a lone read renders
+identically to today and any uuid-keyed feature still resolves.  N>=2
+collapsed: one muted `Explored …' line with an aggregate status glyph
+at column 0 (spinner while any child is in flight, ✓/✗ otherwise) —
+matches the existing tool-card gutter convention.  N>=2 expanded:
+same summary line, then each child rendered as its own full
+`--pp-tool-call' card below — preserves the body the user was reading
+across an N=1→N=2 transition."
+  (let* ((group     (macp-node-data node))
+         (children  (macp-tool-group-children group))
+         (n         (length children))
+         (collapsed (macp-node-collapsed node)))
+    (cond
+     ((zerop n)
+      ;; Defensive only — `--enter-tool-call' never creates an empty
+      ;; group, but a corrupted persisted node shouldn't render as a
+      ;; zero-width region that the user can't interact with.
+      (insert (propertize "Explored (empty group)\n" 'face 'shadow)))
+     ((= 1 n)
+      (mutecipher-acp--pp-tool-call
+       (make-macp-node :kind 'tool-call
+                       :data (car children)
+                       :collapsed collapsed
+                       :uuid (macp-node-uuid node))))
+     (t
+      ;; Expanded multi-child groups want breathing room above —
+      ;; mirrors the collapsed→expanded handling in `--pp-tool-call'.
+      (unless collapsed
+        (mutecipher-acp--ensure-blank-above))
+      (let* ((summary  (mutecipher-acp--tool-group-summary children))
+             (status   (mutecipher-acp--tool-group-status children))
+             (status-g (mutecipher-acp--tool-status-glyph status))
+             (line-beg (point)))
+        (insert status-g
+                " "
+                (propertize summary 'face 'shadow)
+                "\n")
+        ;; Hanging indent so a wrapped long summary lines up under the
+        ;; body (column 2) rather than against the gutter — same trick
+        ;; `--pp-tool-call-line' uses for stand-alone cards.
+        (add-text-properties line-beg (point)
+                             '(wrap-prefix "  ")))
+      (unless collapsed
+        (dolist (tc children)
+          ;; Children render as their own full cards.  Each carries its
+          ;; status glyph + (when expanded) raw output / diffs.  Per-
+          ;; child collapse state lives on the synthetic node and
+          ;; resets to `--should-auto-collapse-p' so terminal children
+          ;; render as one-line summaries and in-flight ones show the
+          ;; spinner.
+          (mutecipher-acp--pp-tool-call
+           (make-macp-node :kind 'tool-call
+                           :data tc
+                           :collapsed
+                           (mutecipher-acp--should-auto-collapse-p tc))))
+        ;; Trailing blank so the next non-tool node has consistent
+        ;; spacing — same as `--pp-tool-call' expanded.
+        (insert "\n"))))))
+
+(mutecipher-acp-register-node-kind 'tool-group #'mutecipher-acp--pp-tool-group)
 
 (provide 'mutecipher-acp-tool-card)
 ;;; mutecipher-acp-tool-card.el ends here

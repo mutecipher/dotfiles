@@ -196,6 +196,7 @@ and bumps `:turn-counter'.  Returns the turn-header node.
 When a pending queue is present, the new nodes land ABOVE the
 queue-head-node so queued items stay visually pinned just above the
 composer."
+  (mutecipher-acp--close-trailing-tool-group session-id)
   (let* ((session (gethash session-id mutecipher-acp--sessions))
          (buf     (macp-session-buffer session))
          (counter (1+ (or (macp-session-turn-counter session) 0)))
@@ -226,6 +227,7 @@ composer."
 (defun mutecipher-acp--close-turn (session-id stop-reason)
   "Finalize SESSION-ID's current turn with STOP-REASON, invalidate its header.
 Enters a trailer node for any non-normal STOP-REASON."
+  (mutecipher-acp--close-trailing-tool-group session-id)
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
               (node    (macp-session-current-turn-node session))
               (buf     (macp-session-buffer session))

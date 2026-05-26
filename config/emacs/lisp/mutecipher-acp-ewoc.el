@@ -18,6 +18,13 @@
 (require 'mutecipher-acp-model)
 (require 'mutecipher-acp-log)
 
+;; `--close-trailing-tool-group' lives in tools.el (which requires
+;; this module) — forward-declare so the assistant/notice/thought/plan
+;; enter helpers below byte-compile cleanly.  Runtime ordering is fine
+;; because the agent never sends an assistant chunk before tools.el
+;; has loaded alongside the rest of mutecipher-acp.
+(declare-function mutecipher-acp--close-trailing-tool-group "mutecipher-acp-tools")
+
 (defmacro mutecipher-acp--with-sticky-tail (buf &rest body)
   "Run BODY with BUF current; preserve composer text + window points.
 Composer-relative offsets survive ewoc growth.  Falls back to legacy
@@ -187,6 +194,7 @@ a response with a stray `\\n' don't leave the icon alone on a line."
              (node (macp-session-current-assistant session))
              (inhibit-read-only t))
         (unless node
+          (mutecipher-acp--close-trailing-tool-group session-id)
           (setq node (mutecipher-acp--ewoc-enter-tail
                       ewoc
                       (macp-session-queue-head-node session)
@@ -212,6 +220,7 @@ a response with a stray `\\n' don't leave the icon alone on a line."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
               (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
+    (mutecipher-acp--close-trailing-tool-group session-id)
     (mutecipher-acp--with-sticky-tail buf
       (let ((inhibit-read-only t))
         (mutecipher-acp--ewoc-enter-tail
@@ -225,6 +234,7 @@ a response with a stray `\\n' don't leave the icon alone on a line."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
               (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
+    (mutecipher-acp--close-trailing-tool-group session-id)
     (mutecipher-acp--with-sticky-tail buf
       (let ((inhibit-read-only t))
         (mutecipher-acp--ewoc-enter-tail
@@ -236,10 +246,14 @@ a response with a stray `\\n' don't leave the icon alone on a line."
 (defun mutecipher-acp--enter-plan (session-id tasks)
   "Enter (or mutate) SESSION-ID's plan node with TASKS.
 If the turn already has a plan node, its entries are replaced and the
-node is invalidated.  Otherwise a fresh plan node is entered."
+node is invalidated.  Otherwise a fresh plan node is entered.  Both
+paths close any open trailing tool-group — a plan-update is a phase
+transition that should not let subsequent reads silently fold into
+the previous group above the plan node."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
               (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
+    (mutecipher-acp--close-trailing-tool-group session-id)
     (mutecipher-acp--with-sticky-tail buf
       (let ((inhibit-read-only t)
             (existing (macp-session-current-plan-node session)))
@@ -310,10 +324,11 @@ characters typed by the user just past the last node do not inherit
 the transcript's read-only property.
 
 Before dispatching, inserts a blank-line separator above any
-non-tool-call kind via `--ensure-blank-above'.  Tool-call nodes skip
-that step so adjacent tool calls stack tight; everything else
-(user / assistant / thought / notice / plan / trailer / turn-header)
-gets one blank line of padding from whatever sits above."
+non-tool kind via `--ensure-blank-above'.  Tool-call AND tool-group
+nodes skip that step so adjacent tool / group cards stack tight;
+everything else (user / assistant / thought / notice / plan /
+trailer / turn-header) gets one blank line of padding from whatever
+sits above."
   ;; `beg' is captured BEFORE `--ensure-blank-above' inserts so the
   ;; inserted `\\n' is included in the node's read-only region — the
   ;; user can't sneak edits into the gap between cards.  Ewoc's
@@ -323,7 +338,7 @@ gets one blank line of padding from whatever sits above."
   ;; the node's region, then re-inserted by the next render.
   (let ((beg  (point))
         (kind (macp-node-kind node)))
-    (unless (eq kind 'tool-call)
+    (unless (memq kind '(tool-call tool-group))
       (mutecipher-acp--ensure-blank-above))
     (let ((fn (alist-get kind mutecipher-acp--pp-node-kinds nil nil #'eq)))
       (if fn

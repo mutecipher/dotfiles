@@ -2751,5 +2751,291 @@ structured payload the original tool_call carried."
         (let ((kill-buffer-query-functions nil))
           (kill-buffer buf))))))
 
+;;;; Tool-group: classification
+
+(ert-deftest macp-test-read-only-p-kind-based ()
+  (should (mutecipher-acp--tool-call-read-only-p
+           (make-macp-tool-call :name "Read"    :kind "read")))
+  (should (mutecipher-acp--tool-call-read-only-p
+           (make-macp-tool-call :name "Grep"    :kind "search")))
+  (should (mutecipher-acp--tool-call-read-only-p
+           (make-macp-tool-call :name "WebFetch" :kind "fetch")))
+  (should-not (mutecipher-acp--tool-call-read-only-p
+               (make-macp-tool-call :name "Edit"  :kind "edit")))
+  (should-not (mutecipher-acp--tool-call-read-only-p
+               (make-macp-tool-call :name "Write" :kind "write")))
+  (should-not (mutecipher-acp--tool-call-read-only-p
+               (make-macp-tool-call :name "Bash"  :kind "execute"))))
+
+(ert-deftest macp-test-read-only-p-name-fallback ()
+  "Tools that ship `kind \"other\"` fall through to the name probe —
+Glob / WebSearch / WebFetch must still count as read-only."
+  (should (mutecipher-acp--tool-call-read-only-p
+           (make-macp-tool-call :name "Glob"      :kind "other")))
+  (should (mutecipher-acp--tool-call-read-only-p
+           (make-macp-tool-call :name "WebSearch" :kind nil)))
+  (should (mutecipher-acp--tool-call-read-only-p
+           (make-macp-tool-call :name "WebFetch"  :kind "other")))
+  (should-not (mutecipher-acp--tool-call-read-only-p
+               (make-macp-tool-call :name "TodoWrite" :kind "other")))
+  (should-not (mutecipher-acp--tool-call-read-only-p
+               (make-macp-tool-call :name "Task"      :kind "other"))))
+
+;;;; Tool-group: summary line
+
+(ert-deftest macp-test-tool-group-summary-files-and-searches ()
+  (let ((children
+         (list (make-macp-tool-call :name "Read" :kind "read")
+               (make-macp-tool-call :name "Read" :kind "read")
+               (make-macp-tool-call :name "Grep" :kind "search"))))
+    (should (equal "Explored 2 files, 1 search"
+                   (mutecipher-acp--tool-group-summary children)))))
+
+(ert-deftest macp-test-tool-group-summary-pluralization ()
+  (should (equal "Explored 1 file"
+                 (mutecipher-acp--tool-group-summary
+                  (list (make-macp-tool-call :name "Read" :kind "read")))))
+  (should (equal "Explored 6 files"
+                 (mutecipher-acp--tool-group-summary
+                  (cl-loop repeat 6 collect
+                           (make-macp-tool-call :name "Read" :kind "read")))))
+  (should (equal "Explored 1 search"
+                 (mutecipher-acp--tool-group-summary
+                  (list (make-macp-tool-call :name "Grep" :kind "search")))))
+  (should (equal "Explored 3 searches"
+                 (mutecipher-acp--tool-group-summary
+                  (cl-loop repeat 3 collect
+                           (make-macp-tool-call :name "Grep" :kind "search"))))))
+
+(ert-deftest macp-test-tool-group-summary-fetches-count-as-searches ()
+  "WebFetch + WebSearch share the `tool-fetch' icon-key — both should
+land in the `searches' bucket, matching Cursor's screenshot wording
+where queries and URL fetches collapse into the same count."
+  (let ((children
+         (list (make-macp-tool-call :name "WebFetch"  :kind "fetch")
+               (make-macp-tool-call :name "WebSearch" :kind "fetch"))))
+    (should (equal "Explored 2 searches"
+                   (mutecipher-acp--tool-group-summary children)))))
+
+;;;; Tool-group: fold logic
+
+(defmacro macp-test--with-group-session (var-session &rest body)
+  "Spin up an ACP session ready for tool-group integration tests.
+VAR-SESSION is bound to the `macp-session' struct; the session
+buffer + ewoc are set up so `--enter-tool-call' inserts real nodes.
+Stubs persistence so .eld files don't leak into the user cache."
+  (declare (indent 1) (debug ((symbolp) body)))
+  `(let* ((buf (generate-new-buffer " *macp-group-test*"))
+          (sid (format "test-group-sid-%s" (random)))
+          (,var-session (mutecipher-acp--make-session
+                          :id sid :buffer buf :agent "claude"
+                          :cwd "/tmp"
+                          :tool-call-index (make-hash-table :test #'equal))))
+     (puthash sid ,var-session mutecipher-acp--sessions)
+     (cl-letf (((symbol-function 'mutecipher-acp--save-session) #'ignore)
+               ((symbol-function 'mutecipher-acp--save-index)   #'ignore))
+       (unwind-protect
+           (with-current-buffer buf
+             (mutecipher-acp-session-mode)
+             (setq mutecipher-acp--session-id sid)
+             ,@body)
+         (let ((kill-buffer-hook nil))
+           (when (buffer-live-p buf) (kill-buffer buf)))
+         (remhash sid mutecipher-acp--sessions)))))
+
+(defun macp-test--node-kinds (session)
+  "Return the ordered list of kind symbols for SESSION's transcript nodes.
+Skips queued nodes so the predicate matches what `--enter-tool-call'
+actually planted in this turn."
+  (with-current-buffer (macp-session-buffer session)
+    (mapcar #'macp-node-kind
+            (ewoc-collect mutecipher-acp--ewoc
+                          (lambda (d)
+                            (not (eq (macp-node-kind d) 'queued)))))))
+
+(defun macp-test--enter-tool (session-id id kind name)
+  "Helper: drive `--enter-tool-call' with a synthesized tool_call UPDATE."
+  (mutecipher-acp--enter-tool-call
+   session-id
+   (list :toolCallId id :kind kind :title name
+         :_meta (list :claudeCode (list :toolName name))
+         :rawInput (list :file_path (format "/tmp/%s" id)))))
+
+(ert-deftest macp-test-tool-group-folds-three-adjacent-reads ()
+  "Three consecutive read tool_calls should land inside a single
+`tool-group' node with all three as children."
+  (let ((mutecipher-acp-group-read-only-tool-calls t))
+    (macp-test--with-group-session s
+      (let ((sid (macp-session-id s)))
+        (macp-test--enter-tool sid "r1" "read" "Read")
+        (macp-test--enter-tool sid "r2" "read" "Read")
+        (macp-test--enter-tool sid "r3" "read" "Read"))
+      (should (equal '(tool-group) (macp-test--node-kinds s)))
+      (let* ((nodes (with-current-buffer (macp-session-buffer s)
+                      (ewoc-collect mutecipher-acp--ewoc #'identity)))
+             (group (macp-node-data (car nodes))))
+        (should (= 3 (length (macp-tool-group-children group))))
+        (should (equal '("r1" "r2" "r3")
+                       (mapcar #'macp-tool-call-call-id
+                               (macp-tool-group-children group))))))))
+
+(ert-deftest macp-test-tool-group-non-read-closes-group ()
+  "Read → write → read produces group(1), tool-call, group(1).
+The write closes the leading group; the trailing read opens a fresh one.
+The first group's `closed' flag must flip to t — that's the signal a
+later read won't re-fold into it."
+  (let ((mutecipher-acp-group-read-only-tool-calls t))
+    (macp-test--with-group-session s
+      (let ((sid (macp-session-id s)))
+        (macp-test--enter-tool sid "r1" "read"  "Read")
+        (macp-test--enter-tool sid "w1" "write" "Write")
+        (macp-test--enter-tool sid "r2" "read"  "Read"))
+      (let ((nodes (with-current-buffer (macp-session-buffer s)
+                     (ewoc-collect mutecipher-acp--ewoc #'identity))))
+        (should (equal '(tool-group tool-call tool-group)
+                       (mapcar #'macp-node-kind nodes)))
+        ;; First group is closed; second is still open and tracked by
+        ;; `current-tool-group' so a subsequent read would fold in.
+        (should     (macp-tool-group-closed (macp-node-data (nth 0 nodes))))
+        (should-not (macp-tool-group-closed (macp-node-data (nth 2 nodes))))
+        (should (eq (nth 2 nodes)
+                    (ewoc-data (macp-session-current-tool-group s))))))))
+
+(ert-deftest macp-test-tool-group-defcustom-off-restores-legacy ()
+  "With `mutecipher-acp-group-read-only-tool-calls' nil, reads insert
+as stand-alone `tool-call' nodes — no group wrapping."
+  (let ((mutecipher-acp-group-read-only-tool-calls nil))
+    (macp-test--with-group-session s
+      (let ((sid (macp-session-id s)))
+        (macp-test--enter-tool sid "r1" "read" "Read")
+        (macp-test--enter-tool sid "r2" "read" "Read"))
+      (should (equal '(tool-call tool-call) (macp-test--node-kinds s))))))
+
+(ert-deftest macp-test-tool-group-update-routes-into-children ()
+  "tool_call_update for a grouped child must mutate that child's status
+without losing the group node or its other children."
+  (let ((mutecipher-acp-group-read-only-tool-calls t))
+    (macp-test--with-group-session s
+      (let ((sid (macp-session-id s)))
+        (macp-test--enter-tool sid "r1" "read" "Read")
+        (macp-test--enter-tool sid "r2" "read" "Read")
+        (mutecipher-acp--update-tool-call
+         sid (list :toolCallId "r2" :status "completed")))
+      (let* ((nodes (with-current-buffer (macp-session-buffer s)
+                      (ewoc-collect mutecipher-acp--ewoc #'identity)))
+             (group (macp-node-data (car nodes)))
+             (children (macp-tool-group-children group)))
+        (should (= 2 (length children)))
+        (should (eq 'pending (macp-tool-call-status (nth 0 children))))
+        (should (eq 'done    (macp-tool-call-status (nth 1 children))))))))
+
+(ert-deftest macp-test-tool-group-update-leaves-group-collapsed-flag-alone ()
+  "Auto-collapse and pulse are per-card signals — they target a
+stand-alone tool-call wrapper.  For a grouped child whose wrapper is
+the GROUP node, flipping its `collapsed' flag on every child
+completion would yank the user's view of still-running siblings.
+The group's collapsed state must be user-driven."
+  (let ((mutecipher-acp-group-read-only-tool-calls t))
+    (macp-test--with-group-session s
+      (let ((sid (macp-session-id s)))
+        (macp-test--enter-tool sid "r1" "read" "Read")
+        (macp-test--enter-tool sid "r2" "read" "Read")
+        ;; User expands the group manually.
+        (let ((wrapper (car (with-current-buffer (macp-session-buffer s)
+                              (ewoc-collect mutecipher-acp--ewoc #'identity)))))
+          (setf (macp-node-collapsed wrapper) nil))
+        ;; First child reaches done — must NOT re-collapse the group
+        ;; while r2 is still pending.
+        (mutecipher-acp--update-tool-call
+         sid (list :toolCallId "r1" :status "completed"))
+        (let ((wrapper (car (with-current-buffer (macp-session-buffer s)
+                              (ewoc-collect mutecipher-acp--ewoc #'identity)))))
+          (should (eq 'tool-group (macp-node-kind wrapper)))
+          (should-not (macp-node-collapsed wrapper)))))))
+
+(ert-deftest macp-test-hydrate-restores-current-tool-group ()
+  "An open trailing tool-group on disk (`closed' nil) should
+re-populate `current-tool-group' on hydrate so a live read folds in
+instead of opening a fresh card next to the persisted one.  A
+previously-closed group earlier in the transcript must not be
+restored."
+  (let* ((buf (generate-new-buffer " *macp-hydrate-test*"))
+         (sid (format "test-hydrate-sid-%s" (random)))
+         (session (mutecipher-acp--make-session
+                   :id sid :buffer buf :agent "claude" :cwd "/tmp"
+                   :tool-call-index (make-hash-table :test #'equal)))
+         (closed-group (make-macp-tool-group
+                        :children (list (make-macp-tool-call
+                                         :call-id "old" :name "Read"
+                                         :kind "read" :status 'done))
+                        :closed t))
+         (open-group   (make-macp-tool-group
+                        :children (list (make-macp-tool-call
+                                         :call-id "live" :name "Read"
+                                         :kind "read" :status 'done))
+                        :closed nil))
+         (nodes (list (make-macp-node :kind 'tool-group :data closed-group
+                                      :collapsed t :uuid "n_a")
+                      (make-macp-node :kind 'tool-group :data open-group
+                                      :collapsed t :uuid "n_b")))
+         (sexp (list :schema-version mutecipher-acp--persist-schema-version
+                     :session nil
+                     :nodes   nodes)))
+    (unwind-protect
+        (progn
+          (puthash sid session mutecipher-acp--sessions)
+          (with-current-buffer buf
+            (mutecipher-acp-session-mode)
+            (setq mutecipher-acp--session-id sid))
+          (cl-letf (((symbol-function 'mutecipher-acp--persist-read-sexp)
+                     (lambda (_path) sexp))
+                    ((symbol-function 'mutecipher-acp--session-file)
+                     (lambda (_id) "/tmp/stub.eld"))
+                    ((symbol-function 'mutecipher-acp--save-session) #'ignore)
+                    ((symbol-function 'mutecipher-acp--save-index)   #'ignore))
+            (mutecipher-acp--hydrate-session-from-disk session))
+          ;; Trailing open group must be restored, not the closed one.
+          (should (macp-session-current-tool-group session))
+          (let ((slot-node (macp-session-current-tool-group session)))
+            (should (eq 'tool-group
+                        (macp-node-kind (ewoc-data slot-node))))
+            (should-not
+             (macp-tool-group-closed
+              (macp-node-data (ewoc-data slot-node))))))
+      (remhash sid mutecipher-acp--sessions)
+      (when (buffer-live-p buf)
+        (let ((kill-buffer-query-functions nil))
+          (kill-buffer buf))))))
+
+(ert-deftest macp-test-tool-group-status-aggregates ()
+  "Aggregate status: pending if any pending and none running, running
+if any running, error if every terminal and any failed, else done."
+  (cl-flet ((mk (status)
+              (make-macp-tool-call :name "Read" :kind "read" :status status)))
+    (should (eq 'running (mutecipher-acp--tool-group-status
+                          (list (mk 'running) (mk 'done)))))
+    (should (eq 'pending (mutecipher-acp--tool-group-status
+                          (list (mk 'pending) (mk 'done)))))
+    (should (eq 'error   (mutecipher-acp--tool-group-status
+                          (list (mk 'done) (mk 'error)))))
+    (should (eq 'done    (mutecipher-acp--tool-group-status
+                          (list (mk 'done) (mk 'done)))))))
+
+(ert-deftest macp-test-tool-group-strip-transient-cleans-children ()
+  "Persistence's `--strip-transient-from-node' must scrub cached
+memoization slots inside grouped children (not just top-level tcs)."
+  (let* ((tc (make-macp-tool-call :call-id "r1" :name "Read" :kind "read"
+                                  :cached-start-line 99
+                                  :cached-start-key '(0 . [])))
+         (group (make-macp-tool-group :children (list tc)))
+         (node (make-macp-node :kind 'tool-group :data group
+                               :collapsed t :uuid "n_test"))
+         (clean (mutecipher-acp--strip-transient-from-node node))
+         (clean-tc (car (macp-tool-group-children (macp-node-data clean)))))
+    (should (null (macp-tool-call-cached-start-line clean-tc)))
+    (should (null (macp-tool-call-cached-start-key  clean-tc)))
+    ;; Original struct stays unmutated — strip returns a copy.
+    (should (eql 99 (macp-tool-call-cached-start-line tc)))))
+
 (provide 'mutecipher-acp-tests)
 ;;; mutecipher-acp-tests.el ends here

@@ -136,19 +136,33 @@ backing strings)."
         :last-active     (macp-session-last-active session)
         :prompt-queue    (macp-session-prompt-queue session)))
 
+(defun mutecipher-acp--strip-transient-from-tc (tc)
+  "Return a copy of TC with render-only memoization slots nilled."
+  (let ((copy (copy-macp-tool-call tc)))
+    (setf (macp-tool-call-cached-start-line copy) nil)
+    (setf (macp-tool-call-cached-start-key  copy) nil)
+    copy))
+
 (defun mutecipher-acp--strip-transient-from-node (node)
   "Return a copy of NODE with render-only memoization slots nilled.
-Only `macp-tool-call' has memoization slots today; other node kinds
-round-trip unchanged."
+`macp-tool-call' has cached-start-line / cached-start-key slots that
+must be nilled; `macp-tool-group' has none of its own, but its
+children are `macp-tool-call' structs that need the same treatment so
+a hydrated group doesn't carry stale row numbers from the prior
+session."
   (let* ((kind (macp-node-kind node))
          (data (macp-node-data node))
          (clean-data
-          (if (and (eq kind 'tool-call) (macp-tool-call-p data))
-              (let ((copy (copy-macp-tool-call data)))
-                (setf (macp-tool-call-cached-start-line copy) nil)
-                (setf (macp-tool-call-cached-start-key  copy) nil)
-                copy)
-            data)))
+          (cond
+           ((and (eq kind 'tool-call) (macp-tool-call-p data))
+            (mutecipher-acp--strip-transient-from-tc data))
+           ((and (eq kind 'tool-group) (macp-tool-group-p data))
+            (let ((copy (copy-macp-tool-group data)))
+              (setf (macp-tool-group-children copy)
+                    (mapcar #'mutecipher-acp--strip-transient-from-tc
+                            (macp-tool-group-children copy)))
+              copy))
+           (t data))))
     (make-macp-node :kind kind
                     :data clean-data
                     :collapsed (macp-node-collapsed node)
@@ -519,16 +533,51 @@ so resumed sessions render their prior transcript immediately."
           ;; Replay nodes through `--ewoc-enter-tail' which preserves
           ;; existing uuids and (re)populates `node-index'.  Also
           ;; repopulate `tool-call-index' so a post-load `tool_call_update'
-          ;; from the agent finds the right node.
+          ;; from the agent finds the right node — for grouped reads
+          ;; that means mapping every child's call-id to the group's
+          ;; ewoc node so the update path's `--node-find-tc' resolves
+          ;; correctly.
           (let ((inhibit-read-only t)
-                (tc-index (macp-session-tool-call-index session)))
+                (tc-index (macp-session-tool-call-index session))
+                (last-open-group-node nil))
             (dolist (node nodes)
               (let ((entered (mutecipher-acp--ewoc-enter-tail
                               mutecipher-acp--ewoc nil node)))
-                (when (eq (macp-node-kind node) 'tool-call)
-                  (when-let* ((data (macp-node-data node))
-                              (call-id (macp-tool-call-call-id data)))
-                    (puthash call-id entered tc-index))))))
+                (pcase (macp-node-kind node)
+                  ('tool-call
+                   (when-let* ((data (macp-node-data node))
+                               ((macp-tool-call-p data))
+                               (call-id (macp-tool-call-call-id data)))
+                     (puthash call-id entered tc-index))
+                   ;; Any node other than a tool-group ends the
+                   ;; potential trailing-open-group run; clear the
+                   ;; sentinel so we don't restore an earlier group.
+                   (setq last-open-group-node nil))
+                  ('tool-group
+                   ;; Mirror the type guard on `--strip-transient-from-node'
+                   ;; (save side) — a hand-edited or schema-skewed .eld
+                   ;; that pairs `:kind 'tool-group' with mismatched
+                   ;; `:data' should degrade gracefully instead of
+                   ;; signalling `wrong-type-argument' mid-hydrate.
+                   (when-let* ((group (macp-node-data node))
+                               ((macp-tool-group-p group)))
+                     (dolist (tc (macp-tool-group-children group))
+                       (when-let ((call-id (macp-tool-call-call-id tc)))
+                         (puthash call-id entered tc-index)))
+                     ;; Remember the last STILL-OPEN group as we walk
+                     ;; in insertion order; if it ends up being the
+                     ;; trailing node, the next live read should fold
+                     ;; into it instead of opening a fresh card next
+                     ;; to the persisted one.
+                     (setq last-open-group-node
+                           (if (macp-tool-group-closed group)
+                               nil
+                             entered))))
+                  ;; Any other kind closes the run too.
+                  (_ (setq last-open-group-node nil)))))
+            (when last-open-group-node
+              (setf (macp-session-current-tool-group session)
+                    last-open-group-node)))
           ;; Reset the queue field and replay via the normal enqueue path
           ;; — that re-creates the `queued' EWOC nodes and re-anchors
           ;; `queue-head-node' identically to a live enqueue.

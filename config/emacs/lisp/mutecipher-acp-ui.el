@@ -302,17 +302,17 @@ footer, an inline composer region — text with no `read-only' property
 ;;;; Tool-call disclosure commands
 
 (defun mutecipher/acp-toggle-tool-call ()
-  "Toggle the expanded/collapsed state of the tool-call node at point.
-Preserves the surrounding `window-start' so expanding a long tool-call
-does not scroll the rest of the conversation off-screen."
+  "Toggle the expanded/collapsed state of the tool-call or tool-group at point.
+Preserves the surrounding `window-start' so expanding a long card does
+not scroll the rest of the conversation off-screen."
   (interactive)
   (let* ((ewoc mutecipher-acp--ewoc)
          (node (and ewoc (ewoc-locate ewoc))))
     (cond
      ((null node)
       (user-error "ACP: no node at point"))
-     ((not (eq (macp-node-kind (ewoc-data node)) 'tool-call))
-      (user-error "ACP: not on a tool-call"))
+     ((not (memq (macp-node-kind (ewoc-data node)) '(tool-call tool-group)))
+      (user-error "ACP: not on a tool-call or tool-group"))
      (t
       (let ((wrapper (ewoc-data node)))
         (setf (macp-node-collapsed wrapper)
@@ -322,8 +322,8 @@ does not scroll the rest of the conversation off-screen."
           (ewoc-invalidate ewoc node)))))))
 
 (defun mutecipher/acp-toggle-tool-calls ()
-  "Toggle the collapsed state of every tool-call in the transcript.
-If any tool-call is currently expanded, collapse all of them; otherwise
+  "Toggle the collapsed state of every tool-call and tool-group in the transcript.
+If any card is currently expanded, collapse all of them; otherwise
 expand all.  Bound to \\[mutecipher/acp-toggle-tool-calls] in the
 session buffer — useful because TAB is reserved for completion in the
 composer region."
@@ -332,7 +332,8 @@ composer region."
     (user-error "ACP: no transcript in this buffer"))
   (let* ((wrappers (ewoc-collect mutecipher-acp--ewoc
                                   (lambda (d)
-                                    (eq (macp-node-kind d) 'tool-call))))
+                                    (memq (macp-node-kind d)
+                                          '(tool-call tool-group)))))
          (any-expanded (cl-some (lambda (d) (not (macp-node-collapsed d)))
                                 wrappers))
          (new-collapsed (and any-expanded t)))
@@ -343,7 +344,7 @@ composer region."
       (mutecipher-acp--with-sticky-window-start (current-buffer)
         (let ((inhibit-read-only t))
           (ewoc-refresh mutecipher-acp--ewoc)))
-      (message "ACP: %s %d tool call%s"
+      (message "ACP: %s %d card%s"
                (if new-collapsed "collapsed" "expanded")
                (length wrappers)
                (if (= 1 (length wrappers)) "" "s")))))

@@ -211,8 +211,55 @@ helpers can treat the field as text."
 
 ;;;; Enter / update tool-call nodes
 
+(defun mutecipher-acp--close-trailing-tool-group (session-id)
+  "Mark SESSION-ID's open trailing tool-group closed and clear the slot.
+After this, the next read-only tool call opens a fresh group instead
+of joining the previous one.  No-op when no group is open or when the
+slot still points at a node that's no longer live (defensive against
+session/load replay paths that rebuild the ewoc)."
+  (when-let* ((session (gethash session-id mutecipher-acp--sessions))
+              (node    (macp-session-current-tool-group session)))
+    (let* ((wrapper (ignore-errors (ewoc-data node)))
+           (group   (and wrapper (macp-node-data wrapper))))
+      (when (and group (macp-tool-group-p group))
+        (setf (macp-tool-group-closed group) t)))
+    (setf (macp-session-current-tool-group session) nil)))
+
+(defun mutecipher-acp--node-find-tc (node call-id)
+  "Return the `macp-tool-call' inside NODE matching CALL-ID, or nil.
+NODE is an ewoc node whose data is a `macp-node' of kind `tool-call'
+or `tool-group'.  For a top-level tool-call the lookup is a single
+slot read; for a group it walks the children list."
+  (let ((wrapper (ewoc-data node)))
+    (pcase (macp-node-kind wrapper)
+      ('tool-call
+       (let ((tc (macp-node-data wrapper)))
+         (and (equal (macp-tool-call-call-id tc) call-id) tc)))
+      ('tool-group
+       (cl-find call-id
+                (macp-tool-group-children (macp-node-data wrapper))
+                :key #'macp-tool-call-call-id
+                :test #'equal)))))
+
+(defun mutecipher-acp--invalidate-next-non-tool (node)
+  "Re-render the node after NODE when it is non-tool kind.
+A tool-call / tool-group ends with a single `\\n', so an adjacent
+non-tool node that was rendered when the prior node ended with
+`\\n\\n' has a stale leading-blank decision.  No-op when next is nil
+or itself a tool-call / tool-group (which stack tight by design)."
+  (when-let* ((next (ewoc-next mutecipher-acp--ewoc node))
+              (next-kind (macp-node-kind (ewoc-data next)))
+              ((not (memq next-kind '(tool-call tool-group)))))
+    (ewoc-invalidate mutecipher-acp--ewoc next)))
+
 (defun mutecipher-acp--enter-tool-call (session-id update)
-  "Create a tool-call ewoc node from UPDATE and register it in SESSION-ID's index."
+  "Create a tool-call ewoc node from UPDATE and register it in SESSION-ID's index.
+Read-only calls (kind `read'/`search'/`fetch', or claudeCode tools
+Glob/WebFetch/WebSearch) fold into the open trailing `tool-group' when
+`mutecipher-acp-group-read-only-tool-calls' is non-nil; the first
+read-only call after a non-read node opens a fresh group.  Non-read
+calls close any open group and insert as a top-level tool-call node
+exactly as before."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
               (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf))
@@ -243,30 +290,89 @@ helpers can treat the field as text."
       (let ((new-pairs (mutecipher-acp--ingest-tool-content
                         tc (plist-get update :content))))
         (mutecipher-acp--maybe-capture-change-set session tc new-pairs))
-      (mutecipher-acp--with-sticky-tail buf
-        (let* ((inhibit-read-only t)
-               (collapsed (and mutecipher-acp-collapse-tool-calls-by-default
-                               (not plan)))
-               (node (mutecipher-acp--ewoc-enter-tail
-                      mutecipher-acp--ewoc
-                      (macp-session-queue-head-node session)
-                      (make-macp-node :kind 'tool-call
-                                      :data tc
-                                      :collapsed collapsed))))
-          (when call-id
-            (puthash call-id node index))
-          ;; A new tool-call inserted via `ewoc-enter-before' a non-tool
-          ;; node (typically the queue-head) leaves that following node
-          ;; with a stale leading-blank decision — it was rendered when
-          ;; the prior node above it ended with `\n\n', so
-          ;; `--ensure-blank-above' skipped.  Now the prior node IS
-          ;; this tool-call which ends with `\n', so the following node
-          ;; needs a fresh leading blank.  Force a re-render.
-          (when-let* ((next (ewoc-next mutecipher-acp--ewoc node))
-                      (next-kind (macp-node-kind (ewoc-data next)))
-                      ((not (eq next-kind 'tool-call))))
-            (ewoc-invalidate mutecipher-acp--ewoc next))))
+      (cond
+       ;; Plan-bearing calls (ExitPlanMode) are never folded — the plan
+       ;; body is the whole point of the call, so it stays as its own
+       ;; expanded card.  Treat them like a non-read tool: close any
+       ;; open group first.
+       (plan
+        (mutecipher-acp--close-trailing-tool-group session-id)
+        (mutecipher-acp--enter-toplevel-tool-call session buf tc call-id index plan))
+       ;; Read-only + grouping enabled + open group: append in place.
+       ((and mutecipher-acp-group-read-only-tool-calls
+             (mutecipher-acp--tool-call-read-only-p tc)
+             (macp-session-current-tool-group session))
+        (mutecipher-acp--append-to-tool-group session buf tc call-id index))
+       ;; Read-only + grouping enabled + no open group: start one.
+       ((and mutecipher-acp-group-read-only-tool-calls
+             (mutecipher-acp--tool-call-read-only-p tc))
+        (mutecipher-acp--open-tool-group session buf tc call-id index))
+       ;; Non-read (or grouping disabled): close any open group, insert
+       ;; as a top-level tool-call node — original behavior.
+       (t
+        (mutecipher-acp--close-trailing-tool-group session-id)
+        (mutecipher-acp--enter-toplevel-tool-call session buf tc call-id index plan)))
       (mutecipher-acp--reconcile-spinner-for-session session))))
+
+(defun mutecipher-acp--enter-toplevel-tool-call (session buf tc call-id index plan)
+  "Insert TC as a stand-alone `tool-call' node in SESSION's BUF.
+INDEX is SESSION's `tool-call-index'; CALL-ID is registered there when
+non-nil.  PLAN, when non-nil, suppresses the default-collapse so the
+ExitPlanMode markdown body stays visible."
+  (mutecipher-acp--with-sticky-tail buf
+    (let* ((inhibit-read-only t)
+           (collapsed (and mutecipher-acp-collapse-tool-calls-by-default
+                           (not plan)))
+           (node (mutecipher-acp--ewoc-enter-tail
+                  mutecipher-acp--ewoc
+                  (macp-session-queue-head-node session)
+                  (make-macp-node :kind 'tool-call
+                                  :data tc
+                                  :collapsed collapsed))))
+      (when call-id
+        (puthash call-id node index))
+      (mutecipher-acp--invalidate-next-non-tool node))))
+
+(defun mutecipher-acp--open-tool-group (session buf tc call-id index)
+  "Open a new `tool-group' node in SESSION's BUF carrying TC as its sole child.
+Registers CALL-ID → group-node in INDEX and stores the node on
+SESSION's `current-tool-group' slot so a subsequent adjacent read can
+append to the same group."
+  (mutecipher-acp--with-sticky-tail buf
+    (let* ((inhibit-read-only t)
+           (group (make-macp-tool-group :children (list tc) :closed nil))
+           (collapsed mutecipher-acp-collapse-tool-calls-by-default)
+           (node (mutecipher-acp--ewoc-enter-tail
+                  mutecipher-acp--ewoc
+                  (macp-session-queue-head-node session)
+                  (make-macp-node :kind 'tool-group
+                                  :data group
+                                  :collapsed collapsed))))
+      (when call-id
+        (puthash call-id node index))
+      (setf (macp-session-current-tool-group session) node)
+      (mutecipher-acp--invalidate-next-non-tool node))))
+
+(defun mutecipher-acp--append-to-tool-group (session buf tc call-id index)
+  "Append TC to SESSION's open trailing `tool-group' and re-render it.
+INDEX gets CALL-ID → group-node so a later `tool_call_update' finds
+the child via `--node-find-tc'.  The N=1→N=2 transition switches the
+group's render from `--pp-tool-call' delegation (trailing `\\n\\n')
+to the multi-child branch (different trailing-newline count), so the
+next non-tool node's leading-blank decision may be stale — same
+reason `--enter-toplevel-tool-call' and `--open-tool-group' invalidate
+their follower."
+  (let* ((node    (macp-session-current-tool-group session))
+         (wrapper (ewoc-data node))
+         (group   (macp-node-data wrapper)))
+    (setf (macp-tool-group-children group)
+          (append (macp-tool-group-children group) (list tc)))
+    (when call-id
+      (puthash call-id node index))
+    (mutecipher-acp--with-sticky-tail buf
+      (let ((inhibit-read-only t))
+        (ewoc-invalidate mutecipher-acp--ewoc node)
+        (mutecipher-acp--invalidate-next-non-tool node)))))
 
 (defun mutecipher-acp--should-auto-collapse-p (tc)
   "Non-nil when tool-call TC should default to collapsed.
@@ -285,6 +391,8 @@ point of the call, so they always stay expanded."
          (index   (and session (macp-session-tool-call-index session)))
          (call-id (plist-get update :toolCallId))
          (node    (and call-id index (gethash call-id index)))
+         (tc      (and node (mutecipher-acp--node-find-tc node call-id)))
+         (wrapper (and node (ewoc-data node)))
          (agent   (and session (macp-session-agent session))))
     (cond
      ((not (and session buf (buffer-live-p buf))) nil)
@@ -295,10 +403,13 @@ point of the call, so they always stay expanded."
       (mutecipher-acp--log-warn
        'agent-warn agent
        (format "[tool-call-update] unknown id %S" call-id)))
+     ((null tc)
+      (mutecipher-acp--log-warn
+       'agent-warn agent
+       (format "[tool-call-update] node found for %S but tc missing inside it"
+               call-id)))
      (t
-      (let* ((wrapper    (ewoc-data node))
-             (tc         (macp-node-data wrapper))
-             (status-str (plist-get update :status))
+      (let* ((status-str (plist-get update :status))
              (cmd-title  (plist-get update :title))
              (raw-in     (plist-get update :rawInput))
              (plan       (mutecipher-acp--raw-input-plan raw-in))
@@ -344,16 +455,32 @@ point of the call, so they always stay expanded."
         (let ((new-pairs (mutecipher-acp--ingest-tool-content
                           tc (plist-get update :content))))
           (mutecipher-acp--maybe-capture-change-set session tc new-pairs))
-        (when (and (not (macp-node-collapsed wrapper))
-                   (mutecipher-acp--should-auto-collapse-p tc))
-          (setf (macp-node-collapsed wrapper) t))
-        (mutecipher-acp--with-sticky-tail buf
-          (let ((inhibit-read-only t))
-            (ewoc-invalidate mutecipher-acp--ewoc node)
-            ;; Pulse only on terminal status transitions so chatty
-            ;; in_progress / content-only updates don't strobe the buffer.
-            (when (memq (macp-tool-call-status tc) '(done error))
-              (mutecipher-acp--pulse-node mutecipher-acp--ewoc node))))
+        ;; Auto-collapse + pulse are per-CARD signals — they target a
+        ;; single tool-call wrapper.  For a grouped child the wrapper
+        ;; is the GROUP node containing N children: flipping its
+        ;; `collapsed' flag would yank the user's view of every sibling
+        ;; that is still in flight, and `--pulse-node' would strobe the
+        ;; entire group region every time any one of them finished.
+        ;; Skip both behaviors for `tool-group' wrappers; the group's
+        ;; own collapsed state is user-driven (toggle command) and the
+        ;; summary line carries an aggregate status glyph instead.
+        (let ((wrapper-is-tool-call
+               (eq (macp-node-kind wrapper) 'tool-call)))
+          (when (and wrapper-is-tool-call
+                     (not (macp-node-collapsed wrapper))
+                     (mutecipher-acp--should-auto-collapse-p tc))
+            (setf (macp-node-collapsed wrapper) t))
+          (mutecipher-acp--with-sticky-tail buf
+            (let ((inhibit-read-only t))
+              (ewoc-invalidate mutecipher-acp--ewoc node)
+              ;; Pulse only on terminal status transitions so chatty
+              ;; in_progress / content-only updates don't strobe the
+              ;; buffer.  And only for stand-alone tool-call wrappers —
+              ;; pulsing a group flashes the whole `Explored …' region
+              ;; for every child completion.
+              (when (and wrapper-is-tool-call
+                         (memq (macp-tool-call-status tc) '(done error)))
+                (mutecipher-acp--pulse-node mutecipher-acp--ewoc node)))))
         (mutecipher-acp--reconcile-spinner-for-session session))))))
 
 (provide 'mutecipher-acp-tools)

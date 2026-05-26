@@ -21,9 +21,9 @@
   ;; `defsubst'-inlined, so reordering shifts every call site's
   ;; (aref struct N) and silently corrupts any stale `.elc' linked
   ;; against the old layout.
-  kind         ; 'turn-header 'user 'assistant 'thought 'tool-call 'plan 'trailer
+  kind         ; 'turn-header 'user 'assistant 'thought 'tool-call 'tool-group 'plan 'trailer
   data         ; kind-specific struct below
-  collapsed    ; bool; only meaningful for 'tool-call
+  collapsed    ; bool; meaningful for 'tool-call and 'tool-group
   uuid)        ; stable string id, populated lazily by --ewoc-enter-tail
 
 (cl-defstruct macp-turn
@@ -55,6 +55,16 @@
   cached-start-line    ; memoized line number from --tool-call-start-line
   cached-start-key    ; (rendered-diff-count . locations) when last computed
   raw-input)           ; original :rawInput plist; consumed by per-tool body renderers
+
+(cl-defstruct macp-tool-group
+  ;; Ordered list of `macp-tool-call' children that share a "read-only"
+  ;; classification — successive Read / Grep / Glob / WebFetch /
+  ;; WebSearch invocations land inside one group node instead of each
+  ;; getting its own card.  Closed means the group is no longer
+  ;; accepting children: a subsequent write/edit/bash, an assistant
+  ;; chunk, a new turn, or any non-read node fires the close.
+  children      ; list of macp-tool-call structs in insertion order
+  closed)       ; bool
 
 (cl-defstruct macp-plan
   entries)      ; vec of plists (:content :priority :status)
@@ -107,7 +117,8 @@
   queue-head-node     ; ewoc node of the first queued entry, anchor for enter-before
   last-active         ; float-time of last user/agent activity, nil before any
   persist-dirty       ; t when in-memory state has unsaved changes
-  loading)            ; t while session/load replay is in progress (suppresses persist)
+  loading             ; t while session/load replay is in progress (suppresses persist)
+  current-tool-group) ; ewoc node of the open trailing tool-group, or nil
 
 ;;;; Node identity
 
