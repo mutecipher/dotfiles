@@ -128,11 +128,21 @@ markers are reconciled when one is installed."
                   (`(marker . ,m) (marker-position m)))))))))))
 
 (defun mutecipher-acp--pulse-node (ewoc node)
-  "Pulse-highlight the buffer region spanned by NODE in EWOC."
+  "Pulse-highlight the buffer region spanned by NODE in EWOC.
+Skips any leading newline characters in the region so the flash
+matches the visible body of the node — `--ensure-blank-above'
+includes its inserted `\\n' inside the node's read-only region, and
+without this skip the pulse would extend one row above the visible
+content into the inter-node gap."
   (when (and ewoc node (fboundp 'pulse-momentary-highlight-region))
-    (let* ((beg  (ewoc-location node))
-           (next (ewoc-next ewoc node))
-           (end  (if next (ewoc-location next) (point-max))))
+    (let* ((raw-beg (ewoc-location node))
+           (next    (ewoc-next ewoc node))
+           (end     (if next (ewoc-location next) (point-max)))
+           (beg     (and raw-beg
+                         (save-excursion
+                           (goto-char raw-beg)
+                           (skip-chars-forward "\n" end)
+                           (point)))))
       (when (and beg (> end beg))
         (pulse-momentary-highlight-region
          beg end 'mutecipher-acp-pulse-face)))))
@@ -272,26 +282,60 @@ node's rendering at point.")
   "Register PP-FN as the pretty-printer for KIND (a symbol)."
   (setf (alist-get kind mutecipher-acp--pp-node-kinds nil nil #'eq) pp-fn))
 
+(defun mutecipher-acp--ensure-blank-above ()
+  "Insert one `\\n' iff the line above point isn't already blank.
+Used by the master `--pp' dispatcher to guarantee a single empty line
+of padding before non-tool message bodies.  Idempotent — calling it
+twice in a row inserts at most one `\\n'.  No-op at buffer-start so
+the first rendered node doesn't get an empty leading line.
+
+The blank-line predicate uses `[^[:graph:]\\n]' — the negation of the
+`graph' POSIX class — which matches any non-printable character.
+That catches ordinary whitespace AND the no-break space U+00A0
+occasionally present in assistant content pasted from web/Markdown
+sources; `[:space:]' alone would miss the NBSP and we would insert a
+redundant `\\n' on top of an already-visually-blank line."
+  (unless (or (bobp)
+              (save-excursion
+                (forward-line -1)
+                (looking-at-p "^[^[:graph:]\n]*$")))
+    (insert "\n")))
+
 (defun mutecipher-acp--pp (node)
   "Master ewoc pretty-printer: dispatch on NODE kind via the registry.
 Wraps the per-kind printer so every rendered region is marked
 read-only via text properties.  `rear-nonsticky' on the trailing edge
 keeps the inline composer (text past the ewoc footer) writable —
 characters typed by the user just past the last node do not inherit
-the transcript's read-only property."
-  (let* ((beg  (point))
-         (kind (macp-node-kind node))
-         (fn   (alist-get kind mutecipher-acp--pp-node-kinds nil nil #'eq)))
-    (if fn
-        (funcall fn node)
-      ;; Surface the registration miss in *ACP-log* so a missing
-      ;; `mutecipher-acp-register-node-kind' call doesn't only manifest
-      ;; as silent uneditable text inside the transcript.
-      (mutecipher-acp--log-warn
-       'agent-warn nil
-       (format "[--pp] unknown node kind: %s — register via mutecipher-acp-register-node-kind"
-               kind))
-      (insert (format "[acp: unknown node kind: %s]\n" kind)))
+the transcript's read-only property.
+
+Before dispatching, inserts a blank-line separator above any
+non-tool-call kind via `--ensure-blank-above'.  Tool-call nodes skip
+that step so adjacent tool calls stack tight; everything else
+(user / assistant / thought / notice / plan / trailer / turn-header)
+gets one blank line of padding from whatever sits above."
+  ;; `beg' is captured BEFORE `--ensure-blank-above' inserts so the
+  ;; inserted `\\n' is included in the node's read-only region — the
+  ;; user can't sneak edits into the gap between cards.  Ewoc's
+  ;; start-marker for this node stays at the same buffer position
+  ;; across the insert (marker insertion-type nil), and on
+  ;; invalidate the leading `\\n' is deleted along with the rest of
+  ;; the node's region, then re-inserted by the next render.
+  (let ((beg  (point))
+        (kind (macp-node-kind node)))
+    (unless (eq kind 'tool-call)
+      (mutecipher-acp--ensure-blank-above))
+    (let ((fn (alist-get kind mutecipher-acp--pp-node-kinds nil nil #'eq)))
+      (if fn
+          (funcall fn node)
+        ;; Surface the registration miss in *ACP-log* so a missing
+        ;; `mutecipher-acp-register-node-kind' call doesn't only manifest
+        ;; as silent uneditable text inside the transcript.
+        (mutecipher-acp--log-warn
+         'agent-warn nil
+         (format "[--pp] unknown node kind: %s — register via mutecipher-acp-register-node-kind"
+                 kind))
+        (insert (format "[acp: unknown node kind: %s]\n" kind))))
     (add-text-properties beg (point)
                          '(read-only t
                            front-sticky (read-only)
@@ -405,14 +449,14 @@ declined.  Drops the `revert:' suffix once no file is left to revert."
 
 (defun mutecipher-acp--pp-turn-header (node)
   "Render a turn-header NODE.
-For turns >1, emit one blank line as a separator.  Then, if the turn
-has a non-empty `change-set' (any `macp-file-change' with `capture-status'
-`ok'), render a badge listing the modified files and their status."
+If the turn has a non-empty `change-set' (any `macp-file-change' with
+`capture-status' `ok'), render a badge listing the modified files and
+their status.  Inter-turn blank-line padding is supplied by the master
+`--pp' dispatcher's `--ensure-blank-above'; this printer no longer
+emits its own leading `\\n' (which used to double up post-density
+refactor)."
   (let* ((turn (macp-node-data node))
-         (id   (macp-turn-id turn))
          (cs   (macp-turn-change-set turn)))
-    (when (and id (> id 1))
-      (insert "\n"))
     (when cs
       (mutecipher-acp--pp-change-set-badge cs))))
 
@@ -492,11 +536,12 @@ sent user content."
 (defun mutecipher-acp--pp-plan (node)
   "Render a plan NODE: `[Plan]' header + per-entry status icon list.
 Completed tasks render with strike-through to make progress visible
-at a glance."
+at a glance.  Leading blank-line padding comes from the master `--pp'
+dispatcher's `--ensure-blank-above'; this printer no longer emits its
+own `\\n' (which used to double up post-density refactor)."
   (let* ((plan    (macp-node-data node))
          (entries (macp-plan-entries plan)))
-    (insert "\n"
-            (propertize "[Plan]\n" 'face 'bold))
+    (insert (propertize "[Plan]\n" 'face 'bold))
     (when (and entries (not (eq entries :json-false)))
       (cl-loop for task across entries do
                (let* ((title (or (plist-get task :title)

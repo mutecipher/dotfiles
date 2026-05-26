@@ -278,9 +278,6 @@ re-resolve."
     (plan-pending    . (,(string #xf10c) . shadow))                   ; nf-fa-circle_o
     (plan-inprogress . (,(string #xf017) . warning))                  ; nf-fa-clock_o
     (plan-done       . (,(string #xf00c) . success))                  ; nf-fa-check
-    ;; Disclosure triangles
-    (disclosure-collapsed . (,(string #xf054) . shadow))              ; nf-fa-chevron_right
-    (disclosure-expanded  . (,(string #xf078) . shadow))              ; nf-fa-chevron_down
     ;; Turn indicators (status of the turn as a whole)
     (turn-running    . (,(string #xf021) . warning))                  ; nf-fa-refresh
     (turn-done       . (,(string #xf00c) . success))                  ; nf-fa-check

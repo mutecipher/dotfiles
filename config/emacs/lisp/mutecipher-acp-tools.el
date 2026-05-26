@@ -254,7 +254,18 @@ helpers can treat the field as text."
                                       :data tc
                                       :collapsed collapsed))))
           (when call-id
-            (puthash call-id node index))))
+            (puthash call-id node index))
+          ;; A new tool-call inserted via `ewoc-enter-before' a non-tool
+          ;; node (typically the queue-head) leaves that following node
+          ;; with a stale leading-blank decision — it was rendered when
+          ;; the prior node above it ended with `\n\n', so
+          ;; `--ensure-blank-above' skipped.  Now the prior node IS
+          ;; this tool-call which ends with `\n', so the following node
+          ;; needs a fresh leading blank.  Force a re-render.
+          (when-let* ((next (ewoc-next mutecipher-acp--ewoc node))
+                      (next-kind (macp-node-kind (ewoc-data next)))
+                      ((not (eq next-kind 'tool-call))))
+            (ewoc-invalidate mutecipher-acp--ewoc next))))
       (mutecipher-acp--reconcile-spinner-for-session session))))
 
 (defun mutecipher-acp--should-auto-collapse-p (tc)

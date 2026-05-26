@@ -179,7 +179,13 @@ Animated for `pending' / `running' via the spinner; static glyph from
      (mutecipher-acp--spinner-glyph status))
     ('done  (mutecipher-acp--icon-or 'status-done  "✓"))
     ('error (mutecipher-acp--icon-or 'status-error "✗"))
-    (_      "?")))
+    ;; Fallback for nil / unrecognized status — render the same dim
+    ;; circle the `pending' icon uses, NOT a literal `?'.  Since the
+    ;; status glyph sits at column 0 (the gutter), a stray `?' would
+    ;; be the most prominent character on the row.  Reachable on
+    ;; persisted/replayed structs that predate the current status set
+    ;; or on freshly-constructed tcs before the first update arrives.
+    (_      (mutecipher-acp--icon-or 'status-pending "○"))))
 
 (defun mutecipher-acp--tool-call-active-p (data)
   "Non-nil if ewoc node DATA is a tool-call in `pending' / `running' state."
@@ -504,33 +510,33 @@ summary line is what visually separates this from the LHS."
       ('error "failed")
       (_ nil))))
 
-(defun mutecipher-acp--pp-tool-call-line (tc collapsed)
+(defun mutecipher-acp--pp-tool-call-line (tc)
   "Insert the one-line summary for tool-call TC, no leading indent.
-LHS — disclosure + status glyph + kind glyph + name(input) — is
-left-aligned next to the card's rail.  The kind glyph (pencil for
-edit, terminal for execute, cloud for fetch, …) makes the tool's
-intent scannable at a glance, independent of the streaming status
-glyph next to it.  Meta (line/diff counts) is right-aligned to the
-window's right edge via a `display' (space :align-to right) property.
-The card's `line-prefix' supplies the `│ ' rail on this line;
-`wrap-prefix' keeps it in place if the line ever gets wrapped."
-  (let* ((name       (or (macp-tool-call-name tc) "tool"))
-         (input      (macp-tool-call-input tc))
-         (disclosure (mutecipher-acp--icon-or
-                      (if collapsed 'disclosure-collapsed 'disclosure-expanded)
-                      (if collapsed "▸" "▾")))
-         (status-g   (mutecipher-acp--tool-status-glyph
-                      (macp-tool-call-status tc)))
-         (kind-key   (mutecipher-acp--tool-kind-icon-key
-                      (macp-tool-call-kind tc) name))
-         ;; nil fallback so kind glyph is silently dropped if no Nerd
-         ;; Font is installed — the status glyph already conveys liveness.
-         (kind-g     (mutecipher-acp--icon-or kind-key nil))
-         (meta       (mutecipher-acp--tool-meta tc)))
-    (insert (propertize disclosure 'face 'mutecipher-acp-disclosure-face)
-            " "
-            status-g
-            " ")
+The status glyph (spinner ⠋ for pending/running, ✓ for done, ✗ for
+error) sits at column 0 as the tool's `gutter' — same column as the
+role glyphs `▌' that mark user / assistant rows in
+`mutecipher-acp-ewoc.el', so the eye reads each transcript row by its
+leftmost glyph.  Kind icon (pencil for edit, terminal for execute,
+cloud for fetch, …) follows at column 2; if no Nerd Font is
+available the kind icon is silently dropped and the row degrades to
+`STATUS Name(input)'.  Meta (line / diff counts) is right-aligned to
+the window's right edge via a `display' (space :align-to right)
+property.
+
+Expansion state is signalled by the presence of the card chrome BELOW
+this line, not by a leading disclosure glyph — peer TUI agents
+(Claude Code, opencode) all drop the disclosure in favour of the
+visual cue from chrome appearing/disappearing."
+  (let* ((name     (or (macp-tool-call-name tc) "tool"))
+         (input    (macp-tool-call-input tc))
+         (status-g (mutecipher-acp--tool-status-glyph
+                    (macp-tool-call-status tc)))
+         (kind-key (mutecipher-acp--tool-kind-icon-key
+                    (macp-tool-call-kind tc) name))
+         (kind-g   (mutecipher-acp--icon-or kind-key nil))
+         (meta     (mutecipher-acp--tool-meta tc))
+         (line-beg (point)))
+    (insert status-g " ")
     (when kind-g
       (insert kind-g " "))
     (insert (propertize (concat name (if input (concat "(" input ")") ""))
@@ -541,7 +547,13 @@ The card's `line-prefix' supplies the `│ ' rail on this line;
         (insert (propertize " "
                             'display `(space :align-to (- right ,meta-w)))
                 meta-str)))
-    (insert "\n")))
+    (insert "\n")
+    ;; Hanging indent for soft-wrapped long Name(input) on narrow
+    ;; windows: continuation lines indent under the body (column 2)
+    ;; rather than wrapping to column 0 and visually disconnecting
+    ;; from the gutter-aligned status glyph.
+    (add-text-properties line-beg (point)
+                         '(wrap-prefix "  "))))
 
 (defun mutecipher-acp--pp-tool-call-body (tc)
   "Insert the expanded body for TC, dispatching to a registered renderer if any.
@@ -553,29 +565,48 @@ Looks up `mutecipher-acp-tool-body-renderers' via
     (mutecipher-acp--pp-default-tool-body tc)))
 
 (defun mutecipher-acp--pp-tool-call (node)
-  "Render a tool-call NODE as a card encapsulating summary + body.
-The card has a top border (╭ + strike-through rule), a left rail
-(`│ ' supplied as `line-prefix' on every content line so it follows
-wraps and unfolds), and a bottom border (╰ + strike-through rule).
-Collapsed nodes show only the summary inside the card; expanded ones
-include the indented body."
-  (let* ((tc          (macp-node-data node))
-         (collapsed   (macp-node-collapsed node))
-         (rail-face   'mutecipher-acp-tool-card-face)
-         (rule-face   'mutecipher-acp-tool-card-rule-face)
-         (line-prefix (propertize "  │ " 'face rail-face))
-         (rule        (propertize " "
-                                  'display '(space :align-to right)
-                                  'face rule-face)))
-    (insert "  " (propertize "╭" 'face rail-face) rule "\n")
-    (let ((content-beg (point)))
-      (mutecipher-acp--pp-tool-call-line tc collapsed)
-      (unless collapsed
-        (mutecipher-acp--pp-tool-call-body tc))
-      (add-text-properties content-beg (point)
-                           (list 'line-prefix line-prefix
-                                 'wrap-prefix line-prefix)))
-    (insert "  " (propertize "╰" 'face rail-face) rule "\n\n")))
+  "Render a tool-call NODE.
+Collapsed nodes render as a single summary line with the status glyph
+at column 0 (the `gutter' position, same as the `▌' role glyphs on
+user/assistant rows) and no card chrome — so a turn with many tool
+calls (subagent dispatches, parallel reads) doesn't fill the window
+with stacked rails.  Expanded nodes emit the same summary line, then
+a `╭ │ … ╰' card indented to column 2 around the body content;
+chrome sits under the body so visually the card belongs to the
+summary above.
+
+Trailing single newline in both states; the master `--pp' dispatcher
+in `mutecipher-acp-ewoc.el' inserts a blank-line separator before
+non-tool nodes, so adjacent tools stack tight while a tool → non-tool
+transition still gets one blank line of padding."
+  (let* ((tc        (macp-node-data node))
+         (collapsed (macp-node-collapsed node)))
+    ;; Expanded cards visually need breathing room above them too —
+    ;; the dispatcher's `--ensure-blank-above' skipped this kind, so
+    ;; a collapsed-then-expanded transition would otherwise abut.
+    (unless collapsed
+      (mutecipher-acp--ensure-blank-above))
+    (mutecipher-acp--pp-tool-call-line tc)
+    (unless collapsed
+      (let* ((rail-face   'mutecipher-acp-tool-card-face)
+             (rule-face   'mutecipher-acp-tool-card-rule-face)
+             (line-prefix (propertize "  │ " 'face rail-face))
+             (rule        (propertize " "
+                                      'display '(space :align-to right)
+                                      'face rule-face)))
+        (insert "  " (propertize "╭" 'face rail-face) rule "\n")
+        (let ((body-beg (point)))
+          (mutecipher-acp--pp-tool-call-body tc)
+          (add-text-properties body-beg (point)
+                               (list 'line-prefix line-prefix
+                                     'wrap-prefix line-prefix)))
+        ;; Expanded cards trail with `\n\n' (one blank line below `╰')
+        ;; so two adjacent expanded cards don't visually merge — the
+        ;; dispatcher's `--ensure-blank-above' skips tool-call kinds,
+        ;; so without this the next card's status glyph would land
+        ;; directly under this card's bottom rule.  Collapsed cards
+        ;; stay at single `\n' for tight stacking.
+        (insert "  " (propertize "╰" 'face rail-face) rule "\n\n")))))
 
 (mutecipher-acp-register-node-kind 'tool-call #'mutecipher-acp--pp-tool-call)
 

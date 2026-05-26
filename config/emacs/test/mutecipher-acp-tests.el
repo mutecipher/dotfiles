@@ -2342,6 +2342,89 @@ still hits the fetch renderer."
 
 ;;;; Render-side fixes for review findings
 
+;;;; Density refactor — collapsed = one-liner, expanded = card chrome
+
+(defun macp-test--pp-tool-call-to-string (tc collapsed)
+  "Render TC through `--pp-tool-call' in a temp buffer and return the string.
+Collapsed via a fresh `macp-node' wrapping TC."
+  (with-temp-buffer
+    (mutecipher-acp--pp-tool-call
+     (make-macp-node :kind 'tool-call :data tc :collapsed collapsed))
+    (buffer-string)))
+
+(ert-deftest macp-test-pp-tool-call-collapsed-emits-no-chrome ()
+  "Collapsed render must NOT contain any card chrome — that was the entire
+point of the density refactor."
+  (let ((out (macp-test--pp-tool-call-to-string
+              (make-macp-tool-call :name "Grep" :kind "search" :status 'done)
+              t)))
+    (should-not (string-match-p "╭" out))
+    (should-not (string-match-p "╰" out))
+    (should-not (string-match-p "│" out))))
+
+(ert-deftest macp-test-pp-tool-call-collapsed-is-single-line ()
+  "Collapsed render must emit exactly one newline — one card, one line."
+  (let ((out (macp-test--pp-tool-call-to-string
+              (make-macp-tool-call :name "Read" :kind "read" :status 'done
+                                   :raw-output "a\nb\nc")
+              t)))
+    (should (= 1 (cl-count ?\n out)))))
+
+(ert-deftest macp-test-pp-tool-call-expanded-emits-chrome ()
+  "Expanded render keeps the `╭'/`╰' chrome and emits it AFTER the
+summary line — chrome wraps the body only, summary stays at the
+gutter row that collapsed cards use."
+  (let* ((tc (make-macp-tool-call :name "Read" :kind "read" :status 'done
+                                  :raw-output "alpha\nbeta\n"))
+         (out (macp-test--pp-tool-call-to-string tc nil))
+         (top (string-match "╭" out))
+         (bot (string-match "╰" out))
+         (newline-before-top (and top
+                                  (string-match "\n" out)
+                                  (< (string-match "\n" out) top))))
+    (should top)
+    (should bot)
+    (should (< top bot))
+    ;; The summary line must be emitted before the top rule — there is
+    ;; at least one `\n' between the start of the buffer and `╭'.
+    (should newline-before-top)))
+
+(ert-deftest macp-test-pp-tool-call-density-13-collapsed ()
+  "13 consecutive collapsed renders must fit in 13 newlines (no spacer
+between cards).  Pre-refactor this would have been ~52."
+  (with-temp-buffer
+    (dotimes (i 13)
+      (mutecipher-acp--pp-tool-call
+       (make-macp-node :kind 'tool-call
+                       :collapsed t
+                       :data (make-macp-tool-call :name (format "Tool%d" i)
+                                                   :kind "read"
+                                                   :status 'done))))
+    (should (= 13 (cl-count ?\n (buffer-string))))))
+
+(ert-deftest macp-test-pp-tool-call-running-stays-collapsed-one-line ()
+  "Running tools render as a one-line spinner row.  The spinner timer
+re-invalidates the node 10×/sec; a multi-line layout would thrash."
+  (let* ((mutecipher-acp--spinner-tick 0)
+         (out (macp-test--pp-tool-call-to-string
+               (make-macp-tool-call :name "Bash" :kind "execute"
+                                    :status 'running)
+               t)))
+    (should (= 1 (cl-count ?\n out)))
+    ;; First frame of the spinner.
+    (should (string-match-p (regexp-quote (aref mutecipher-acp-spinner-frames 0))
+                            out))))
+
+(ert-deftest macp-test-pp-tool-call-toggle-roundtrip ()
+  "Collapsing, expanding, and re-collapsing must return identical buffer
+state — the toggle path (UI command) depends on this idempotence."
+  (let* ((tc (make-macp-tool-call :name "Read" :kind "read" :status 'done
+                                  :raw-output "x"))
+         (a (macp-test--pp-tool-call-to-string tc t))
+         (_ (macp-test--pp-tool-call-to-string tc nil))
+         (c (macp-test--pp-tool-call-to-string tc t)))
+    (should (string-equal a c))))
+
 (ert-deftest macp-test-pp-tool-call-line-renders-kind-icon ()
   "The card summary line must include a kind glyph (when a Nerd-Font icon
 is available).  Pre-fix, the new kind icons were defined but never inserted."
@@ -2352,10 +2435,177 @@ is available).  Pre-fix, the new kind icons were defined but never inserted."
                                    :status 'done
                                    :input "foo.el")))
       (with-temp-buffer
-        (mutecipher-acp--pp-tool-call-line tc t)
+        (mutecipher-acp--pp-tool-call-line tc)
         (should (string-match-p
                  (regexp-quote (mutecipher/icon-for-acp 'tool-edit))
                  (buffer-string)))))))
+
+(ert-deftest macp-test-pp-tool-call-line-no-disclosure-glyph ()
+  "Disclosure (▸/▾) has been removed in favour of the status-as-gutter
+layout; render must not contain either glyph regardless of collapsed state."
+  (let ((tc (make-macp-tool-call :name "Read" :kind "read" :status 'done)))
+    (dolist (collapsed '(t nil))
+      (let ((out (macp-test--pp-tool-call-to-string tc collapsed)))
+        (should-not (string-match-p "▸" out))
+        (should-not (string-match-p "▾" out))))))
+
+(ert-deftest macp-test-pp-tool-call-line-status-at-column-zero ()
+  "The status glyph must sit at column 0, matching the gutter column of
+user/assistant role glyphs — no leading whitespace."
+  (let* ((tc (make-macp-tool-call :name "T" :kind "read" :status 'done))
+         (out (macp-test--pp-tool-call-to-string tc t))
+         (first-char (aref out 0)))
+    ;; First char is not whitespace.
+    (should-not (memq first-char '(?\s ?\t)))
+    ;; First char IS the status glyph (or its ASCII fallback "✓").
+    (should (or (= first-char ?✓)
+                (string-prefix-p
+                 (or (and (fboundp 'mutecipher/icon-for-acp)
+                          (mutecipher/icon-for-acp 'status-done))
+                     "✓")
+                 out)))))
+
+;;;; Blank-line padding around non-tool message bodies
+
+(ert-deftest macp-test-pp-inserts-blank-before-non-tool-after-tool ()
+  "Tool → assistant transition gets exactly one blank line of padding.
+The master `--pp' dispatcher calls `--ensure-blank-above' for non-tool
+kinds so a tight tool-call sequence still ends with one blank line
+before the next prose body."
+  (with-temp-buffer
+    (mutecipher-acp--pp
+     (make-macp-node :kind 'tool-call :collapsed t
+                     :data (make-macp-tool-call :name "T" :status 'done)))
+    (mutecipher-acp--pp
+     (make-macp-node :kind 'assistant
+                     :data (make-macp-assistant :text "hi")))
+    ;; After the tool's trailing \n, --ensure-blank-above adds another \n
+    ;; before the assistant content.  So buffer contains "...T...\n\n..hi.."
+    (should (string-match-p "T[^\n]*\n\n" (buffer-string)))))
+
+(ert-deftest macp-test-pp-tool-to-tool-stays-tight ()
+  "Adjacent tool-calls don't get a blank line between them — `--pp' skips
+`--ensure-blank-above' for tool-call kinds."
+  (with-temp-buffer
+    (mutecipher-acp--pp
+     (make-macp-node :kind 'tool-call :collapsed t
+                     :data (make-macp-tool-call :name "T1" :status 'done)))
+    (mutecipher-acp--pp
+     (make-macp-node :kind 'tool-call :collapsed t
+                     :data (make-macp-tool-call :name "T2" :status 'done)))
+    (should-not (string-match-p "T1[^\n]*\n\n" (buffer-string)))))
+
+(ert-deftest macp-test-ensure-blank-above-idempotent ()
+  "Calling `--ensure-blank-above' twice in a row inserts at most one \\n.
+Guards the case where a node is invalidated and re-rendered."
+  (with-temp-buffer
+    (insert "prev-content\n")
+    (mutecipher-acp--ensure-blank-above)
+    (mutecipher-acp--ensure-blank-above)
+    (should (= 2 (cl-count ?\n (buffer-string))))))
+
+(ert-deftest macp-test-ensure-blank-above-noop-at-bob ()
+  "`--ensure-blank-above' must not insert at buffer-start — the first
+node in a fresh buffer doesn't get a leading empty line."
+  (with-temp-buffer
+    (mutecipher-acp--ensure-blank-above)
+    (should (string-empty-p (buffer-string)))))
+
+(ert-deftest macp-test-ensure-blank-above-treats-nbsp-line-as-blank ()
+  "A line containing only no-break spaces (U+00A0) is visually blank;
+the predicate must not insert a redundant `\\n' on top of it."
+  (with-temp-buffer
+    (insert "  \n")
+    (mutecipher-acp--ensure-blank-above)
+    (should (= 1 (cl-count ?\n (buffer-string))))))
+
+;;;; Post-fix coverage: turn-header / plan no longer double-blank
+
+(ert-deftest macp-test-pp-turn-header-no-leading-newline ()
+  "`--pp-turn-header' must NOT emit its own leading `\\n' — that role
+moved to the dispatcher's `--ensure-blank-above'.  Pre-fix, turn 2+
+got TWO blank lines above (ensure-blank + the printer's own \\n)."
+  (with-temp-buffer
+    (mutecipher-acp--pp-turn-header
+     (make-macp-node :kind 'turn-header
+                     :data (make-macp-turn :id 2 :started-at (float-time))))
+    ;; Empty body + no change-set → nothing inserted.
+    (should (string-empty-p (buffer-string)))))
+
+(ert-deftest macp-test-pp-plan-no-leading-newline ()
+  "`--pp-plan' must NOT emit its own leading `\\n' — pre-fix this
+combined with the dispatcher's `--ensure-blank-above' to produce TWO
+blank lines above every `[Plan]' header."
+  (with-temp-buffer
+    (mutecipher-acp--pp-plan
+     (make-macp-node :kind 'plan
+                     :data (make-macp-plan :entries
+                                            [(:title "X" :status "pending")])))
+    (let ((s (buffer-string)))
+      ;; First char must be `[' (the header), not a newline.
+      (should (eq (aref s 0) ?\[)))))
+
+;;;; Post-fix coverage: expanded tool-calls don't visually abut
+
+(ert-deftest macp-test-pp-tool-call-expanded-emits-trailing-blank ()
+  "Expanded tool-call cards must end with `\\n\\n' so two adjacent
+expanded cards don't visually merge.  Collapsed cards stay at single
+`\\n' for tight stacking."
+  (let* ((tc (make-macp-tool-call :name "T" :kind "read" :status 'done
+                                  :raw-output "x"))
+         (expanded  (macp-test--pp-tool-call-to-string tc nil))
+         (collapsed (macp-test--pp-tool-call-to-string tc t)))
+    (should (string-suffix-p "\n\n" expanded))
+    (should (string-suffix-p "\n" collapsed))
+    (should-not (string-suffix-p "\n\n" collapsed))))
+
+;;;; Post-fix coverage: status glyph fallback for nil/unknown status
+
+(ert-deftest macp-test-tool-status-glyph-nil-falls-back-to-pending ()
+  "A tool-call with nil status renders the dim pending circle, NOT a
+literal `?' — the status glyph sits at column 0 (the gutter) and a
+stray `?' would be the most prominent character on the row."
+  (let* ((out (mutecipher-acp--tool-status-glyph nil))
+         (pending (mutecipher-acp--icon-or 'status-pending "○")))
+    (should (equal out pending))
+    (should-not (equal out "?"))))
+
+;;;; Post-fix coverage: summary line has wrap-prefix for soft-wrap
+
+(ert-deftest macp-test-pp-tool-call-line-has-wrap-prefix ()
+  "Long tool inputs wrap to column 2 (`wrap-prefix') instead of
+column 0, so the continuation aligns under the body rather than under
+the gutter status glyph."
+  (with-temp-buffer
+    (mutecipher-acp--pp-tool-call-line
+     (make-macp-tool-call :name "Edit" :kind "edit" :status 'done
+                          :input "very/long/path/to/some/file.el"))
+    (let ((wp (get-text-property (point-min) 'wrap-prefix)))
+      (should (equal wp "  ")))))
+
+;;;; Post-fix coverage: --pulse-node skips the leading blank
+
+(ert-deftest macp-test-pulse-node-skips-leading-blank ()
+  "`--pulse-node' must skip past any leading `\\n' so the flash region
+matches the visible node body, not the inter-node gap."
+  (skip-unless (fboundp 'pulse-momentary-highlight-region))
+  (with-temp-buffer
+    (let ((ewoc (ewoc-create (lambda (_) nil) "" "" t))
+          (calls nil))
+      (cl-letf (((symbol-function 'pulse-momentary-highlight-region)
+                 (lambda (beg end &rest _) (push (list beg end) calls))))
+        ;; Two nodes; the second has a leading blank in its region.
+        (ewoc-enter-last ewoc (make-macp-node :kind 'user
+                                              :data (make-macp-user :text "a")))
+        (let ((second
+               (ewoc-enter-last ewoc
+                                (make-macp-node :kind 'user
+                                                :data (make-macp-user :text "b")))))
+          (mutecipher-acp--pulse-node ewoc second))
+        (let* ((call (car calls))
+               (beg  (nth 0 call)))
+          ;; First char of the pulsed region must NOT be a newline.
+          (should-not (eq (char-after beg) ?\n)))))))
 
 (ert-deftest macp-test-todo-renderer-emits-attachments ()
   "TodoWrite renderer must also emit diffs attached to the same tool-call,

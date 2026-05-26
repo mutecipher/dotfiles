@@ -341,20 +341,31 @@ Composer text deletion stays untouched so backspace works as usual."
              (memq last-command-event '(?/ ?@)))
     (completion-at-point)))
 
+(declare-function mutecipher/acp-toggle-tool-call "mutecipher-acp-ui")
+
 (defun mutecipher-acp--tab-dwim ()
   "TAB inside the composer commits a visible completion preview, else
-falls back to `completion-at-point'.  Outside the composer it's a no-op
-— use \\[mutecipher/acp-toggle-tool-calls] to fold/unfold tool calls."
+falls back to `completion-at-point'.  When point sits on a tool-call
+node in the transcript, TAB folds/unfolds that card — the in-buffer
+affordance for the per-card toggle, since the disclosure glyph has
+been removed in favour of the gutter-status layout."
   (interactive)
   (cond
-   ((not (mutecipher-acp--composer-region-p (point)))
-    (message "ACP: TAB is composer-only — use C-c TAB to toggle tool calls"))
-   ;; Route through the preview's own commit path so the overlay is
-   ;; dismissed in the same step as the insertion — `completion-at-point'
-   ;; defers the preview cleanup, briefly double-rendering the suffix.
-   ((bound-and-true-p completion-preview-active-mode)
-    (completion-preview-insert))
-   (t (completion-at-point))))
+   ((mutecipher-acp--composer-region-p (point))
+    ;; Route through the preview's own commit path so the overlay is
+    ;; dismissed in the same step as the insertion — `completion-at-point'
+    ;; defers the preview cleanup, briefly double-rendering the suffix.
+    (if (bound-and-true-p completion-preview-active-mode)
+        (completion-preview-insert)
+      (completion-at-point)))
+   ((and (boundp 'mutecipher-acp--ewoc)
+         mutecipher-acp--ewoc
+         (let* ((node (ewoc-locate mutecipher-acp--ewoc)))
+           (and node
+                (eq (macp-node-kind (ewoc-data node)) 'tool-call))))
+    (call-interactively #'mutecipher/acp-toggle-tool-call))
+   (t
+    (message "ACP: TAB toggles tool-calls in the transcript or completes in the composer"))))
 
 (provide 'mutecipher-acp-composer)
 ;;; mutecipher-acp-composer.el ends here
