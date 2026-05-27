@@ -198,11 +198,13 @@ helpers can treat the field as text."
    (t (format "%S" raw))))
 
 (defun mutecipher-acp--tool-output-line-count (raw)
-  "Return the line count of RAW (0 if nil or empty)."
-  (let ((s (mutecipher-acp--normalize-raw-output raw)))
-    (cond
-     ((or (null s) (string-empty-p s)) 0)
-     (t (1+ (cl-count ?\n s))))))
+  "Return the line count of RAW (0 if nil/empty/non-string after
+normalization).  Normalizes via `--normalize-raw-output' first, then
+delegates to `mutecipher-acp--string-line-count' (in tool-card.el)
+so the trailing-`\\n'-aware counting semantics are shared with
+`--diff-frag-lines'."
+  (mutecipher-acp--string-line-count
+   (mutecipher-acp--normalize-raw-output raw)))
 
 ;; Display-only helpers — `--truncate-output-for-display' and
 ;; `--indent-block' — live in `mutecipher-acp-tool-card.el' alongside

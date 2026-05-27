@@ -40,16 +40,20 @@ struct so it remains available for copy or re-render at a higher cap."
 ;; (in `mutecipher-acp-tools.el') has already coerced wire shapes to a
 ;; plain string at ingest time.
 
-(defun mutecipher-acp--tool-output-line-count (raw)
-  "Return the line count of RAW (0 if nil or empty).
-RAW is normally a string at this point; `--normalize-raw-output' may
-still be called for legacy structs whose `raw-output' slot holds the
-wire-form vector."
-  (let ((s (if (stringp raw) raw
-             (mutecipher-acp--normalize-raw-output raw))))
-    (cond
-     ((or (null s) (string-empty-p s)) 0)
-     (t (1+ (cl-count ?\n s))))))
+(defun mutecipher-acp--string-line-count (s)
+  "Return the line count of S (0 if not a usable string).
+nil, non-string, or empty string returns 0.  Otherwise counts `\\n's;
+a trailing `\\n' is treated as the terminator of the last line rather
+than the start of an empty one (so `\"foo\\n\"' is 1 line, not 2).
+Shared primitive for `--diff-frag-lines' and
+`--tool-output-line-count' in tools.el — keep one definition so a
+fix in counting semantics lands everywhere."
+  (cond
+   ((or (not (stringp s)) (string-empty-p s)) 0)
+   (t (let ((nl (cl-count ?\n s)))
+        (if (eq (aref s (1- (length s))) ?\n)
+            nl
+          (1+ nl))))))
 
 (defun mutecipher-acp--truncate-output-for-display (raw)
   "Return RAW (a string) clipped to `mutecipher-acp-tool-output-max-lines'.
@@ -525,29 +529,113 @@ makes search terms look underlined/clickable in many themes."
 
 ;;;; Tool-call pretty-printer
 
+(defun mutecipher-acp--diff-frag-lines (frag)
+  "Return the line count of FRAG (an old/new text fragment from a diff pair).
+Thin wrapper over `mutecipher-acp--string-line-count' so the shared
+trailing-`\\n'-aware semantics apply to diff fragments too — a 10-line
+block stored with a trailing `\\n' counts as 10, not 11.  Approximate
+for mid-line snippets, matching git `--stat' fuzziness."
+  (mutecipher-acp--string-line-count frag))
+
+(defun mutecipher-acp--diff-stat (diffs)
+  "Return (ADDED . REMOVED) line counts across DIFFS pairs.
+DIFFS is the list of `(oldText . newText)' cons cells stored on
+`macp-tool-call.diffs'.  oldText contributes to REMOVED, newText to
+ADDED — so pure inserts read as `(N . 0)' and pure deletes as
+`(0 . N)'."
+  (let ((added 0) (removed 0))
+    (dolist (pair diffs)
+      (cl-incf removed (mutecipher-acp--diff-frag-lines (car pair)))
+      (cl-incf added   (mutecipher-acp--diff-frag-lines (cdr pair))))
+    (cons added removed)))
+
+(defconst mutecipher-acp--diff-removed-prefix "−"
+  "U+2212 MINUS SIGN — the typographic minus used in the `−N' removed
+chunk of a diff-stat badge.  Bound to a named constant because the
+character is not ASCII `-' and so a source grep for `\"-%d\"' won't
+locate the format string; the constant keeps the formatter readable.")
+
+(defun mutecipher-acp--format-diff-stat (stat)
+  "Format STAT (cons of ADDED . REMOVED) as a propertized `+N −M' string.
+Omits the absent half when one side is zero — pure insert reads `+34',
+pure delete reads `−23'.  Returns nil when both sides are zero so the
+caller can fall through to other meta.  Uses `success' / `error' faces
+for the numeric chunks (theme-aware green / red); the joining space
+is shadow-faced so the pair reads as one badge, not two disconnected
+runs of color."
+  (let* ((added   (car stat))
+         (removed (cdr stat))
+         (parts   nil))
+    (when (> added 0)
+      (push (propertize (format "+%d" added) 'face 'success) parts))
+    (when (> removed 0)
+      (push (propertize (format "%s%d"
+                                mutecipher-acp--diff-removed-prefix removed)
+                        'face 'error) parts))
+    (when parts
+      (mapconcat #'identity (nreverse parts)
+                 (propertize " " 'face 'shadow)))))
+
+;; Per-source meta chunks — each returns a pre-propertized string (with
+;; baked-in faces) when applicable to TC's current state, or nil.  The
+;; composer `--tool-meta' joins the non-nil chunks with a `· '
+;; separator.  Adding a new meta source = adding a sibling
+;; `--meta-chunk-*' fn and listing it in the composer; no edits to the
+;; dispatch.
+
+(defun mutecipher-acp--meta-chunk-failed (tc)
+  "Return the propertized `failed' badge for TC, or nil.
+Fires only on `error' status."
+  (when (eq (macp-tool-call-status tc) 'error)
+    (propertize "failed" 'face 'shadow)))
+
+(defun mutecipher-acp--meta-chunk-lines (tc)
+  "Return the propertized `N lines' chunk for TC, or nil.
+Fires when TC is a read-only tool (the kinds in
+`--tool-group-bucket-alist': read / grep / fetch — anything whose
+output line count is a meaningful at-a-glance scope hint) AND the
+status is `done' AND the raw-output has lines.  For write / edit /
+bash etc. the same count would be misleading status-echo noise, so
+the chunk stays silent."
+  (when (and (eq (macp-tool-call-status tc) 'done)
+             (mutecipher-acp--tool-call-read-only-p tc))
+    (let ((lines (mutecipher-acp--tool-output-line-count
+                  (macp-tool-call-raw-output tc))))
+      (when (> lines 0)
+        (propertize (format "%d line%s" lines (if (= 1 lines) "" "s"))
+                    'face 'shadow)))))
+
+(defun mutecipher-acp--meta-chunk-diff-stat (tc)
+  "Return the propertized `+N −M' diff-stat chunk for TC, or nil.
+Fires on both `done' and `error' so a failed mid-stream edit still
+surfaces how much had been queued before the failure — that scope
+hint is more useful in recovery than absent.  Returns nil for
+`pending' / `running' (the spinner already carries the in-flight
+cue) and for any TC whose `diffs' slot is empty."
+  (when (memq (macp-tool-call-status tc) '(done error))
+    (when-let* ((diffs (macp-tool-call-diffs tc))
+                (stat  (mutecipher-acp--diff-stat diffs)))
+      (mutecipher-acp--format-diff-stat stat))))
+
 (defun mutecipher-acp--tool-meta (tc)
-  "Return the right-side metadata string for tool-call TC, or nil.
-For terminal statuses, summarizes output size (lines + diffs).  For
-running/pending, returns nil — the spinner + status glyph already say
-\"in flight\".  No leading `· ' separator; the right-alignment on the
-summary line is what visually separates this from the LHS."
-  (let* ((raw   (macp-tool-call-raw-output tc))
-         (lines (mutecipher-acp--tool-output-line-count raw))
-         (diffs (length (macp-tool-call-diffs tc))))
-    (pcase (macp-tool-call-status tc)
-      ('done
-       (cond
-        ((and (> lines 0) (> diffs 0))
-         (format "%d line%s · %d diff%s"
-                 lines (if (= 1 lines) "" "s")
-                 diffs (if (= 1 diffs) "" "s")))
-        ((> lines 0)
-         (format "%d line%s" lines (if (= 1 lines) "" "s")))
-        ((> diffs 0)
-         (format "%d diff%s" diffs (if (= 1 diffs) "" "s")))
-        (t nil)))
-      ('error "failed")
-      (_ nil))))
+  "Return the right-aligned meta string for tool-call TC, or nil.
+
+Composes a `· '-joined badge from each per-source `--meta-chunk-*'
+function that has something to say for TC's current state, in display
+order: failed → lines → diff-stat.
+
+Returns a PRE-PROPERTIZED string — every chunk and the separator
+carry baked-in faces (`success' / `error' / `shadow').  Callers MUST
+insert it verbatim; an outer `propertize' \\='face wrap would flatten
+the embedded faces and turn the colored deltas back into a monochrome
+string."
+  (let ((chunks (delq nil
+                      (list (mutecipher-acp--meta-chunk-failed   tc)
+                            (mutecipher-acp--meta-chunk-lines    tc)
+                            (mutecipher-acp--meta-chunk-diff-stat tc)))))
+    (when chunks
+      (mapconcat #'identity chunks
+                 (propertize " · " 'face 'shadow)))))
 
 (defun mutecipher-acp--pp-tool-call-line (tc)
   "Insert the one-line summary for tool-call TC.
@@ -567,8 +655,8 @@ turn that triggered them, putting the body at col 4.
   col 5  : single space separator (only when a kind icon was emitted)
   col 6+ : Name(input), in `mutecipher-acp-tool-face' on success or
            `mutecipher-acp-error-face' on failure
-  right  : meta chunk (`N lines · M diffs', `failed', …) flush-right
-           via `display' (space :align-to right)
+  right  : meta chunk (`N lines · +A −R', `failed', …) flush-right
+           via `display' (space :align-to right); see `--tool-meta'
 
 Examples:
 
@@ -594,14 +682,27 @@ Examples:
     (insert "  ")
     (when kind-g
       (insert kind-g " "))
-    (insert (propertize (concat name (if input (concat "(" input ")") ""))
-                        'face name-face))
+    ;; `add-face-text-property' with APPEND=t layers `name-face' under
+    ;; any face properties an upstream renderer might bake into the
+    ;; tool's name (none today, but the inverse of `propertize ...
+    ;; 'face' would silently flatten them if it ever happens — e.g.
+    ;; dimming an `mcp__' prefix).
+    (let ((name-text (concat name (if input (concat "(" input ")") ""))))
+      (add-face-text-property 0 (length name-text) name-face t name-text)
+      (insert name-text))
     (when meta
-      (let* ((meta-str (propertize meta 'face 'shadow))
-             (meta-w   (string-width meta-str)))
+      ;; META is pre-propertized by `--tool-meta' (`success' / `error'
+      ;; faces on the +N/−M chunks, `shadow' elsewhere) — insert
+      ;; verbatim; an outer `propertize meta 'face …' would flatten the
+      ;; embedded faces.  `string-width' is metric-blind to `:height' /
+      ;; `:family' on those embedded faces, so themes that resize
+      ;; `success' / `error' can drift the `:align-to' math slightly —
+      ;; accepted limitation (fixing requires `string-pixel-width',
+      ;; Emacs 29+, not universally deployed).
+      (let ((meta-w (string-width meta)))
         (insert (propertize " "
                             'display `(space :align-to (- right ,meta-w)))
-                meta-str)))
+                meta)))
     (insert "\n")
     ;; Wrap continuation aligns at column 4 — the body column where
     ;; the kind icon (or name, when no Nerd Font) sits.
