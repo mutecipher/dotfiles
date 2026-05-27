@@ -171,8 +171,15 @@ A ```diff tag routes the body through `diff-mode' fontification."
             (add-face-text-property text-beg text-end
                                     '(:slant italic :inherit shadow))))))))
 
-(defconst mutecipher-acp--md-table-line-re "^[ \t]*|.*|[ \t]*$"
-  "Regexp matching a single pipe-delimited line of a GFM table.")
+(defconst mutecipher-acp--md-table-line-re "[ \t]*|.*|[ \t]*$"
+  "Regexp matching a single pipe-delimited line of a GFM table.
+No `^' anchor: every caller positions point precisely (via
+`goto-char' to a known line start, including the `line-starts'
+synthesized `beg' for an assistant body that begins mid-buffer-line
+after the icon gutter).  Anchoring to `^' would block that exact
+case — a table that is the first content of the body — without
+adding any safety, since none of the call sites scan forward via
+`re-search-forward'.")
 
 (defcustom mutecipher-acp-md-table-max-width nil
   "Optional hard cap on rendered GFM table width, in columns.

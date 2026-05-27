@@ -353,6 +353,21 @@ separator row immediately above the bottom border — collapse the two."
             (should (string-match-p "┘" last-disp))))
       (kill-buffer buf))))
 
+(ert-deftest macp-test-md-table-renders-when-body-starts-mid-line ()
+  "An assistant body that begins with a table head — point sitting after
+the icon gutter, not at a real `^' — must still render the table."
+  (let ((buf (generate-new-buffer " *macp-md-test*")))
+    (unwind-protect
+        (with-current-buffer buf
+          (insert "X")  ;; stand-in for the icon-gutter glyph
+          (let ((beg (point)))
+            (insert "| Foo | Bar |\n|-----|-----|\n| a | b |\n")
+            (mutecipher-acp--apply-markdown beg (point-max)))
+          (let ((ovs (seq-filter (lambda (o) (overlay-get o 'mutecipher-acp-md-table))
+                                 (overlays-in (point-min) (point-max)))))
+            (should (> (length ovs) 0))))
+      (kill-buffer buf))))
+
 (ert-deftest macp-test-md-checkbox-display ()
   (let ((buf (macp-test--render-md "- [x] done\n- [ ] todo")))
     (unwind-protect
