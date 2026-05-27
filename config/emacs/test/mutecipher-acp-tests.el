@@ -336,6 +336,23 @@ leaves `*' at positions 0 and 9 visible."
   (let ((s (mutecipher-acp--md-render-cell-inline "****hi****")))
     (should (equal s "****hi****"))))
 
+(ert-deftest macp-test-md-table-n2-degenerate-collapses-sep-into-bottom ()
+  "A header + separator table with no data rows must not render the
+separator row immediately above the bottom border — collapse the two."
+  (let ((buf (macp-test--render-md "| H1 | H2 |\n|----|----|\n")))
+    (unwind-protect
+        (with-current-buffer buf
+          (let* ((ovs (sort (seq-filter (lambda (o) (overlay-get o 'mutecipher-acp-md-table))
+                                        (overlays-in (point-min) (point-max)))
+                            (lambda (a b) (< (overlay-start a) (overlay-start b)))))
+                 (last-disp (and ovs (overlay-get (car (last ovs)) 'display))))
+            (should (= 2 (length ovs)))
+            (should (stringp last-disp))
+            (should-not (string-match-p "├" last-disp))
+            (should (string-match-p "└" last-disp))
+            (should (string-match-p "┘" last-disp))))
+      (kill-buffer buf))))
+
 (ert-deftest macp-test-md-checkbox-display ()
   (let ((buf (macp-test--render-md "- [x] done\n- [ ] todo")))
     (unwind-protect

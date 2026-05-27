@@ -453,7 +453,24 @@ On success, returns the buffer position just after the last consumed line."
                                      row-sep
                                    (mutecipher-acp--md-table-format-row
                                     cells widths align)))
-                     (disp       (if extend-p (concat base "\n") base))
+                     ;; Bake the bottom border into the last row's display
+                     ;; rather than using `after-string': at the table-to-
+                     ;; non-table boundary, Emacs's redisplay sometimes drops
+                     ;; the last overlay's after-string (intermediate
+                     ;; row-seps render fine because the next overlay's
+                     ;; before-context absorbs the boundary).  Display
+                     ;; strings are bound to the overlay's covered
+                     ;; positions and don't suffer the same fate.
+                     ;;
+                     ;; Degenerate n=2 case: the last row IS the separator
+                     ;; (header + sep with no data rows yet, common during
+                     ;; streaming).  Drop the redundant `├─┼─┤' and emit
+                     ;; just the `└─┴─┘' bottom to avoid stacking them.
+                     (disp       (cond
+                                  ((and last-p sep-p) (concat bottom "\n"))
+                                  (last-p             (concat base "\n" bottom "\n"))
+                                  (extend-p           (concat base "\n"))
+                                  (t                  base)))
                      (ov         (make-overlay ls le nil t nil)))
                 ;; `evaporate' auto-deletes the overlay if it ever
                 ;; collapses to zero length, e.g. when ewoc-invalidate
@@ -466,11 +483,8 @@ On success, returns the buffer position just after the last consumed line."
                 (overlay-put ov 'display disp)
                 (when (= i 0)
                   (overlay-put ov 'before-string (concat top "\n")))
-                (cond
-                 (last-p
-                  (overlay-put ov 'after-string (concat bottom "\n")))
-                 (inject-p
-                  (overlay-put ov 'after-string (concat row-sep "\n"))))
+                (when inject-p
+                  (overlay-put ov 'after-string (concat row-sep "\n")))
                 ;; Tag with the table's source head, not just t, so the
                 ;; resize handler can regroup a table's overlays and re-fit.
                 (overlay-put ov 'mutecipher-acp-md-table start)))
