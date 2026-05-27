@@ -135,28 +135,6 @@ start).  Non-busy states render a steady `●'."
        (aref frames idx)))
     (_ "●")))
 
-(defun mutecipher-acp--state-label (state started-at)
-  "Render STATE as `<glyph> <label>' propertized with the matching status face.
-STARTED-AT is a float-time used for elapsed seconds + glyph rotation;
-the glyph cycles at `mutecipher-acp-spinner-interval' cadence so the
-state timer needs to tick at least that often for smooth motion."
-  (let* ((elapsed-f (and started-at
-                         (max 0.0 (- (float-time) started-at))))
-         (elapsed-i (and elapsed-f (truncate elapsed-f)))
-         (glyph     (mutecipher-acp--state-glyph state elapsed-f))
-         (pair
-          (pcase state
-            ((or 'thinking 'streaming)
-             (cons (format "%s %ds" (symbol-name state) (or elapsed-i 0))
-                   'mutecipher-acp-status-busy-face))
-            ('awaiting-permission
-             (cons "awaiting permission" 'mutecipher-acp-status-await-face))
-            ('error
-             (cons "error" 'mutecipher-acp-status-error-face))
-            (_
-             (cons "idle" 'mutecipher-acp-status-idle-face)))))
-    (propertize (concat glyph " " (car pair)) 'face (cdr pair))))
-
 (defun mutecipher-acp--session-mode-line ()
   "Return mode-line content for a session buffer.
 Carries the active mode pill at the left — close enough to the composer
