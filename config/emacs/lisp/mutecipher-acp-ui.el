@@ -10,6 +10,9 @@
 
 (require 'cl-lib)
 (require 'ewoc)
+(require 'goto-addr)
+(require 'rx)
+(require 'thingatpt)
 (require 'mutecipher-acp-faces)
 (require 'mutecipher-acp-model)
 (require 'mutecipher-acp-ewoc)
@@ -264,6 +267,52 @@ node, otherwise no-op."
   "C-c C-o"    #'mutecipher/acp-set-config
   "C-c C-z"    #'mutecipher/acp-goto-composer)
 
+(defconst mutecipher-acp--url-regexp
+  ;; Buffer-local override for `goto-address-url-regexp'.  The default
+  ;; (via `thing-at-point-url-path-regexp') does not exclude `)' from
+  ;; URL chars, so the trailing `)' in tool-call labels like
+  ;; `WebFetch(Fetch https://example.com)' gets absorbed into the link.
+  ;; Schemes are pulled from `goto-address-uri-schemes' to preserve
+  ;; coverage; URL body allows balanced single-level "(...)" so URLs
+  ;; like `Foo_(bar)' still consume the parens; `\n' is excluded from
+  ;; the paren body so the match can't span lines; trailing sentence
+  ;; punctuation (`.,;:?') is trimmed.
+  (concat "\\<"
+          (regexp-opt goto-address-uri-schemes t)
+          (rx (zero-or-more
+               (or (any "-_.~!*'$&+,;:@=?#%/|\\" alphanumeric)
+                   (seq "(" (zero-or-more (not (any "()\n" space))) ")")))
+              (or (any "-_~!*'$&+@=#%/|\\" alphanumeric)
+                  (seq "(" (zero-or-more (not (any "()\n" space))) ")"))))
+  "URL regex used in `mutecipher-acp-session-mode' buffers.
+Bound buffer-locally to `goto-address-url-regexp' for fontification, and
+exposed via `thing-at-point-provider-alist' so `browse-url-url-at-point'
+(the click target resolver) agrees with the fontified extent.")
+
+(defun mutecipher-acp--bounds-of-url-at-point ()
+  "Return the bounds of the URL at point per `mutecipher-acp--url-regexp', or nil.
+Buffer-local provider for `bounds-of-thing-at-point-provider-alist'."
+  (save-excursion
+    (let ((pt (point))
+          (line-start (line-beginning-position))
+          (line-end (line-end-position))
+          found)
+      (goto-char line-start)
+      (while (and (not found)
+                  (re-search-forward mutecipher-acp--url-regexp line-end t))
+        (when (and (<= (match-beginning 0) pt)
+                   (<= pt (match-end 0)))
+          (setq found (cons (match-beginning 0) (match-end 0)))))
+      found)))
+
+(defun mutecipher-acp--url-at-point ()
+  "Return the URL at point per `mutecipher-acp--url-regexp', or nil.
+Buffer-local provider for `thing-at-point-provider-alist' — keeps
+`browse-url-url-at-point' (and other `thing-at-point' callers) in sync
+with the fontified overlay extent."
+  (when-let ((bounds (mutecipher-acp--bounds-of-url-at-point)))
+    (buffer-substring-no-properties (car bounds) (cdr bounds))))
+
 (define-derived-mode mutecipher-acp-session-mode fundamental-mode "ACP"
   "Single-buffer ACP session: read-only transcript above, inline composer below.
 The ewoc renders the transcript and `mutecipher-acp--pp' applies a
@@ -273,6 +322,18 @@ footer, an inline composer region — text with no `read-only' property
 `mutecipher-acp--composer-send'."
   (setq-local truncate-lines nil)
   (visual-line-mode 1)
+  (setq-local goto-address-url-regexp mutecipher-acp--url-regexp)
+  ;; Without these provider entries, `browse-url-url-at-point' (the click
+  ;; handler installed by `goto-address-mode') falls back to thingatpt's
+  ;; default URL bounds, which re-include the trailing `)' — so the
+  ;; overlay would highlight the right span but clicking would open the
+  ;; wrong URL.
+  (setq-local thing-at-point-provider-alist
+              (cons '(url . mutecipher-acp--url-at-point)
+                    thing-at-point-provider-alist))
+  (setq-local bounds-of-thing-at-point-provider-alist
+              (cons '(url . mutecipher-acp--bounds-of-url-at-point)
+                    bounds-of-thing-at-point-provider-alist))
   (goto-address-mode 1)
   (add-to-invisibility-spec 'mutecipher-acp-md-markup)
   (when mutecipher-acp-variable-pitch

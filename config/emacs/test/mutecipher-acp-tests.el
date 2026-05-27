@@ -230,6 +230,100 @@
                          "https://example.test/x")))
       (kill-buffer buf))))
 
+(defun macp-test--url-match (s)
+  "Return the substring matched by `mutecipher-acp--url-regexp' in S, or nil."
+  (and (string-match mutecipher-acp--url-regexp s)
+       (match-string 0 s)))
+
+(ert-deftest macp-test-url-regexp-stops-at-tool-label-close-paren ()
+  (should (equal "https://urllo.com"
+                 (macp-test--url-match
+                  "WebFetch(Fetch https://urllo.com)"))))
+
+(ert-deftest macp-test-url-regexp-keeps-balanced-parens ()
+  (should (equal "https://en.wikipedia.org/wiki/Foo_(bar)"
+                 (macp-test--url-match
+                  "Visit https://en.wikipedia.org/wiki/Foo_(bar) today"))))
+
+(ert-deftest macp-test-url-regexp-trims-sentence-period ()
+  (should (equal "https://example.com"
+                 (macp-test--url-match "See https://example.com."))))
+
+(ert-deftest macp-test-url-regexp-preserves-query-string ()
+  (should (equal "https://example.com/path?q=1"
+                 (macp-test--url-match "https://example.com/path?q=1"))))
+
+(ert-deftest macp-test-url-regexp-preserves-trailing-slash ()
+  (should (equal "https://urllo.com/"
+                 (macp-test--url-match "https://urllo.com/"))))
+
+(ert-deftest macp-test-url-regexp-preserves-non-http-schemes ()
+  (should (equal "ftp://example.com/foo"
+                 (macp-test--url-match "ftp://example.com/foo")))
+  (should (equal "file:///etc/hosts"
+                 (macp-test--url-match "file:///etc/hosts")))
+  (should (equal "git://github.com/foo/bar.git"
+                 (macp-test--url-match "git://github.com/foo/bar.git"))))
+
+(ert-deftest macp-test-url-regexp-paren-group-stops-at-newline ()
+  (should (equal "https://x.com/"
+                 (macp-test--url-match "https://x.com/(a\nb)c"))))
+
+(ert-deftest macp-test-url-regexp-preserves-pipe-in-path ()
+  (should (equal "https://example.com/path|pipe"
+                 (macp-test--url-match "https://example.com/path|pipe"))))
+
+(defun macp-test--browse-url-at-point (text point-offset)
+  "Insert TEXT into a session-mode buffer, position point at POINT-OFFSET,
+and return what `browse-url-url-at-point' (the click handler's URL
+resolver) would resolve."
+  (require 'browse-url)
+  (let ((buf (generate-new-buffer " *macp-url-test*")))
+    (unwind-protect
+        (with-current-buffer buf
+          (mutecipher-acp-session-mode)
+          (let ((inhibit-read-only t))
+            (insert text))
+          (goto-char (+ (point-min) point-offset))
+          (browse-url-url-at-point))
+      (let ((kill-buffer-hook nil))
+        (kill-buffer buf)))))
+
+(ert-deftest macp-test-click-path-trims-tool-label-close-paren ()
+  "Clicking a URL inside `WebFetch(Fetch https://x)' opens `https://x',
+not `https://x)'.  The provider-alist override keeps `thing-at-point' (and
+therefore `browse-url-url-at-point') in sync with the fontified extent."
+  (should (equal "https://urllo.com"
+                 (macp-test--browse-url-at-point
+                  "WebFetch(Fetch https://urllo.com)" 20))))
+
+(ert-deftest macp-test-click-path-keeps-balanced-parens ()
+  (should (equal "https://en.wikipedia.org/wiki/Foo_(bar)"
+                 (macp-test--browse-url-at-point
+                  "Visit https://en.wikipedia.org/wiki/Foo_(bar) today" 15))))
+
+(ert-deftest macp-test-fontify-overlay-extent-trims-close-paren ()
+  "After `goto-address-mode' fontifies, the URL overlay covers exactly the
+regex match — no trailing `)'."
+  (let ((buf (generate-new-buffer " *macp-overlay-test*")))
+    (unwind-protect
+        (with-current-buffer buf
+          (mutecipher-acp-session-mode)
+          (let ((inhibit-read-only t))
+            (insert "WebFetch(Fetch https://urllo.com)"))
+          ;; Force jit-lock to run synchronously over the inserted text.
+          (jit-lock-fontify-now (point-min) (point-max))
+          (let ((url-overlay
+                 (seq-find (lambda (ov) (overlay-get ov 'goto-address))
+                           (overlays-in (point-min) (point-max)))))
+            (should url-overlay)
+            (should (equal "https://urllo.com"
+                           (buffer-substring-no-properties
+                            (overlay-start url-overlay)
+                            (overlay-end url-overlay))))))
+      (let ((kill-buffer-hook nil))
+        (kill-buffer buf)))))
+
 (defun macp-test--str-face-at (str pos face)
   "Non-nil if FACE is set at POS in STR (handles a list-of-faces value)."
   (let ((f (get-text-property pos 'face str)))
