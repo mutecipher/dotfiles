@@ -25,6 +25,11 @@
 ;; has loaded alongside the rest of mutecipher-acp.
 (declare-function mutecipher-acp--close-trailing-tool-group "mutecipher-acp-tools")
 
+;; `mutecipher-acp--composer-start' lives in composer.el (loaded after
+;; this module) — forward-declare so `--pulse-node' can clamp its end
+;; position to the composer seam without dragging the require backwards.
+(defvar mutecipher-acp--composer-start)
+
 (defmacro mutecipher-acp--with-sticky-tail (buf &rest body)
   "Run BODY with BUF current; preserve composer text + window points.
 Composer-relative offsets survive ewoc growth.  Falls back to legacy
@@ -142,14 +147,17 @@ includes its inserted `\\n' inside the node's read-only region, and
 without this skip the pulse would extend one row above the visible
 content into the inter-node gap."
   (when (and ewoc node (fboundp 'pulse-momentary-highlight-region))
-    (let* ((raw-beg (ewoc-location node))
-           (next    (ewoc-next ewoc node))
-           (end     (if next (ewoc-location next) (point-max)))
-           (beg     (and raw-beg
-                         (save-excursion
-                           (goto-char raw-beg)
-                           (skip-chars-forward "\n" end)
-                           (point)))))
+    (let* ((raw-beg  (ewoc-location node))
+           (next     (ewoc-next ewoc node))
+           (tail-cap (or (and (markerp mutecipher-acp--composer-start)
+                              (marker-position mutecipher-acp--composer-start))
+                         (point-max)))
+           (end      (if next (ewoc-location next) tail-cap))
+           (beg      (and raw-beg
+                          (save-excursion
+                            (goto-char raw-beg)
+                            (skip-chars-forward "\n" end)
+                            (point)))))
       (when (and beg (> end beg))
         (pulse-momentary-highlight-region
          beg end 'mutecipher-acp-pulse-face)))))

@@ -232,9 +232,12 @@ STARTED-AT is a float-time used for elapsed seconds + glyph rotation."
   :doc "Keymap for `mutecipher-acp-session-mode' — transcript above, composer below.
 RET / `<return>' send the composer's contents; S-RET, S-<return>, and M-J
 insert a literal newline so the composer can grow to multiple lines.
-M-p / M-n cycle the per-session composer history.  TAB does the right
-thing depending on point: completion-at-point in the composer, toggle
-disclosure on a tool-call node, otherwise no-op."
+M-p / M-n cycle the per-session composer history.  C-S-p / C-S-n walk
+the transcript by node (with M-{ / M-} as TTY-safe aliases since most
+terminals drop Shift on Control+letter); C-c C-z jumps back to the
+composer.  TAB does the right thing depending on point:
+completion-at-point in the composer, toggle disclosure on a tool-call
+node, otherwise no-op."
   "RET"        #'mutecipher-acp--composer-send
   "<return>"   #'mutecipher-acp--composer-send
   "S-RET"      #'newline
@@ -242,6 +245,10 @@ disclosure on a tool-call node, otherwise no-op."
   "M-J"        #'newline
   "M-p"        #'mutecipher-acp--composer-history-prev
   "M-n"        #'mutecipher-acp--composer-history-next
+  "C-S-p"      #'mutecipher/acp-prev-node
+  "C-S-n"      #'mutecipher/acp-next-node
+  "M-{"        #'mutecipher/acp-prev-node
+  "M-}"        #'mutecipher/acp-next-node
   "DEL"        #'mutecipher-acp--queue-delete-dwim
   "<backspace>" #'mutecipher-acp--queue-delete-dwim
   "TAB"        #'mutecipher-acp--tab-dwim
@@ -254,7 +261,8 @@ disclosure on a tool-call node, otherwise no-op."
   "C-c C-a"    #'mutecipher/acp-dispatch
   "C-c C-c"    #'mutecipher/acp-cancel
   "C-c C-k"    #'mutecipher/acp-kill-session
-  "C-c C-o"    #'mutecipher/acp-set-config)
+  "C-c C-o"    #'mutecipher/acp-set-config
+  "C-c C-z"    #'mutecipher/acp-goto-composer)
 
 (define-derived-mode mutecipher-acp-session-mode fundamental-mode "ACP"
   "Single-buffer ACP session: read-only transcript above, inline composer below.
@@ -298,6 +306,104 @@ footer, an inline composer region — text with no `read-only' property
       (setq-local mutecipher-acp--ewoc
                   (ewoc-create #'mutecipher-acp--pp "" "" t))
       (mutecipher-acp--composer-install))))
+
+;;;; Transcript node navigation
+
+(defun mutecipher-acp--node-navigable-p (data)
+  "Return non-nil when DATA is a transcript node user navigation should stop on.
+Skips structural nodes that carry no inspectable body: zero-width
+`turn-header' (one with no change-set badge) and `queued' nodes
+(pending user input rendered as a suffix below the transcript)."
+  (and data
+       (let ((kind (macp-node-kind data)))
+         (cond
+          ((eq kind 'queued) nil)
+          ((eq kind 'turn-header)
+           ;; Keep navigable iff the header renders a change-set badge.
+           (and (macp-node-p data)
+                (let ((turn (macp-node-data data)))
+                  (and turn (macp-turn-change-set turn)))))
+          (t t)))))
+
+(defun mutecipher-acp--find-navigable-node (ewoc start direction)
+  "Walk EWOC from node START in DIRECTION (`next' or `prev').
+Returns the first node whose data satisfies
+`mutecipher-acp--node-navigable-p', or nil at the end."
+  (let* ((step (if (eq direction 'next) #'ewoc-next #'ewoc-prev))
+         (node (funcall step ewoc start)))
+    (while (and node (not (mutecipher-acp--node-navigable-p (ewoc-data node))))
+      (setq node (funcall step ewoc node)))
+    node))
+
+(defun mutecipher-acp--goto-node-body (node)
+  "Move point to NODE's visible body, skipping the leading `\\n' baked
+into the node's read-only span by `--ensure-blank-above'.  Without
+this skip `goto-char (ewoc-location node)' lands on a read-only
+newline one row above the visible content, making the next typed
+character signal `Text is read-only'."
+  (let ((raw (ewoc-location node)))
+    (when raw
+      (goto-char raw)
+      (skip-chars-forward "\n"))))
+
+(defun mutecipher/acp-next-node ()
+  "Move point to the start of the next transcript node, skipping structural ones.
+Pushes the mark so `C-u C-SPC' returns to the prior position.  Pulses
+the destination.  Signals `End of transcript' at the tail or when
+point is already in the composer."
+  (interactive)
+  (unless mutecipher-acp--ewoc
+    (user-error "ACP: no transcript in this buffer"))
+  (let* ((ewoc mutecipher-acp--ewoc)
+         (in-composer (mutecipher-acp--composer-region-p (point)))
+         (current (ewoc-locate ewoc))
+         (target (and current (not in-composer)
+                      (mutecipher-acp--find-navigable-node ewoc current 'next))))
+    (cond
+     ((null current) (user-error "ACP: transcript is empty"))
+     (in-composer    (user-error "End of transcript"))
+     ((null target)  (user-error "End of transcript"))
+     (t
+      (push-mark nil t)
+      (mutecipher-acp--goto-node-body target)
+      (mutecipher-acp--pulse-node ewoc target)))))
+
+(defun mutecipher/acp-prev-node ()
+  "Move point to the previous transcript node, skipping structural ones.
+From the composer, jumps directly to the last navigable node.  When
+point is strictly inside a navigable node, jumps to that node's body.
+Pushes the mark so `C-u C-SPC' returns to the prior position.  Pulses
+the destination.  Signals `Beginning of transcript' at the head."
+  (interactive)
+  (unless mutecipher-acp--ewoc
+    (user-error "ACP: no transcript in this buffer"))
+  (let* ((ewoc mutecipher-acp--ewoc)
+         (pt (point))
+         (in-composer (mutecipher-acp--composer-region-p pt))
+         (current (ewoc-locate ewoc))
+         (target
+          (cond
+           ((null current) nil)
+           ((or in-composer (> pt (ewoc-location current)))
+            (if (mutecipher-acp--node-navigable-p (ewoc-data current))
+                current
+              (mutecipher-acp--find-navigable-node ewoc current 'prev)))
+           (t (mutecipher-acp--find-navigable-node ewoc current 'prev)))))
+    (cond
+     ((null current) (user-error "ACP: transcript is empty"))
+     ((null target)  (user-error "Beginning of transcript"))
+     (t
+      (push-mark nil t)
+      (mutecipher-acp--goto-node-body target)
+      (mutecipher-acp--pulse-node ewoc target)))))
+
+(defun mutecipher/acp-goto-composer ()
+  "Move point to the composer input region to start typing.
+Errors when invoked outside an ACP session buffer."
+  (interactive)
+  (unless mutecipher-acp--ewoc
+    (user-error "ACP: no transcript in this buffer"))
+  (mutecipher-acp--composer-goto))
 
 ;;;; Tool-call disclosure commands
 
