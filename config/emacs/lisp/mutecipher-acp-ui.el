@@ -481,16 +481,28 @@ Returns the first node whose data satisfies
       (setq node (funcall step ewoc node)))
     node))
 
+(defun mutecipher-acp--node-visible-start (node)
+  "Return the buffer position of NODE's visible body.
+Skips any leading read-only `\\n' that `--ensure-blank-above' bakes
+into the node's region — `ewoc-location' points at the raw start
+(including that `\\n'), but the cursor never lands there.  Navigation
+comparisons should use this position so they agree with where
+`--goto-node-body' actually puts point."
+  (let ((raw (ewoc-location node)))
+    (when raw
+      (save-excursion
+        (goto-char raw)
+        (skip-chars-forward "\n")
+        (point)))))
+
 (defun mutecipher-acp--goto-node-body (node)
   "Move point to NODE's visible body, skipping the leading `\\n' baked
 into the node's read-only span by `--ensure-blank-above'.  Without
 this skip `goto-char (ewoc-location node)' lands on a read-only
 newline one row above the visible content, making the next typed
 character signal `Text is read-only'."
-  (let ((raw (ewoc-location node)))
-    (when raw
-      (goto-char raw)
-      (skip-chars-forward "\n"))))
+  (when-let ((vis (mutecipher-acp--node-visible-start node)))
+    (goto-char vis)))
 
 (defun mutecipher/acp-next-node ()
   "Move point to the start of the next transcript node, skipping structural ones.
@@ -530,7 +542,14 @@ the destination.  Signals `Beginning of transcript' at the head."
          (target
           (cond
            ((null current) nil)
-           ((or in-composer (> pt (ewoc-location current)))
+           ;; Compare against the *visible* start (past leading
+           ;; read-only `\n's) so that landing on a node — which
+           ;; puts point past `ewoc-location' — doesn't trip the
+           ;; "snap to current" branch on every subsequent press and
+           ;; pin navigation to the first node we hit.
+           ((or in-composer
+                (> pt (or (mutecipher-acp--node-visible-start current)
+                          (ewoc-location current))))
             (if (mutecipher-acp--node-navigable-p (ewoc-data current))
                 current
               (mutecipher-acp--find-navigable-node ewoc current 'prev)))
