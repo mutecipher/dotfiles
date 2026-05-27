@@ -164,10 +164,11 @@ overwrite the on-disk transcript with a partial replay or reset
 
 (defun mutecipher-acp--set-state (session-id new-state)
   "Transition SESSION-ID to NEW-STATE and refresh the buffer chrome.
-Starts a 1Hz timer for `thinking' and `streaming' so the elapsed-
-seconds counter ticks; cancels it for every other state.  Updates
-the streaming caret so the visible `▌' appears/disappears alongside
-the `streaming' state."
+Starts a `mutecipher-acp-spinner-interval'-cadence timer for `thinking'
+and `streaming' so the chrome spinner cycles at the same rate as the
+tool-call card spinner; cancels it for every other state.  Updates the
+streaming caret so the visible `▌' appears/disappears alongside the
+`streaming' state."
   (when-let ((session (gethash session-id mutecipher-acp--sessions)))
     (when-let ((t0 (macp-session-state-timer session)))
       (cancel-timer t0))
@@ -175,16 +176,19 @@ the `streaming' state."
            (started-at (and busy (float-time)))
            (timer      (and busy
                             (run-at-time
-                             1 1
+                             mutecipher-acp-spinner-interval
+                             mutecipher-acp-spinner-interval
                              (lambda ()
                                (when-let ((s (gethash session-id
                                                        mutecipher-acp--sessions)))
-                                 (mutecipher-acp--refresh-mode-line s)))))))
+                                 (mutecipher-acp--refresh-mode-line s)
+                                 (mutecipher-acp--update-state-indicator s)))))))
       (setf (macp-session-state session) new-state
             (macp-session-state-started-at session) started-at
             (macp-session-state-timer session) timer)
       (mutecipher-acp--refresh-mode-line session)
-      (mutecipher-acp--update-streaming-caret session))))
+      (mutecipher-acp--update-streaming-caret session)
+      (mutecipher-acp--update-state-indicator session))))
 
 ;;;; Prompt submission
 

@@ -277,17 +277,16 @@ and input in the prompt for context."
       (setf (macp-session-commands session) cmds))))
 
 (defun mutecipher-acp--apply-mode-change (session new-id)
-  "Mutate SESSION's current mode to NEW-ID and refresh the mode-line / echo.
-No-op when NEW-ID already matches the session's current mode — the agent
-re-emits `current_mode_update' / `config_option_update' on every prompt
-turn, and we don't want each turn to repaint the pill and spam the echo."
+  "Mutate SESSION's current mode to NEW-ID and refresh the mode-line.
+No-op when NEW-ID already matches the session's current mode — the
+agent re-emits `current_mode_update' / `config_option_update' on every
+prompt turn, and we don't want each turn to repaint the pill.  No echo
+either: the mode pill lives in the mode-line now, so the change is
+visible without spamming *Messages*."
   (when (and session new-id
              (not (equal new-id (macp-session-current-mode-id session))))
     (setf (macp-session-current-mode-id session) new-id)
-    (mutecipher-acp--refresh-mode-line session)
-    (let* ((avail (macp-session-available-modes session))
-           (m     (and avail (mutecipher-acp--find-mode new-id avail))))
-      (message "Mode → %s" (or (and m (plist-get m :name)) new-id)))))
+    (mutecipher-acp--refresh-mode-line session)))
 
 (defun mutecipher-acp--update-current-mode (session-id update)
   "Handle a `current_mode_update' UPDATE for SESSION-ID."

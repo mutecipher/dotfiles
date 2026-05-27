@@ -16,6 +16,10 @@
 (require 'mutecipher-acp-faces)
 (require 'mutecipher-acp-model)
 (require 'mutecipher-acp-ewoc)
+;; `--state-glyph' uses `mutecipher-acp-spinner-frames' /
+;; `mutecipher-acp-spinner-interval' so the chrome spinner matches the
+;; tool-call card spinner — one visual vocabulary for `in flight'.
+(require 'mutecipher-acp-tool-card)
 ;; `--update-streaming-caret' reads `mutecipher-acp--composer-start',
 ;; a defvar-local declared in composer.el.  Without this require the
 ;; symbol would only become bound transitively via the entry file,
@@ -44,6 +48,14 @@
   "Overlay rendering `mutecipher-acp-composer-cursor-glyph' at the live
 assistant node while state is `streaming'.")
 
+(defvar-local mutecipher-acp--state-indicator-overlay nil
+  "Overlay rendering the inline state indicator above the composer
+while state is `thinking' — fills the visual gap between the user's
+sent prompt and the first streamed chunk.  Managed by
+`--update-state-indicator'; absent in every state but `thinking'
+(streaming is self-evident from the live caret + text append; idle is
+silent; awaiting-permission / error already have transcript nodes).")
+
 ;;;; Mode pill / header-line
 
 (defun mutecipher-acp--find-mode (id modes)
@@ -52,46 +64,36 @@ assistant node while state is `streaming'.")
 
 (defun mutecipher-acp--mode-indicator (session)
   "Return (icon face mode-name) for SESSION's current mode.
-ICON is nil when the mode is unrecognized and the server hasn't yet sent
-`:available-modes' — callers treat nil ICON as \"no pill to show\".
-When `:available-modes' is populated, MODE-NAME is suffixed with ` (N/M)'
-showing the current mode's 1-based position and total count."
+ICON is nil whenever there is no pill worth showing: the resolved mode
+is `default' (the implicit baseline — silence reads as `nothing to
+warn about'), or the server hasn't yet sent `:available-modes' and the
+id is unrecognized.  Callers treat nil ICON as \"render nothing\"."
   (let* ((mode-id  (or (and session (macp-session-current-mode-id session)) "default"))
          (avail    (and session (macp-session-available-modes session)))
          (lookup-id (if (string-match "#\\(.+\\)$" mode-id)
                         (match-string 1 mode-id)
                       mode-id))
          (entry    (assoc lookup-id mutecipher-acp-mode-indicators))
-         (icon     (cond (entry (cadr entry))
+         (icon     (cond ((string= lookup-id "default") nil)
+                         (entry (cadr entry))
                          (avail "?")
                          (t nil)))
          (face     (if entry (caddr entry) 'mutecipher-acp-mode-default-face))
-         (base     (and avail
+         (name     (and avail
                         (let ((m (mutecipher-acp--find-mode mode-id avail)))
-                          (and m (plist-get m :name)))))
-         (idx      (and avail (cl-position mode-id avail
-                                           :key (lambda (m) (plist-get m :id))
-                                           :test #'string=)))
-         (name     (cond
-                    ((and base idx) (format "%s (%d/%d)" base (1+ idx) (length avail)))
-                    (base base)
-                    (t nil))))
+                          (and m (plist-get m :name))))))
     (list icon face name)))
 
 (defun mutecipher-acp--session-header-line ()
   "Return the pinned header-line content for a session buffer.
-Two-column layout: identity (agent + abbreviated cwd tail) on the left;
-state chunk, mode pill, and session-id prefix flush-right."
+Identity only: agent name + abbreviated cwd tail.  The mode pill lives
+in the mode-line (left edge, where it reads as contextual to the
+composer); state has an inline placeholder; session id and queued
+count have inline equivalents or are intentionally hidden."
   (let* ((sid     mutecipher-acp--session-id)
          (session (and sid (gethash sid mutecipher-acp--sessions)))
          (agent   (or (and session (macp-session-agent session)) "?"))
          (cwd     (and session (macp-session-cwd session)))
-         (state   (or (and session (macp-session-state session)) 'idle))
-         (started (and session (macp-session-state-started-at session)))
-         (mi      (mutecipher-acp--mode-indicator session))
-         (m-icon  (nth 0 mi))
-         (m-face  (nth 1 mi))
-         (m-name  (nth 2 mi))
          (sep     (propertize " · " 'face 'mutecipher-acp-hint-face))
          (account-icon (propertize
                         (or (and (fboundp 'mutecipher/icon-for-acp)
@@ -104,65 +106,48 @@ state chunk, mode pill, and session-id prefix flush-right."
                             (tail (if (> (length segs) 2)
                                       (nthcdr (- (length segs) 2) segs)
                                     segs)))
-                       (mapconcat #'identity tail "/"))))
-         (left    (concat
-                   "  "
-                   account-icon
-                   " "
-                   (propertize agent 'face 'mutecipher-acp-agent-face)
-                   (when cwd-tail
-                     (concat sep
-                             (propertize cwd-tail
-                                         'face 'mutecipher-acp-hint-face
-                                         'help-echo cwd-abbr)))))
-         (state-chunk (mutecipher-acp--state-label state started))
-         (qcount  (and session (length (macp-session-prompt-queue session))))
-         (q-chunk (when (and qcount (> qcount 0))
-                    (propertize (format "%d queued" qcount)
-                                'face 'mutecipher-acp-queued-face)))
-         (mode-pill (when m-icon
-                      (propertize (if m-name
-                                      (format "%s %s" m-icon m-name)
-                                    m-icon)
-                                  'face m-face)))
-         (id-chunk (if sid
-                       (propertize (mutecipher-acp--id-prefix sid)
-                                   'face 'shadow)
-                     ""))
-         (right (concat state-chunk
-                        (when q-chunk (concat sep q-chunk))
-                        (when mode-pill (concat sep mode-pill))
-                        "   "
-                        id-chunk)))
-    (concat left
-            (propertize " " 'display
-                        `(space :align-to (- right ,(1+ (string-width right)))))
-            right
+                       (mapconcat #'identity tail "/")))))
+    (concat "  "
+            account-icon
+            " "
+            (propertize agent 'face 'mutecipher-acp-agent-face)
+            (when cwd-tail
+              (concat sep
+                      (propertize cwd-tail
+                                  'face 'mutecipher-acp-hint-face
+                                  'help-echo cwd-abbr)))
             " ")))
 
 ;;;; State glyph / label / mode-line
 
 (defun mutecipher-acp--state-glyph (state elapsed)
   "Return a status glyph for STATE.
-Busy states (`thinking', `streaming') cycle through a 4-frame ASCII
-rotation keyed off ELAPSED so the user sees motion while the agent
-works.  Non-busy states render a steady `●'."
+Busy states (`thinking', `streaming') cycle through
+`mutecipher-acp-spinner-frames' — the same vector the tool-call card
+spinner uses — keyed off ELAPSED (a float of seconds since state
+start).  Non-busy states render a steady `●'."
   (pcase state
     ((or 'thinking 'streaming)
-     (let ((frames "-\\|/"))
-       (string (aref frames (mod (or elapsed 0) (length frames))))))
+     (let* ((frames mutecipher-acp-spinner-frames)
+            (idx    (mod (truncate (/ (or elapsed 0)
+                                      mutecipher-acp-spinner-interval))
+                         (max 1 (length frames)))))
+       (aref frames idx)))
     (_ "●")))
 
 (defun mutecipher-acp--state-label (state started-at)
   "Render STATE as `<glyph> <label>' propertized with the matching status face.
-STARTED-AT is a float-time used for elapsed seconds + glyph rotation."
-  (let* ((elapsed (and started-at
-                       (max 0 (truncate (- (float-time) started-at)))))
-         (glyph   (mutecipher-acp--state-glyph state elapsed))
+STARTED-AT is a float-time used for elapsed seconds + glyph rotation;
+the glyph cycles at `mutecipher-acp-spinner-interval' cadence so the
+state timer needs to tick at least that often for smooth motion."
+  (let* ((elapsed-f (and started-at
+                         (max 0.0 (- (float-time) started-at))))
+         (elapsed-i (and elapsed-f (truncate elapsed-f)))
+         (glyph     (mutecipher-acp--state-glyph state elapsed-f))
          (pair
           (pcase state
             ((or 'thinking 'streaming)
-             (cons (format "%s %ds" (symbol-name state) (or elapsed 0))
+             (cons (format "%s %ds" (symbol-name state) (or elapsed-i 0))
                    'mutecipher-acp-status-busy-face))
             ('awaiting-permission
              (cons "awaiting permission" 'mutecipher-acp-status-await-face))
@@ -173,20 +158,28 @@ STARTED-AT is a float-time used for elapsed seconds + glyph rotation."
     (propertize (concat glyph " " (car pair)) 'face (cdr pair))))
 
 (defun mutecipher-acp--session-mode-line ()
-  "Return mode-line content for a session buffer (state pill + session id)."
+  "Return mode-line content for a session buffer.
+Carries the active mode pill at the left — close enough to the composer
+to read as contextual to what the user is about to type, without
+sitting inside the composer's `before-string' itself.  Empty when the
+resolved mode is `default' (silence = nothing unusual).  When a
+non-default mode is active, appends a dim ` (shift+tab to cycle)' hint
+so the affordance is discoverable without a manual lookup."
   (let* ((sid     mutecipher-acp--session-id)
          (session (and sid (gethash sid mutecipher-acp--sessions)))
-         (state   (or (and session (macp-session-state session)) 'idle))
-         (started (and session (macp-session-state-started-at session)))
-         (sep     (propertize " · " 'face 'mutecipher-acp-hint-face))
-         (state-chunk (mutecipher-acp--state-label state started))
-         (id-chunk (when sid
-                     (propertize (mutecipher-acp--id-prefix sid)
-                                 'face 'shadow))))
-    (concat "  "
-            state-chunk
-            (when id-chunk (concat sep id-chunk))
-            " ")))
+         (mi      (and session (mutecipher-acp--mode-indicator session)))
+         (m-icon  (nth 0 mi))
+         (m-face  (nth 1 mi))
+         (m-name  (nth 2 mi))
+         (mode-pill (when m-icon
+                      (propertize (if m-name
+                                      (format "%s %s" m-icon m-name)
+                                    m-icon)
+                                  'face m-face)))
+         (hint (propertize " (shift+tab to cycle)" 'face 'shadow)))
+    (if mode-pill
+        (concat "  " mode-pill hint " ")
+      "")))
 
 (defun mutecipher-acp--refresh-mode-line (session)
   "Force a mode-line / header-line redraw in SESSION's buffer."
@@ -224,6 +217,98 @@ STARTED-AT is a float-time used for elapsed seconds + glyph rotation."
                                 'face 'mutecipher-acp-streaming-caret-face))
                   (overlay-put ov 'mutecipher-acp-streaming-caret t)
                   (setq mutecipher-acp--streaming-caret-overlay ov))))))))))
+
+(defun mutecipher-acp--inline-state-text (state started-at)
+  "Return inline state-indicator text for STATE, or nil if no inline cue.
+Only emits a string for `thinking' — every other state either has a
+self-evident inline render (streaming text + caret, permission node,
+error notice) or is silent by design (idle).
+
+Spinner takes the column-0 gutter slot — the same column the
+assistant's `▌' will occupy once streaming starts — propertized in
+`mutecipher-acp-agent-face' so the row still reads as the agent's
+voice in flight even without the static bar.  Body `Thinking (Ns)'
+sits in `mutecipher-acp-status-busy-face'.  Terminates with `\\n' so
+the overlay's `before-string' lays out on its own line.
+
+Spinner placement mirrors the tool-call gutter pattern: motion belongs
+in a fixed left-edge slot, not embedded in the body."
+  (when (and (eq state 'thinking) started-at)
+    (let* ((elapsed-f (max 0.0 (- (float-time) started-at)))
+           (elapsed-i (truncate elapsed-f))
+           (glyph     (mutecipher-acp--state-glyph state elapsed-f))
+           (body      (propertize (format "Thinking (%ds)" elapsed-i)
+                                  'face 'mutecipher-acp-status-busy-face)))
+      (concat (propertize glyph 'face 'mutecipher-acp-agent-face)
+              " " body "\n"))))
+
+(defun mutecipher-acp--state-indicator-needs-blank-p (pos)
+  "Return non-nil when the indicator at POS should prepend a leading `\\n'.
+POS is the read-only separator newline just before `composer-start'.
+The character two positions back (`pos - 2') is the buffer char that
+starts the line directly above the separator.  When that char is a
+`\\n', the line above is already blank and the indicator's
+`before-string' fills the empty line below it cleanly.  When it's
+not, the previous content ends with a single `\\n' (e.g. collapsed
+tool calls trail one newline, not two) and the indicator needs to
+prepend its own `\\n' to avoid sitting flush against the row above."
+  (let ((p (- pos 2)))
+    (and (>= p (point-min))
+         (not (eq (char-after p) ?\n)))))
+
+(defun mutecipher-acp--update-state-indicator (session)
+  "Show, hide, or refresh the inline state indicator overlay for SESSION.
+Reuses the existing overlay when one is live — only the `before-string'
+is rewritten on each refresh.  Recreates when missing.  Drops the
+overlay entirely when the live state has no inline cue (every state
+but `thinking').
+
+Anchored one position before `composer-start' — the read-only separator
+newline at the ewoc tail, the same buffer position where ewoc inserts
+new transcript content.  Marker insertion-types are both `t' so an
+ewoc insert AT that position advances the overlay forward with the
+inserted text instead of leaving BEG > END (which Emacs handles
+ungracefully and produces visible jumbling).  Net effect: the
+indicator sticks to the bottom of the ewoc content as tool calls and
+chunks land above it, then snaps away when state leaves `thinking'.
+
+Prepends a leading `\\n' to the before-string when the row above
+doesn't already provide a blank line (e.g. collapsed tool calls trail
+a single `\\n'); skips it after nodes that already trail `\\n\\n'
+(user / assistant / expanded tool calls) so spacing doesn't double up."
+  (when-let ((buf (and session (macp-session-buffer session))))
+    (when (buffer-live-p buf)
+      (with-current-buffer buf
+        (let* ((state    (macp-session-state session))
+               (started  (macp-session-state-started-at session))
+               (raw-text (mutecipher-acp--inline-state-text state started))
+               (cs       (and (boundp 'mutecipher-acp--composer-start)
+                              mutecipher-acp--composer-start
+                              (marker-position
+                               mutecipher-acp--composer-start)))
+               (pos      (and cs (max (point-min) (1- cs))))
+               (text     (when (and raw-text pos)
+                           (if (mutecipher-acp--state-indicator-needs-blank-p pos)
+                               (concat "\n" raw-text)
+                             raw-text)))
+               (ov       mutecipher-acp--state-indicator-overlay))
+          (cond
+           ;; No inline cue — tear down if present.
+           ((null text)
+            (when (overlayp ov)
+              (delete-overlay ov)
+              (setq mutecipher-acp--state-indicator-overlay nil)))
+           ;; Live overlay — rewrite the text in place.  Marker flags
+           ;; t/t keep it tracking the separator across ewoc inserts.
+           ((and (overlayp ov) (overlay-buffer ov))
+            (overlay-put ov 'before-string text))
+           ;; First call (or after a teardown) — create with t/t flags.
+           (pos
+            (let ((new-ov (make-overlay pos pos nil t t)))
+              (overlay-put new-ov 'before-string text)
+              (overlay-put new-ov 'mutecipher-acp-state-indicator t)
+              (setq mutecipher-acp--state-indicator-overlay
+                    new-ov)))))))))
 
 ;;;; Session major mode
 

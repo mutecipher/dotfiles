@@ -366,11 +366,18 @@ sits above."
 
 (defun mutecipher-acp--gutter (icon-kind)
   "Return (PREFIX . INDENT) for a hanging-indent layout keyed by ICON-KIND.
-PREFIX is `<glyph> ' for the first display line; INDENT is matching
-whitespace so logical-newline and wrapped continuations align under the
-body.  Chat-message roles consult `mutecipher-acp-role-glyph-alist'
-first for a subtle single-character marker; other kinds fall back to
-`mutecipher/icon-for-acp' (Nerd Font), then to a single space."
+PREFIX is the 2-char gutter (`<glyph> ' or two spaces) that sits at
+the left edge of each row; INDENT matches its width so logical
+newlines and wrapped continuations align under the body at column 2.
+Chat-message roles consult `mutecipher-acp-role-glyph-alist' first;
+other kinds fall back to `mutecipher/icon-for-acp' (Nerd Font), then
+to a single space.
+
+The gutter is always 2 chars wide — when a role's glyph is the empty
+string (e.g. thought / notice / queued with no visible marker), the
+prefix becomes `  ' so the body still starts at column 2 and aligns
+with `▌'-prefixed user/assistant rows.  Consistent left edge, with
+the role glyph as an optional signifier."
   (let* ((override (cdr (assq icon-kind mutecipher-acp-role-glyph-alist)))
          (icon
           (cond
@@ -383,7 +390,7 @@ first for a subtle single-character marker; other kinds fall back to
            ((and (fboundp 'mutecipher/icon-for-acp)
                  (mutecipher/icon-for-acp icon-kind)))
            (t " ")))
-         (prefix (if (string-empty-p icon) "" (concat icon " ")))
+         (prefix (if (string-empty-p icon) "  " (concat icon " ")))
          (indent (make-string (string-width prefix) ?\s)))
     (cons prefix indent)))
 

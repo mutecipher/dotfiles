@@ -35,9 +35,9 @@ Set to nil to disable the streaming caret entirely."
 (defcustom mutecipher-acp-role-glyph-alist
   '((user      "▌" mutecipher-acp-user-face)
     (assistant "▌" mutecipher-acp-agent-face)
-    (thought   "▌" shadow)
-    (notice    "▌" shadow)
-    (queued    "▌" mutecipher-acp-queued-face))
+    (thought   ""  shadow)
+    (notice    ""  shadow)
+    (queued    ""  mutecipher-acp-queued-face))
   "Alist mapping message-role symbols to (GLYPH FACE) pairs.
 Overrides `mutecipher/icon-for-acp' for the four chat-message roles so
 the transcript shows a subtle single-character marker rather than a
