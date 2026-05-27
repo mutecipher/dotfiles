@@ -379,6 +379,7 @@ independently."
 
 (defconst mutecipher-acp--md-cell-inline-passes
   '(mutecipher-acp--md-pass-inline-code
+    mutecipher-acp--md-pass-bold-italic
     mutecipher-acp--md-pass-bold
     mutecipher-acp--md-pass-italic
     mutecipher-acp--md-pass-italic-underscore
@@ -591,6 +592,24 @@ starts that fall inside an already-rendered table region."
               (add-face-text-property text-beg text-end
                                       '(:strike-through t :inherit shadow)))))))))
 
+(defun mutecipher-acp--md-pass-bold-italic (beg end _line-starts)
+  "Render `***bold-italic***' between BEG and END.
+Runs before bold/italic because both of those skip matches whose neighbour
+char is also `*' — triple-star falls through both without this pass.
+Like bold/italic, skips matches whose outer neighbour is also `*' so
+`****hi****' doesn't bind the inner triple and strand outer stars."
+  (goto-char beg)
+  (while (re-search-forward "\\*\\*\\*\\([^*\n]+\\)\\*\\*\\*" end t)
+    (let ((mb (match-beginning 0)) (me (match-end 0)))
+      (if (or (eq (char-before mb) ?*)
+              (eq (char-after  me) ?*)
+              (mutecipher-acp--md-inside-code-p mb))
+          (goto-char (1+ mb))
+        (mutecipher-acp--md-hide mb (+ mb 3))
+        (add-face-text-property (+ mb 3) (- me 3) 'bold)
+        (add-face-text-property (+ mb 3) (- me 3) 'italic)
+        (mutecipher-acp--md-hide (- me 3) me)))))
+
 (defun mutecipher-acp--md-pass-bold (beg end _line-starts)
   "Render `**bold**' between BEG and END.
 The inner run admits lone `*' (matched as `* + non-*') so nested
@@ -688,6 +707,7 @@ runs whose outer neighbours are not alnum/`_' qualify."
         'mutecipher-acp--md-pass-blockquotes
         'mutecipher-acp--md-pass-tables
         'mutecipher-acp--md-pass-checkboxes
+        'mutecipher-acp--md-pass-bold-italic
         'mutecipher-acp--md-pass-bold
         'mutecipher-acp--md-pass-italic
         'mutecipher-acp--md-pass-italic-underscore

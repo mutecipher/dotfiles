@@ -309,6 +309,33 @@ Prevents silent erasure when a future subsystem uses its own key."
                    "d")))
     (should (equal (mutecipher-acp--md-strip-invisible s) "bcd"))))
 
+(ert-deftest macp-test-md-bold-italic-triple-star ()
+  (let ((buf (macp-test--render-md "***Phoenix*** rises")))
+    (unwind-protect
+        (with-current-buffer buf
+          ;; Body of `***Phoenix***' is at positions 4..10 ("Phoenix").
+          (should (macp-test--face-at 4 'bold))
+          (should (macp-test--face-at 4 'italic))
+          (should (macp-test--face-at 10 'bold))
+          (should (macp-test--face-at 10 'italic))
+          ;; Surrounding `*' chars hidden.
+          (should (eq (get-text-property 1 'invisible) 'mutecipher-acp-md-markup))
+          (should (eq (get-text-property 11 'invisible) 'mutecipher-acp-md-markup)))
+      (kill-buffer buf))))
+
+(ert-deftest macp-test-md-cell-inline-triple-star ()
+  (let ((s (mutecipher-acp--md-render-cell-inline "***Phoenix***")))
+    (should (equal s "Phoenix"))
+    (should (macp-test--str-face-at s 0 'bold))
+    (should (macp-test--str-face-at s 0 'italic))))
+
+(ert-deftest macp-test-md-bold-italic-skips-quad-star-strands ()
+  "`****hi****' must not match as inner `***hi***' and strand outer stars.
+Without the neighbour-`*' guard, bold-italic binds positions 1–8 and
+leaves `*' at positions 0 and 9 visible."
+  (let ((s (mutecipher-acp--md-render-cell-inline "****hi****")))
+    (should (equal s "****hi****"))))
+
 (ert-deftest macp-test-md-checkbox-display ()
   (let ((buf (macp-test--render-md "- [x] done\n- [ ] todo")))
     (unwind-protect
