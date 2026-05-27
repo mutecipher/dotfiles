@@ -53,6 +53,24 @@ checking only the starting position lets the faces compose via
   "Mark region BEG..END invisible via `mutecipher-acp-md-markup'."
   (put-text-property beg end 'invisible 'mutecipher-acp-md-markup))
 
+(defun mutecipher-acp--md-strip-invisible (str)
+  "Return a copy of STR with chars hidden by `mutecipher-acp-md-markup' removed.
+Faces and other text properties on visible characters are preserved.
+Used to translate ACP's invisible-marker protocol into a plain string
+suitable for an overlay `display' value, which does not honour the
+invisible property.  Only the `mutecipher-acp-md-markup' invisibility
+key is stripped — other invisibility layers (now or future) pass through
+untouched, so this helper can't silently erase content marked invisible
+by an unrelated subsystem."
+  (let (chunks (pos 0) (len (length str)))
+    (while (< pos len)
+      (let* ((inv  (get-text-property pos 'invisible str))
+             (next (next-single-property-change pos 'invisible str len)))
+        (unless (eq inv 'mutecipher-acp-md-markup)
+          (push (substring str pos next) chunks))
+        (setq pos next)))
+    (apply #'concat (nreverse chunks))))
+
 (defun mutecipher-acp--md-line-starts (beg end)
   "Return buffer positions of logical line starts in BEG..END.
 Includes BEG as the first line even when BEG isn't preceded by a
@@ -275,13 +293,27 @@ callers can't loop forever."
     (when (and (= i 0) (> n 0)) (setq i 1))  ; force progress on a too-wide glyph
     (cons (substring s 0 i) (substring s i))))
 
+(defun mutecipher-acp--md-bridge-space (cur word)
+  "Return a single space joining CUR and WORD inside a wrapped cell line.
+When the last char of CUR and the first char of WORD carry identical
+text properties (face, link keymap, etc.) the joining space inherits
+them — without this, a multi-word propertized span like
+`[anchor text](url)' renders with a face gap at the space, breaking the
+visual continuity of underlines / faces across words."
+  (let ((cp (and (> (length cur)  0) (text-properties-at (1- (length cur)) cur)))
+        (wp (and (> (length word) 0) (text-properties-at 0 word))))
+    (if (and cp (equal cp wp))
+        (apply #'propertize " " cp)
+      " ")))
+
 (defun mutecipher-acp--md-wrap-cell (text width)
   "Greedily word-wrap TEXT into a list of lines each at most WIDTH columns.
 Widths are display columns (`string-width'), so double-width glyphs are
 budgeted correctly.  A single word wider than WIDTH is hard-split at
 column boundaries, with its trailing remainder kept on its own line
 rather than glued to the following word.  Always returns at least one
-\(possibly empty) line."
+\(possibly empty) line.  Joining spaces between words inherit shared
+text properties via `mutecipher-acp--md-bridge-space'."
   (let ((text (string-trim text)))
     (if (<= (string-width text) width)
         (list text)
@@ -299,7 +331,9 @@ rather than glued to the following word.  Always returns at least one
               (when (> (length w) 0) (push w lines))))
            ((= (length cur) 0) (setq cur word))
            ((<= (+ (string-width cur) 1 (string-width word)) width)
-            (setq cur (concat cur " " word)))
+            (setq cur (concat cur
+                              (mutecipher-acp--md-bridge-space cur word)
+                              word)))
            (t (push cur lines) (setq cur word))))
         (when (> (length cur) 0) (push cur lines))
         (nreverse (or lines (list "")))))))
@@ -343,6 +377,30 @@ independently."
           (push (apply #'concat (nreverse parts)) out-lines)))
       (mapconcat #'identity (nreverse out-lines) "\n"))))
 
+(defconst mutecipher-acp--md-cell-inline-passes
+  '(mutecipher-acp--md-pass-inline-code
+    mutecipher-acp--md-pass-bold
+    mutecipher-acp--md-pass-italic
+    mutecipher-acp--md-pass-italic-underscore
+    mutecipher-acp--md-pass-strike
+    mutecipher-acp--md-pass-links)
+  "Inline markdown passes that apply inside table cells.
+Hardcoded rather than filtered from `mutecipher-acp--md-passes' so a
+future block-level pass (e.g. a list-bullet pass) doesn't accidentally
+leak into cell rendering.  Order mirrors the global pipeline.")
+
+(defun mutecipher-acp--md-render-cell-inline (text)
+  "Apply inline markdown passes to TEXT in isolation and return the result.
+Returns a propertized string with invisible-marked syntax chars removed —
+faces survive but the overlay `display' protocol's blindness to the
+invisible property is handled at this boundary."
+  (with-temp-buffer
+    (insert text)
+    (let ((line-starts (list (point-min))))
+      (dolist (pass mutecipher-acp--md-cell-inline-passes)
+        (funcall pass (point-min) (point-max) line-starts)))
+    (mutecipher-acp--md-strip-invisible (buffer-string))))
+
 (defun mutecipher-acp--md-table-render-at (start)
   "Render the GFM table beginning at line containing START.
 Requires a header + separator pair; otherwise returns START unchanged.
@@ -358,7 +416,12 @@ On success, returns the buffer position just after the last consumed line."
               raw-cells)
         (forward-line 1))
       (let* ((starts    (vconcat (nreverse line-starts)))
-             (cell-rows (nreverse raw-cells))
+             (cell-rows (mapcar (lambda (row)
+                                  (cond
+                                   ((null row) nil)
+                                   ((mutecipher-acp--md-table-sep-cells-p row) row)
+                                   (t (mapcar #'mutecipher-acp--md-render-cell-inline row))))
+                                (nreverse raw-cells)))
              (seps      (vconcat (mapcar #'mutecipher-acp--md-table-sep-cells-p
                                          cell-rows)))
              (cells-vec (vconcat cell-rows))

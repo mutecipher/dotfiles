@@ -230,6 +230,85 @@
                          "https://example.test/x")))
       (kill-buffer buf))))
 
+(defun macp-test--str-face-at (str pos face)
+  "Non-nil if FACE is set at POS in STR (handles a list-of-faces value)."
+  (let ((f (get-text-property pos 'face str)))
+    (or (eq f face)
+        (and (listp f) (memq face f)))))
+
+(ert-deftest macp-test-md-cell-inline-strips-code-backticks ()
+  (let ((s (mutecipher-acp--md-render-cell-inline "`Macintosh/`")))
+    (should (equal s "Macintosh/"))
+    (should (macp-test--str-face-at s 0 'font-lock-constant-face))))
+
+(ert-deftest macp-test-md-cell-inline-strips-bold-asterisks ()
+  (let ((s (mutecipher-acp--md-render-cell-inline "**bold**")))
+    (should (equal s "bold"))
+    (should (macp-test--str-face-at s 0 'bold))))
+
+(ert-deftest macp-test-md-cell-inline-strips-italic-underscores ()
+  (let ((s (mutecipher-acp--md-render-cell-inline "_June 2025_")))
+    (should (equal s "June 2025"))
+    (should (macp-test--str-face-at s 0 'italic))))
+
+(ert-deftest macp-test-md-cell-inline-strips-link-brackets ()
+  (let ((s (mutecipher-acp--md-render-cell-inline "[anchor](https://example.test/x)")))
+    (should (equal s "anchor"))
+    (should (macp-test--str-face-at s 0 'link))
+    (should (equal (get-text-property 0 'mutecipher-acp-md-link s)
+                   "https://example.test/x"))))
+
+(ert-deftest macp-test-md-cell-inline-mixed-markup ()
+  ;; A cell with code + plain text + bold; literal markers must all be gone.
+  (let ((s (mutecipher-acp--md-render-cell-inline "`code` and **bold**")))
+    (should (equal s "code and bold"))
+    (should (macp-test--str-face-at s 0 'font-lock-constant-face))
+    (should (macp-test--str-face-at s (- (length s) 1) 'bold))))
+
+(ert-deftest macp-test-md-table-cell-renders-inline-code ()
+  "End-to-end: a table cell containing `code` produces an overlay whose
+display string omits the backticks and applies the constant face."
+  (let ((buf (macp-test--render-md
+              "| Folder       | Theme |\n|--------------|-------|\n| `Macintosh/` | retro |\n")))
+    (unwind-protect
+        (with-current-buffer buf
+          (let* ((ovs (seq-filter
+                       (lambda (ov) (overlay-get ov 'mutecipher-acp-md-table))
+                       (overlays-in (point-min) (point-max))))
+                 (disp (mapconcat (lambda (ov)
+                                    (or (overlay-get ov 'display) ""))
+                                  ovs "")))
+            (should (> (length ovs) 0))
+            (should-not (string-match-p "`" disp))
+            (should (string-match-p "Macintosh/" disp))
+            (let ((idx (string-match "Macintosh/" disp)))
+              (should (macp-test--str-face-at disp idx 'font-lock-constant-face)))))
+      (kill-buffer buf))))
+
+(ert-deftest macp-test-md-wrap-cell-bridges-link-face-on-space ()
+  "When `wrap-cell' joins two propertized words onto one line, the
+joining space must inherit the shared face/keymap so an in-cell
+multi-word link doesn't gap visually at the space."
+  (let* ((rendered (mutecipher-acp--md-render-cell-inline "[anchor text](https://example.test/x)"))
+         (lines    (mutecipher-acp--md-wrap-cell rendered 12)))
+    (should (equal (mapcar #'substring-no-properties lines) '("anchor text")))
+    (let* ((line (car lines))
+           (idx  (string-match " " line)))
+      (should idx)
+      (should (macp-test--str-face-at line idx 'link))
+      (should (equal (get-text-property idx 'mutecipher-acp-md-link line)
+                     "https://example.test/x")))))
+
+(ert-deftest macp-test-md-strip-invisible-only-strips-md-markup ()
+  "`strip-invisible' must only drop chars hidden by the
+`mutecipher-acp-md-markup' key — other invisibility layers pass through.
+Prevents silent erasure when a future subsystem uses its own key."
+  (let ((s (concat (propertize "a" 'invisible 'mutecipher-acp-md-markup)
+                   "b"
+                   (propertize "c" 'invisible 'some-other-layer)
+                   "d")))
+    (should (equal (mutecipher-acp--md-strip-invisible s) "bcd"))))
+
 (ert-deftest macp-test-md-checkbox-display ()
   (let ((buf (macp-test--render-md "- [x] done\n- [ ] todo")))
     (unwind-protect
