@@ -207,21 +207,16 @@ consistent classification."
     (propertize (aref frames idx) 'face face)))
 
 (defun mutecipher-acp--tool-status-glyph (status)
-  "Return a propertized status glyph for tool-call STATUS.
-Animated for `pending' / `running' via the spinner; static glyph from
-`mutecipher-icons-acp-alist' (or ASCII fallback) for terminal states."
+  "Return a propertized status glyph for tool-call STATUS, or nil.
+Returns the animated spinner for `pending' / `running' — the only
+state where motion adds signal.  Returns nil for terminal states
+(`done', `error') and for nil/unrecognized: success is the default
+(markers denote exceptions), and failure surfaces via tool-name face
++ `failed' badge in the meta slot rather than a leading glyph."
   (pcase status
     ((or 'pending 'running)
      (mutecipher-acp--spinner-glyph status))
-    ('done  (mutecipher-acp--icon-or 'status-done  "✓"))
-    ('error (mutecipher-acp--icon-or 'status-error "✗"))
-    ;; Fallback for nil / unrecognized status — render the same dim
-    ;; circle the `pending' icon uses, NOT a literal `?'.  Since the
-    ;; status glyph sits at column 0 (the gutter), a stray `?' would
-    ;; be the most prominent character on the row.  Reachable on
-    ;; persisted/replayed structs that predate the current status set
-    ;; or on freshly-constructed tcs before the first update arrives.
-    (_      (mutecipher-acp--icon-or 'status-pending "○"))))
+    (_ nil)))
 
 (defun mutecipher-acp--tool-call-active-p (data)
   "Non-nil if ewoc node DATA carries any `pending' / `running' tool call.
@@ -555,36 +550,52 @@ summary line is what visually separates this from the LHS."
       (_ nil))))
 
 (defun mutecipher-acp--pp-tool-call-line (tc)
-  "Insert the one-line summary for tool-call TC, no leading indent.
-The status glyph (spinner ⠋ for pending/running, ✓ for done, ✗ for
-error) sits at column 0 as the tool's `gutter' — same column as the
-role glyphs `▌' that mark user / assistant rows in
-`mutecipher-acp-ewoc.el', so the eye reads each transcript row by its
-leftmost glyph.  Kind icon (pencil for edit, terminal for execute,
-cloud for fetch, …) follows at column 2; if no Nerd Font is
-available the kind icon is silently dropped and the row degrades to
-`STATUS Name(input)'.  Meta (line / diff counts) is right-aligned to
-the window's right edge via a `display' (space :align-to right)
-property.
+  "Insert the one-line summary for tool-call TC.
 
-Expansion state is signalled by the presence of the card chrome BELOW
-this line, not by a leading disclosure glyph — peer TUI agents
-(Claude Code, opencode) all drop the disclosure in favour of the
-visual cue from chrome appearing/disappearing."
-  (let* ((name     (or (macp-tool-call-name tc) "tool"))
-         (input    (macp-tool-call-input tc))
-         (status-g (mutecipher-acp--tool-status-glyph
-                    (macp-tool-call-status tc)))
-         (kind-key (mutecipher-acp--tool-kind-icon-key
-                    (macp-tool-call-kind tc) name))
-         (kind-g   (mutecipher-acp--icon-or kind-key nil))
-         (meta     (mutecipher-acp--tool-meta tc))
-         (line-beg (point)))
-    (insert status-g " ")
+Layout — the row gutter at col 0-1 is shared with message rows so any
+state signifier (spinner here, `▌' on user/assistant rows) sits in the
+same column across the transcript.  Tool calls then add an additional
+2-column indent to mark themselves as subordinate to the assistant
+turn that triggered them, putting the body at col 4.
+
+  col 0-1: gutter — spinner + space when in-flight, two spaces otherwise
+  col 2-3: tool-call indent (the `additional 2 spaces' on top of the
+           message-level col-2 body)
+  col 4  : kind icon (pencil for edit, terminal for execute, …) when
+           a Nerd Font glyph resolves; if no glyph, name shifts left
+           to col 4 directly
+  col 5  : single space separator (only when a kind icon was emitted)
+  col 6+ : Name(input), in `mutecipher-acp-tool-face' on success or
+           `mutecipher-acp-error-face' on failure
+  right  : meta chunk (`N lines · M diffs', `failed', …) flush-right
+           via `display' (space :align-to right)
+
+Examples:
+
+  ⠋   ✎ Edit(foo.el)           — running: spinner in the gutter
+      ✎ Edit(foo.el)            — done: gutter empty
+      ✎ Bash(npm test)  failed  — error: red name, `failed' badge,
+                                  body stays expanded below"
+  (let* ((name      (or (macp-tool-call-name tc) "tool"))
+         (input     (macp-tool-call-input tc))
+         (status    (macp-tool-call-status tc))
+         (status-g  (mutecipher-acp--tool-status-glyph status))
+         (kind-key  (mutecipher-acp--tool-kind-icon-key
+                     (macp-tool-call-kind tc) name))
+         (kind-g    (mutecipher-acp--icon-or kind-key nil))
+         (meta      (mutecipher-acp--tool-meta tc))
+         (name-face (if (eq status 'error)
+                        'mutecipher-acp-error-face
+                      'mutecipher-acp-tool-face))
+         (line-beg  (point)))
+    (if status-g
+        (insert status-g " ")
+      (insert "  "))
+    (insert "  ")
     (when kind-g
       (insert kind-g " "))
     (insert (propertize (concat name (if input (concat "(" input ")") ""))
-                        'face 'mutecipher-acp-tool-face))
+                        'face name-face))
     (when meta
       (let* ((meta-str (propertize meta 'face 'shadow))
              (meta-w   (string-width meta-str)))
@@ -592,12 +603,10 @@ visual cue from chrome appearing/disappearing."
                             'display `(space :align-to (- right ,meta-w)))
                 meta-str)))
     (insert "\n")
-    ;; Hanging indent for soft-wrapped long Name(input) on narrow
-    ;; windows: continuation lines indent under the body (column 2)
-    ;; rather than wrapping to column 0 and visually disconnecting
-    ;; from the gutter-aligned status glyph.
+    ;; Wrap continuation aligns at column 4 — the body column where
+    ;; the kind icon (or name, when no Nerd Font) sits.
     (add-text-properties line-beg (point)
-                         '(wrap-prefix "  "))))
+                         '(wrap-prefix "    "))))
 
 (defun mutecipher-acp--pp-tool-call-body (tc)
   "Insert the expanded body for TC, dispatching to a registered renderer if any.
@@ -625,11 +634,6 @@ non-tool nodes, so adjacent tools stack tight while a tool → non-tool
 transition still gets one blank line of padding."
   (let* ((tc        (macp-node-data node))
          (collapsed (macp-node-collapsed node)))
-    ;; Expanded cards visually need breathing room above them too —
-    ;; the dispatcher's `--ensure-blank-above' skipped this kind, so
-    ;; a collapsed-then-expanded transition would otherwise abut.
-    (unless collapsed
-      (mutecipher-acp--ensure-blank-above))
     (mutecipher-acp--pp-tool-call-line tc)
     (unless collapsed
       (let* ((rail-face   'mutecipher-acp-tool-card-face)
@@ -644,13 +648,11 @@ transition still gets one blank line of padding."
           (add-text-properties body-beg (point)
                                (list 'line-prefix line-prefix
                                      'wrap-prefix line-prefix)))
-        ;; Expanded cards trail with `\n\n' (one blank line below `╰')
-        ;; so two adjacent expanded cards don't visually merge — the
-        ;; dispatcher's `--ensure-blank-above' skips tool-call kinds,
-        ;; so without this the next card's status glyph would land
-        ;; directly under this card's bottom rule.  Collapsed cards
-        ;; stay at single `\n' for tight stacking.
-        (insert "  " (propertize "╰" 'face rail-face) rule "\n\n")))))
+        ;; Single trailing `\n' (no blank line below `╰').  Adjacent
+        ;; tool calls stack tight; if the next node is a non-tool
+        ;; kind, the master `--pp' dispatcher's `--ensure-blank-above'
+        ;; takes care of separating it from the `╰' rule.
+        (insert "  " (propertize "╰" 'face rail-face) rule "\n")))))
 
 (mutecipher-acp-register-node-kind 'tool-call #'mutecipher-acp--pp-tool-call)
 
@@ -702,25 +704,37 @@ fallback for the all-zero case."
     (cons files searches)))
 
 (defun mutecipher-acp--tool-group-summary (children)
-  "Return the `Explored N files, M searches' summary string for CHILDREN.
-Omits the absent half when only one category is present so a pure
-search run reads `Explored 3 searches' rather than `Explored 0 files,
-3 searches'.  Defensive fallback handles a group whose classification
-shifted under us and produced zero counts."
+  "Return the propertized `Explored N files, M searches' summary for CHILDREN.
+The base text is `shadow' face.  When any child has status `error',
+appends a `(K failed)' suffix in `error' face so a partial failure
+inside an otherwise quiet group line is visible at a glance.  Omits
+the absent half when only one category is present (pure search runs
+read `Explored 3 searches', not `0 files, 3 searches').  Defensive
+fallback handles a group whose classification shifted and produced
+zero counts."
   (let* ((counts   (mutecipher-acp--tool-group-counts children))
          (files    (car counts))
          (searches (cdr counts))
+         (failed   (cl-count-if (lambda (tc)
+                                  (eq (macp-tool-call-status tc) 'error))
+                                children))
          (parts    nil))
     (when (> files 0)
       (push (format "%d file%s" files (if (= files 1) "" "s")) parts))
     (when (> searches 0)
       (push (format "%d search%s" searches (if (= searches 1) "" "es"))
             parts))
-    (if parts
-        (concat "Explored " (mapconcat #'identity (nreverse parts) ", "))
-      (format "Explored %d call%s"
-              (length children)
-              (if (= 1 (length children)) "" "s")))))
+    (let* ((base-text (if parts
+                          (concat "Explored "
+                                  (mapconcat #'identity (nreverse parts) ", "))
+                        (format "Explored %d call%s"
+                                (length children)
+                                (if (= 1 (length children)) "" "s"))))
+           (base (propertize base-text 'face 'shadow)))
+      (if (> failed 0)
+          (concat base
+                  (propertize (format " (%d failed)" failed) 'face 'error))
+        base))))
 
 (defun mutecipher-acp--pp-tool-group (node)
   "Render a tool-group NODE.
@@ -750,23 +764,23 @@ across an N=1→N=2 transition."
                        :collapsed collapsed
                        :uuid (macp-node-uuid node))))
      (t
-      ;; Expanded multi-child groups want breathing room above —
-      ;; mirrors the collapsed→expanded handling in `--pp-tool-call'.
-      (unless collapsed
-        (mutecipher-acp--ensure-blank-above))
       (let* ((summary  (mutecipher-acp--tool-group-summary children))
              (status   (mutecipher-acp--tool-group-status children))
              (status-g (mutecipher-acp--tool-status-glyph status))
              (line-beg (point)))
-        (insert status-g
-                " "
-                (propertize summary 'face 'shadow)
-                "\n")
-        ;; Hanging indent so a wrapped long summary lines up under the
-        ;; body (column 2) rather than against the gutter — same trick
-        ;; `--pp-tool-call-line' uses for stand-alone cards.
+        ;; Same gutter-first layout as `--pp-tool-call-line': the
+        ;; spinner sits in the shared col-0 gutter (or two blank
+        ;; columns when terminal), then a 2-column tool-call indent,
+        ;; then the `Explored …' summary at column 4.  Body stays at
+        ;; col 4 regardless of state — no jitter when the last child
+        ;; finishes.
+        (if status-g
+            (insert status-g " ")
+          (insert "  "))
+        (insert "  ")
+        (insert summary "\n")
         (add-text-properties line-beg (point)
-                             '(wrap-prefix "  ")))
+                             '(wrap-prefix "    ")))
       (unless collapsed
         (dolist (tc children)
           ;; Children render as their own full cards.  Each carries its

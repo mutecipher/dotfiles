@@ -375,13 +375,15 @@ their follower."
         (mutecipher-acp--invalidate-next-non-tool node)))))
 
 (defun mutecipher-acp--should-auto-collapse-p (tc)
-  "Non-nil when tool-call TC should default to collapsed.
-Triggers on terminal status (`done' / `error') when
-`mutecipher-acp-collapse-tool-calls-by-default' is non-nil.
-ExitPlanMode-style calls (`plan-body' set) opt out — that's the whole
-point of the call, so they always stay expanded."
+  "Non-nil when tool-call TC should default to collapsed on insert/update.
+Only fires on `done' — successful terminal status is the default and
+collapses to keep the transcript scannable.  `error' deliberately
+stays expanded so the failure body (stderr, raw output) is visible
+without a manual toggle.  ExitPlanMode-style calls (`plan-body' set)
+also opt out — that's the whole point of the call, so they always
+stay expanded."
   (and mutecipher-acp-collapse-tool-calls-by-default
-       (memq (macp-tool-call-status tc) '(done error))
+       (eq (macp-tool-call-status tc) 'done)
        (not (macp-tool-call-plan-body tc))))
 
 (defun mutecipher-acp--update-tool-call (session-id update)
