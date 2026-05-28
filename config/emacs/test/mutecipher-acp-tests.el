@@ -1491,8 +1491,7 @@ user nodes must land ABOVE the queued suffix."
                    :status 'done
                    :diffs '(("a" . "b"))
                    :rendered-diff-count 1
-                   :cached-start-line 42
-                   :cached-start-key '(1 . 2)))
+                   :start-line 42))
          (nodes   (list (make-macp-node
                          :kind 'user
                          :data (make-macp-user :text "hello")
@@ -1509,22 +1508,23 @@ user nodes must land ABOVE the queued suffix."
                          :kind 'trailer
                          :data (make-macp-trailer :stop-reason 'end_turn)
                          :uuid "n_dddddddddddd")))
-         (stripped (mapcar #'mutecipher-acp--strip-transient-from-node
-                           nodes))
-         (tmp      (make-temp-file "macp-persist-roundtrip-" nil ".eld")))
+         (tmp     (make-temp-file "macp-persist-roundtrip-" nil ".eld")))
     (unwind-protect
         (progn
           (mutecipher-acp--persist-write-sexp
            tmp (list :schema-version
                      mutecipher-acp--persist-schema-version
-                     :nodes stripped))
+                     :nodes nodes))
           (let* ((sexp     (mutecipher-acp--persist-read-sexp tmp))
                  (restored (plist-get sexp :nodes)))
-            (should (equal stripped restored))
+            (should (equal nodes restored))
             (should (equal "n_aaaaaaaaaaaa"
                            (macp-node-uuid (nth 0 restored))))
             (should (equal "n_cccccccccccc"
-                           (macp-node-uuid (nth 2 restored))))))
+                           (macp-node-uuid (nth 2 restored))))
+            (should (eql 42
+                         (macp-tool-call-start-line
+                          (macp-node-data (nth 2 restored)))))))
       (when (file-exists-p tmp) (delete-file tmp)))))
 
 (ert-deftest macp-test-persist-schema-version-mismatch ()
@@ -1783,24 +1783,6 @@ sessions can replay queued user input via --enqueue-prompt."
               (should (member kept-id ids))))
         (setq mutecipher-acp--sessions saved-tbl)
         (delete-directory tmp-dir t)))))
-
-(ert-deftest macp-test-persist-strips-tool-call-cache ()
-  (let* ((tc (make-macp-tool-call
-              :call-id "x" :name "Bash"
-              :status 'done
-              :cached-start-line 7
-              :cached-start-key '(3 . 4)))
-         (node (make-macp-node :kind 'tool-call :data tc :uuid "n_x"))
-         (stripped (mutecipher-acp--strip-transient-from-node node))
-         (sdata (macp-node-data stripped)))
-    (should (null (macp-tool-call-cached-start-line sdata)))
-    (should (null (macp-tool-call-cached-start-key  sdata)))
-    ;; Other fields preserved.
-    (should (equal "x"   (macp-tool-call-call-id sdata)))
-    (should (equal "Bash" (macp-tool-call-name sdata)))
-    (should (eq 'done    (macp-tool-call-status sdata)))
-    ;; Original untouched.
-    (should (equal 7 (macp-tool-call-cached-start-line tc)))))
 
 ;;;; Change-sets
 
@@ -3253,22 +3235,6 @@ if any running, error if every terminal and any failed, else done."
                           (list (mk 'done) (mk 'error)))))
     (should (eq 'done    (mutecipher-acp--tool-group-status
                           (list (mk 'done) (mk 'done)))))))
-
-(ert-deftest macp-test-tool-group-strip-transient-cleans-children ()
-  "Persistence's `--strip-transient-from-node' must scrub cached
-memoization slots inside grouped children (not just top-level tcs)."
-  (let* ((tc (make-macp-tool-call :call-id "r1" :name "Read" :kind "read"
-                                  :cached-start-line 99
-                                  :cached-start-key '(0 . [])))
-         (group (make-macp-tool-group :children (list tc)))
-         (node (make-macp-node :kind 'tool-group :data group
-                               :collapsed t :uuid "n_test"))
-         (clean (mutecipher-acp--strip-transient-from-node node))
-         (clean-tc (car (macp-tool-group-children (macp-node-data clean)))))
-    (should (null (macp-tool-call-cached-start-line clean-tc)))
-    (should (null (macp-tool-call-cached-start-key  clean-tc)))
-    ;; Original struct stays unmutated — strip returns a copy.
-    (should (eql 99 (macp-tool-call-cached-start-line tc)))))
 
 (provide 'mutecipher-acp-tests)
 ;;; mutecipher-acp-tests.el ends here

@@ -204,23 +204,20 @@ file line.  Honors `mutecipher-acp-diff-max-lines'."
 claude-code-acp ships `:line 1' for every Edit, so we distrust `:line'
 and search the file for the diff's `newText' first (correct post-edit),
 then `oldText' (correct pre-edit), then fall back to `locations[0].line'.
-Result is memoized on TC keyed by diff-count + locations so spinner
-re-renders don't re-read the file.
+
+Pure compute — no memoization, no mutation, no caching.  Callers in the
+ingest path (`--enter-tool-call' / `--update-tool-call') call this once
+when diffs or locations change and `setf' the result onto TC's
+`start-line' slot, so the pretty-printer reads a pre-resolved number
+instead of doing file I/O during redisplay.
 
 Relative `:locations[0].path' values resolve against TC's own `cwd' slot
-(set at `--enter-tool-call' time) — the renderer never reads ambient
-session state, so the same TC produces the same anchor regardless of
-which buffer/session is current."
-  (let* ((locs   (macp-tool-call-locations tc))
-         (loc    (and locs (> (length locs) 0) (aref locs 0)))
-         (diffs  (macp-tool-call-diffs tc))
-         (cwd    (macp-tool-call-cwd tc))
-         (key    (cons (or (macp-tool-call-rendered-diff-count tc) 0) locs)))
-    (cond
-     ((null diffs) nil)
-     ((equal key (macp-tool-call-cached-start-key tc))
-      (macp-tool-call-cached-start-line tc))
-     (t
+(set at `--enter-tool-call' time)."
+  (let* ((locs  (macp-tool-call-locations tc))
+         (loc   (and locs (> (length locs) 0) (aref locs 0)))
+         (diffs (macp-tool-call-diffs tc))
+         (cwd   (macp-tool-call-cwd tc)))
+    (when diffs
       (let* ((path     (and loc (plist-get loc :path)))
              (abs-path (and path
                             (if (file-name-absolute-p path)
@@ -234,13 +231,10 @@ which buffer/session is current."
                             (not (string-empty-p text))
                             abs-path
                             (mutecipher-acp--find-line-in-file
-                             abs-path text))))
-             (start (or (funcall search new-text)
-                        (funcall search old-text)
-                        (and loc (plist-get loc :line)))))
-        (setf (macp-tool-call-cached-start-line tc) start
-              (macp-tool-call-cached-start-key tc) key)
-        start)))))
+                             abs-path text)))))
+        (or (funcall search new-text)
+            (funcall search old-text)
+            (and loc (plist-get loc :line)))))))
 
 (provide 'mutecipher-acp-diff)
 ;;; mutecipher-acp-diff.el ends here

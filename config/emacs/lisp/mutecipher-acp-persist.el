@@ -26,12 +26,19 @@
 (require 'ewoc)
 (require 'mutecipher-acp-model)
 
-(defconst mutecipher-acp--persist-schema-version 4
+(defconst mutecipher-acp--persist-schema-version 5
   "Schema version for persisted ACP transcript files.
 Bump when the on-disk format changes incompatibly.  The loader
 silently skips files with an unknown version.
 
 History:
+  5 — `macp-tool-call' lost `cached-start-line' + `cached-start-key'
+      (render-time memo slots replaced by ingest-time resolution) and
+      gained a `start-line' slot.  Net layout shifts by one slot; v4
+      records read against the new struct would mis-align `raw-input'
+      and `cwd' with stale nil values left by the v4 strip-transient
+      pass, dropping the structured rawInput payload that body
+      renderers depend on.
   4 — `macp-tool-call' and `macp-change-set' each gained a `cwd' slot
       so pretty-printers can resolve relative paths without reaching
       into the session table.  v3 records are one slot short on both
@@ -141,52 +148,21 @@ backing strings)."
         :last-active     (macp-session-last-active session)
         :prompt-queue    (macp-session-prompt-queue session)))
 
-(defun mutecipher-acp--strip-transient-from-tc (tc)
-  "Return a copy of TC with render-only memoization slots nilled."
-  (let ((copy (copy-macp-tool-call tc)))
-    (setf (macp-tool-call-cached-start-line copy) nil)
-    (setf (macp-tool-call-cached-start-key  copy) nil)
-    copy))
-
-(defun mutecipher-acp--strip-transient-from-node (node)
-  "Return a copy of NODE with render-only memoization slots nilled.
-`macp-tool-call' has cached-start-line / cached-start-key slots that
-must be nilled; `macp-tool-group' has none of its own, but its
-children are `macp-tool-call' structs that need the same treatment so
-a hydrated group doesn't carry stale row numbers from the prior
-session."
-  (let* ((kind (macp-node-kind node))
-         (data (macp-node-data node))
-         (clean-data
-          (cond
-           ((and (eq kind 'tool-call) (macp-tool-call-p data))
-            (mutecipher-acp--strip-transient-from-tc data))
-           ((and (eq kind 'tool-group) (macp-tool-group-p data))
-            (let ((copy (copy-macp-tool-group data)))
-              (setf (macp-tool-group-children copy)
-                    (mapcar #'mutecipher-acp--strip-transient-from-tc
-                            (macp-tool-group-children copy)))
-              copy))
-           (t data))))
-    (make-macp-node :kind kind
-                    :data clean-data
-                    :collapsed (macp-node-collapsed node)
-                    :uuid (macp-node-uuid node))))
-
 (defun mutecipher-acp--collect-session-nodes (session)
-  "Collect SESSION's EWOC nodes in order, stripped for serialization.
+  "Collect SESSION's EWOC nodes in order for serialization.
 Skips `queued' nodes — those are reconstructed on hydrate by
 re-enqueueing the persisted `:prompt-queue' string list, so the
-visual cards and their backing strings stay in lockstep."
+visual cards and their backing strings stay in lockstep.  Returns the
+live macp-node structs as-is; `macp-tool-call.start-line' is now
+ingest-time data rather than a render cache, so there's nothing to
+strip before prin1."
   (let ((buf (macp-session-buffer session)))
     (when (buffer-live-p buf)
       (with-current-buffer buf
         (when (and (boundp 'mutecipher-acp--ewoc) mutecipher-acp--ewoc)
-          (mapcar
-           #'mutecipher-acp--strip-transient-from-node
-           (ewoc-collect mutecipher-acp--ewoc
-                         (lambda (node)
-                           (not (eq (macp-node-kind node) 'queued))))))))))
+          (ewoc-collect mutecipher-acp--ewoc
+                        (lambda (node)
+                          (not (eq (macp-node-kind node) 'queued)))))))))
 
 ;;;; Index entries
 
@@ -559,11 +535,10 @@ so resumed sessions render their prior transcript immediately."
                    ;; sentinel so we don't restore an earlier group.
                    (setq last-open-group-node nil))
                   ('tool-group
-                   ;; Mirror the type guard on `--strip-transient-from-node'
-                   ;; (save side) — a hand-edited or schema-skewed .eld
-                   ;; that pairs `:kind 'tool-group' with mismatched
-                   ;; `:data' should degrade gracefully instead of
-                   ;; signalling `wrong-type-argument' mid-hydrate.
+                   ;; Type-guard against a hand-edited or schema-skewed
+                   ;; .eld that pairs `:kind 'tool-group' with mismatched
+                   ;; `:data' — degrade gracefully instead of signalling
+                   ;; `wrong-type-argument' mid-hydrate.
                    (when-let* ((group (macp-node-data node))
                                ((macp-tool-group-p group)))
                      (dolist (tc (macp-tool-group-children group))

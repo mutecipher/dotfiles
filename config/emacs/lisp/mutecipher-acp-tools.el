@@ -21,6 +21,7 @@
 (require 'mutecipher-acp-log)
 (require 'mutecipher-acp-ewoc)
 (require 'mutecipher-acp-changes)
+(require 'mutecipher-acp-diff)   ; for --tool-call-start-line resolved at ingest
 
 (declare-function mutecipher-acp--close-assistant      "mutecipher-acp-ewoc")
 
@@ -292,7 +293,13 @@ exactly as before."
                      :cwd        (macp-session-cwd session))))
       (let ((new-pairs (mutecipher-acp--ingest-tool-content
                         tc (plist-get update :content))))
-        (mutecipher-acp--maybe-capture-change-set session tc new-pairs))
+        (mutecipher-acp--maybe-capture-change-set session tc new-pairs)
+        ;; Resolve diff anchor up-front so the pretty-printer never reads
+        ;; the file on render.  Skip when no diffs arrived — the resolver
+        ;; returns nil for an empty diff list and there's no I/O to save.
+        (when new-pairs
+          (setf (macp-tool-call-start-line tc)
+                (mutecipher-acp--tool-call-start-line tc))))
       (cond
        ;; Plan-bearing calls (ExitPlanMode) are never folded — the plan
        ;; body is the whole point of the call, so it stays as its own
@@ -442,24 +449,37 @@ stay expanded."
           (setf (macp-tool-call-raw-output tc)
                 (mutecipher-acp--normalize-raw-output raw-out)))
         ;; Locations may arrive on the initial `tool_call' or on a later
-        ;; `tool_call_update'.  Keep the latest synthesized vector so
-        ;; diff line numbers can anchor at the file line.
-        (when (and new-locs (> (length new-locs) 0))
-          (setf (macp-tool-call-locations tc) new-locs))
-        (pcase status-str
-          ("completed"   (setf (macp-tool-call-status tc) 'done
-                               (macp-tool-call-ended-at tc) (float-time)))
-          ("failed"      (setf (macp-tool-call-status tc) 'error
-                               (macp-tool-call-ended-at tc) (float-time)))
-          ("in_progress" (setf (macp-tool-call-status tc) 'running))
-          ('nil          nil)
-          (_             (mutecipher-acp--log-warn
-                          'agent-warn agent
-                          (format "[tool-call-update] unknown status %S"
-                                  status-str))))
-        (let ((new-pairs (mutecipher-acp--ingest-tool-content
-                          tc (plist-get update :content))))
-          (mutecipher-acp--maybe-capture-change-set session tc new-pairs))
+        ;; `tool_call_update'.  Many agents ECHO rawInput on every status
+        ;; tick, so `--synthesize-locations' returns a non-empty vector
+        ;; even when nothing about locations changed semantically — only
+        ;; overwrite (and gate the downstream resolve) on a real change,
+        ;; otherwise every "in_progress" tick re-reads the user's file.
+        (let ((locs-changed
+               (and new-locs (> (length new-locs) 0)
+                    (not (equal new-locs (macp-tool-call-locations tc))))))
+          (when locs-changed
+            (setf (macp-tool-call-locations tc) new-locs))
+          (pcase status-str
+            ("completed"   (setf (macp-tool-call-status tc) 'done
+                                 (macp-tool-call-ended-at tc) (float-time)))
+            ("failed"      (setf (macp-tool-call-status tc) 'error
+                                 (macp-tool-call-ended-at tc) (float-time)))
+            ("in_progress" (setf (macp-tool-call-status tc) 'running))
+            ('nil          nil)
+            (_             (mutecipher-acp--log-warn
+                            'agent-warn agent
+                            (format "[tool-call-update] unknown status %S"
+                                    status-str))))
+          (let ((new-pairs (mutecipher-acp--ingest-tool-content
+                            tc (plist-get update :content))))
+            (mutecipher-acp--maybe-capture-change-set session tc new-pairs)
+            ;; Resolve diff anchor only when diffs or locations actually
+            ;; changed — status-only updates (spinner ticks, terminal
+            ;; status transitions, echoed rawInput) pass through without
+            ;; re-reading the file.
+            (when (or new-pairs locs-changed)
+              (setf (macp-tool-call-start-line tc)
+                    (mutecipher-acp--tool-call-start-line tc)))))
         ;; Auto-collapse + pulse are per-CARD signals — they target a
         ;; single tool-call wrapper.  For a grouped child the wrapper
         ;; is the GROUP node containing N children: flipping its

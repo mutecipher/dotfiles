@@ -52,12 +52,16 @@
   diffs                ; list of (old . new) strings
   rendered-diff-count  ; int counter replacing :rendered-content-count
   plan-body            ; full plan markdown (only for ExitPlanMode-style tools)
-  cached-start-line    ; memoized line number from --tool-call-start-line
-  cached-start-key    ; (rendered-diff-count . locations) when last computed
   raw-input            ; original :rawInput plist; consumed by per-tool body renderers
-  cwd)                 ; cwd in effect when the call was entered; used to resolve
+  cwd                  ; cwd in effect when the call was entered; used to resolve
                        ; relative `:locations[0].path' for diff line anchoring
                        ; without the renderer reaching into the session table
+  start-line)          ; 1-based file line where this call's diffs anchor, or nil.
+                       ; Resolved at ingest time (whenever new diffs or locations
+                       ; land) so the pretty-printer never reads the file or
+                       ; mutates the struct.  Persisted with the tool-call —
+                       ; reflects the file content at the moment the agent
+                       ; reported the edit, which is the truthful anchor
 
 (cl-defstruct macp-tool-group
   ;; Ordered list of `macp-tool-call' children that share a "read-only"
