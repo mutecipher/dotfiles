@@ -908,26 +908,32 @@ remapped every printable key to `undefined', blocking typing)."
 
 (ert-deftest macp-test-toggle-tool-calls-flips-all ()
   "`mutecipher/acp-toggle-tool-calls' collapses all if any is expanded,
-otherwise expands all."
-  (macp-test--with-session-buffer
-    (let ((inhibit-read-only t))
-      (dotimes (_ 3)
-        (ewoc-enter-last
-         mutecipher-acp--ewoc
-         (make-macp-node :kind 'tool-call
-                         :data (make-macp-tool-call :status 'done
-                                                    :name "x")))))
-    (let ((wrappers (ewoc-collect mutecipher-acp--ewoc
-                                   (lambda (d) (eq (macp-node-kind d)
-                                                   'tool-call)))))
-      (should (= 3 (length wrappers)))
-      (should (cl-every (lambda (d) (not (macp-node-collapsed d))) wrappers))
-      ;; First toggle: all expanded → collapse all.
-      (mutecipher/acp-toggle-tool-calls)
-      (should (cl-every #'macp-node-collapsed wrappers))
-      ;; Second toggle: all collapsed → expand all.
-      (mutecipher/acp-toggle-tool-calls)
-      (should (cl-every (lambda (d) (not (macp-node-collapsed d))) wrappers)))))
+otherwise expands all.  Test enters nodes with explicit uuids — the
+override-map setter is keyed on uuid, so synthetic nodes constructed
+outside `--ewoc-enter-tail' would otherwise be unwritable."
+  ;; Bind defcustom to nil so initial state is expanded; the test
+  ;; exercises both toggle directions from there.
+  (let ((mutecipher-acp-collapse-tool-calls-by-default nil))
+    (macp-test--with-session-buffer
+      (let ((inhibit-read-only t))
+        (dotimes (i 3)
+          (ewoc-enter-last
+           mutecipher-acp--ewoc
+           (make-macp-node :kind 'tool-call
+                           :uuid (format "n_tog%d" i)
+                           :data (make-macp-tool-call :status 'done
+                                                      :name "x")))))
+      (let ((wrappers (ewoc-collect mutecipher-acp--ewoc
+                                     (lambda (d) (eq (macp-node-kind d)
+                                                     'tool-call)))))
+        (should (= 3 (length wrappers)))
+        (should (cl-every (lambda (d) (not (mutecipher-acp--node-collapsed-p d))) wrappers))
+        ;; First toggle: all expanded → collapse all.
+        (mutecipher/acp-toggle-tool-calls)
+        (should (cl-every #'mutecipher-acp--node-collapsed-p wrappers))
+        ;; Second toggle: all collapsed → expand all.
+        (mutecipher/acp-toggle-tool-calls)
+        (should (cl-every (lambda (d) (not (mutecipher-acp--node-collapsed-p d))) wrappers))))))
 
 (ert-deftest macp-test-tab-dwim-in-composer-runs-completion ()
   (let ((called 0))
@@ -2562,11 +2568,12 @@ still hits the fetch renderer."
 ;;;; Density refactor — collapsed = one-liner, expanded = card chrome
 
 (defun macp-test--pp-tool-call-to-string (tc collapsed)
-  "Render TC through `--pp-tool-call' in a temp buffer and return the string.
-Collapsed via a fresh `macp-node' wrapping TC."
+  "Render TC through `--render-tool-call' in a temp buffer with explicit
+COLLAPSED state; returns the resulting buffer string.  Bypasses the
+node wrap + buffer-local override map lookup so a single test exercises
+both states deterministically."
   (with-temp-buffer
-    (mutecipher-acp--pp-tool-call
-     (make-macp-node :kind 'tool-call :data tc :collapsed collapsed))
+    (mutecipher-acp--render-tool-call tc collapsed)
     (buffer-string)))
 
 (ert-deftest macp-test-pp-tool-call-collapsed-emits-no-chrome ()
@@ -2613,10 +2620,10 @@ between cards).  Pre-refactor this would have been ~52."
     (dotimes (i 13)
       (mutecipher-acp--pp-tool-call
        (make-macp-node :kind 'tool-call
-                       :collapsed t
                        :data (make-macp-tool-call :name (format "Tool%d" i)
                                                    :kind "read"
                                                    :status 'done))))
+    ;; Default policy collapses terminal tool-calls (defcustom `t').
     (should (= 13 (cl-count ?\n (buffer-string))))))
 
 (ert-deftest macp-test-pp-tool-call-running-stays-collapsed-one-line ()
@@ -2693,7 +2700,7 @@ kinds so a tight tool-call sequence still ends with one blank line
 before the next prose body."
   (with-temp-buffer
     (mutecipher-acp--pp
-     (make-macp-node :kind 'tool-call :collapsed t
+     (make-macp-node :kind 'tool-call
                      :data (make-macp-tool-call :name "T" :status 'done)))
     (mutecipher-acp--pp
      (make-macp-node :kind 'assistant
@@ -2707,10 +2714,10 @@ before the next prose body."
 `--ensure-blank-above' for tool-call kinds."
   (with-temp-buffer
     (mutecipher-acp--pp
-     (make-macp-node :kind 'tool-call :collapsed t
+     (make-macp-node :kind 'tool-call
                      :data (make-macp-tool-call :name "T1" :status 'done)))
     (mutecipher-acp--pp
-     (make-macp-node :kind 'tool-call :collapsed t
+     (make-macp-node :kind 'tool-call
                      :data (make-macp-tool-call :name "T2" :status 'done)))
     (should-not (string-match-p "T1[^\n]*\n\n" (buffer-string)))))
 
@@ -3167,7 +3174,7 @@ The group's collapsed state must be user-driven."
         ;; User expands the group manually.
         (let ((wrapper (car (with-current-buffer (macp-session-buffer s)
                               (ewoc-collect mutecipher-acp--ewoc #'identity)))))
-          (setf (macp-node-collapsed wrapper) nil))
+          (setf (mutecipher-acp--node-collapsed-p wrapper) nil))
         ;; First child reaches done — must NOT re-collapse the group
         ;; while r2 is still pending.
         (mutecipher-acp--update-tool-call
@@ -3175,7 +3182,7 @@ The group's collapsed state must be user-driven."
         (let ((wrapper (car (with-current-buffer (macp-session-buffer s)
                               (ewoc-collect mutecipher-acp--ewoc #'identity)))))
           (should (eq 'tool-group (macp-node-kind wrapper)))
-          (should-not (macp-node-collapsed wrapper)))))))
+          (should-not (mutecipher-acp--node-collapsed-p wrapper)))))))
 
 (ert-deftest macp-test-hydrate-restores-current-tool-group ()
   "An open trailing tool-group on disk (`closed' nil) should
@@ -3199,9 +3206,9 @@ restored."
                                          :kind "read" :status 'done))
                         :closed nil))
          (nodes (list (make-macp-node :kind 'tool-group :data closed-group
-                                      :collapsed t :uuid "n_a")
+                                      :uuid "n_a")
                       (make-macp-node :kind 'tool-group :data open-group
-                                      :collapsed t :uuid "n_b")))
+                                      :uuid "n_b")))
          (sexp (list :schema-version mutecipher-acp--persist-schema-version
                      :session nil
                      :nodes   nodes)))

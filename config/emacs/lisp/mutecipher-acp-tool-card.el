@@ -732,27 +732,34 @@ Trailing single newline in both states; the master `--pp' dispatcher
 in `mutecipher-acp-ewoc.el' inserts a blank-line separator before
 non-tool nodes, so adjacent tools stack tight while a tool → non-tool
 transition still gets one blank line of padding."
-  (let* ((tc        (macp-node-data node))
-         (collapsed (macp-node-collapsed node)))
-    (mutecipher-acp--pp-tool-call-line tc)
-    (unless collapsed
-      (let* ((rail-face   'mutecipher-acp-tool-card-face)
-             (rule-face   'mutecipher-acp-tool-card-rule-face)
-             (line-prefix (propertize "  │ " 'face rail-face))
-             (rule        (propertize " "
-                                      'display '(space :align-to right)
-                                      'face rule-face)))
-        (insert "  " (propertize "╭" 'face rail-face) rule "\n")
-        (let ((body-beg (point)))
-          (mutecipher-acp--pp-tool-call-body tc)
-          (add-text-properties body-beg (point)
-                               (list 'line-prefix line-prefix
-                                     'wrap-prefix line-prefix)))
-        ;; Single trailing `\n' (no blank line below `╰').  Adjacent
-        ;; tool calls stack tight; if the next node is a non-tool
-        ;; kind, the master `--pp' dispatcher's `--ensure-blank-above'
-        ;; takes care of separating it from the `╰' rule.
-        (insert "  " (propertize "╰" 'face rail-face) rule "\n")))))
+  (mutecipher-acp--render-tool-call
+   (macp-node-data node)
+   (mutecipher-acp--node-collapsed-p node)))
+
+(defun mutecipher-acp--render-tool-call (tc collapsed)
+  "Render tool-call TC with explicit COLLAPSED state.
+Split out from `--pp-tool-call' so `--pp-tool-group' can render its
+children with per-child collapse decisions without fabricating
+synthetic `macp-node' wrappers just to carry the bool."
+  (mutecipher-acp--pp-tool-call-line tc)
+  (unless collapsed
+    (let* ((rail-face   'mutecipher-acp-tool-card-face)
+           (rule-face   'mutecipher-acp-tool-card-rule-face)
+           (line-prefix (propertize "  │ " 'face rail-face))
+           (rule        (propertize " "
+                                    'display '(space :align-to right)
+                                    'face rule-face)))
+      (insert "  " (propertize "╭" 'face rail-face) rule "\n")
+      (let ((body-beg (point)))
+        (mutecipher-acp--pp-tool-call-body tc)
+        (add-text-properties body-beg (point)
+                             (list 'line-prefix line-prefix
+                                   'wrap-prefix line-prefix)))
+      ;; Single trailing `\n' (no blank line below `╰').  Adjacent
+      ;; tool calls stack tight; if the next node is a non-tool
+      ;; kind, the master `--pp' dispatcher's `--ensure-blank-above'
+      ;; takes care of separating it from the `╰' rule.
+      (insert "  " (propertize "╰" 'face rail-face) rule "\n"))))
 
 (mutecipher-acp-register-node-kind 'tool-call #'mutecipher-acp--pp-tool-call)
 
@@ -850,7 +857,7 @@ across an N=1→N=2 transition."
   (let* ((group     (macp-node-data node))
          (children  (macp-tool-group-children group))
          (n         (length children))
-         (collapsed (macp-node-collapsed node)))
+         (collapsed (mutecipher-acp--node-collapsed-p node)))
     (cond
      ((zerop n)
       ;; Defensive only — `--enter-tool-call' never creates an empty
@@ -858,11 +865,9 @@ across an N=1→N=2 transition."
       ;; zero-width region that the user can't interact with.
       (insert (propertize "Explored (empty group)\n" 'face 'shadow)))
      ((= 1 n)
-      (mutecipher-acp--pp-tool-call
-       (make-macp-node :kind 'tool-call
-                       :data (car children)
-                       :collapsed collapsed
-                       :uuid (macp-node-uuid node))))
+      ;; Single-child group renders identically to a stand-alone
+      ;; tool-call, inheriting the group node's own collapse state.
+      (mutecipher-acp--render-tool-call (car children) collapsed))
      (t
       (let* ((summary  (mutecipher-acp--tool-group-summary children))
              (status   (mutecipher-acp--tool-group-status children))
@@ -883,17 +888,13 @@ across an N=1→N=2 transition."
                              '(wrap-prefix "    ")))
       (unless collapsed
         (dolist (tc children)
-          ;; Children render as their own full cards.  Each carries its
-          ;; status glyph + (when expanded) raw output / diffs.  Per-
-          ;; child collapse state lives on the synthetic node and
-          ;; resets to `--should-auto-collapse-p' so terminal children
-          ;; render as one-line summaries and in-flight ones show the
-          ;; spinner.
-          (mutecipher-acp--pp-tool-call
-           (make-macp-node :kind 'tool-call
-                           :data tc
-                           :collapsed
-                           (mutecipher-acp--should-auto-collapse-p tc))))
+          ;; Children render as their own full cards.  Per-child
+          ;; collapse decision is computed at render time from
+          ;; `--should-auto-collapse-p' so terminal children render as
+          ;; one-line summaries and in-flight ones show the spinner —
+          ;; no synthetic `macp-node' wrappers needed.
+          (mutecipher-acp--render-tool-call
+           tc (mutecipher-acp--should-auto-collapse-p tc)))
         ;; Trailing blank so the next non-tool node has consistent
         ;; spacing — same as `--pp-tool-call' expanded.
         (insert "\n"))))))

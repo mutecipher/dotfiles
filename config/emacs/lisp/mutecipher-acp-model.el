@@ -21,9 +21,16 @@
   ;; `defsubst'-inlined, so reordering shifts every call site's
   ;; (aref struct N) and silently corrupts any stale `.elc' linked
   ;; against the old layout.
+  ;;
+  ;; Collapse state is intentionally NOT a slot — it lived here once,
+  ;; but presentation preference round-tripping through prin1/read meant
+  ;; resumed sessions ignored later changes to
+  ;; `mutecipher-acp-collapse-tool-calls-by-default'.  The render-time
+  ;; lookup now goes through `--node-collapsed-p', which consults a
+  ;; buffer-local override map (see below) and falls back to the
+  ;; defcustom for any unrecorded uuid.
   kind         ; 'turn-header 'user 'assistant 'thought 'tool-call 'tool-group 'plan 'trailer
   data         ; kind-specific struct below
-  collapsed    ; bool; meaningful for 'tool-call and 'tool-group
   uuid)        ; stable string id, populated lazily by --ewoc-enter-tail
 
 (cl-defstruct macp-turn
@@ -145,11 +152,22 @@
   (format "n_%012x" (random (expt 16 12))))
 
 (defun mutecipher-acp--unindex-node (session node)
-  "Remove NODE's uuid mapping from SESSION's `node-index'.
-No-op when the node has no uuid (constructed outside `--ewoc-enter-tail')."
+  "Remove NODE's uuid mapping from SESSION's `node-index' and from the
+buffer-local `--collapse-overrides' map.  No-op when the node has no
+uuid (constructed outside `--ewoc-enter-tail').
+
+Cleaning the override map at delete time keeps the per-buffer hash
+sized to live nodes — without this, every user-toggle or auto-collapse
+write on a since-deleted node leaks an entry for the lifetime of the
+session buffer."
   (when-let* ((data (ewoc-data node))
               (uuid (macp-node-uuid data)))
-    (remhash uuid (macp-session-node-index session))))
+    (remhash uuid (macp-session-node-index session))
+    (when-let* ((buf (macp-session-buffer session))
+                ((buffer-live-p buf))
+                (map (buffer-local-value 'mutecipher-acp--collapse-overrides
+                                         buf)))
+      (remhash uuid map))))
 
 ;;;; Session/connection state tables
 
@@ -202,6 +220,58 @@ A run of adjacent read-only tool-calls folds into one group via this
 slot; `--close-trailing-tool-group' clears it whenever a new node
 kind interrupts the run.  Re-derived at hydrate time by walking the
 EWOC for the last still-open group.")
+
+(defvar-local mutecipher-acp--collapse-overrides nil
+  "Hash table uuid → bool of explicit collapse-state overrides.
+nil until first use; populated lazily by user toggle, auto-collapse on
+terminal status, and plan-body force-expand at construction.
+
+Lookup falls back to `mutecipher-acp-collapse-tool-calls-by-default'
+for any uuid not in the map — buffer-local + non-persisted on purpose,
+so a defcustom flip applies to resumed sessions instead of being
+shadowed by stale per-node bools from when the prior session was
+saved.  Cleared with the buffer.")
+
+(defun mutecipher-acp--collapse-overrides-table ()
+  "Return the buffer-local collapse-overrides hash, creating it lazily."
+  (or mutecipher-acp--collapse-overrides
+      (setq mutecipher-acp--collapse-overrides
+            (make-hash-table :test 'equal))))
+
+(defun mutecipher-acp--node-collapsed-p (node)
+  "Return non-nil when NODE should render as collapsed.
+Only `tool-call' and `tool-group' kinds are foldable — every other
+kind returns nil regardless of the override map.  For foldable kinds
+the buffer-local override map wins; absent any entry (or a missing
+uuid, which is the case for synthetic test nodes), the value of
+`mutecipher-acp-collapse-tool-calls-by-default' is used.  Read via
+`bound-and-true-p' so a standalone `(require \\='mutecipher-acp-model)'
+without tool-card.el (test harness, partial autoload) returns nil
+instead of signalling `void-variable'."
+  (when (memq (macp-node-kind node) '(tool-call tool-group))
+    (let* ((uuid     (macp-node-uuid node))
+           (map      mutecipher-acp--collapse-overrides)
+           (sentinel '--unset)
+           (entry    (if (and uuid map)
+                         (gethash uuid map sentinel)
+                       sentinel)))
+      (if (eq entry sentinel)
+          (bound-and-true-p mutecipher-acp-collapse-tool-calls-by-default)
+        entry))))
+
+;; The setter is a SILENT NO-OP when NODE has no uuid — synthetic test
+;; nodes constructed via `make-macp-node' but not entered via
+;; `--ewoc-enter-tail' fall here.  Callers that need to seed override
+;; state must `setf' AFTER the node is in the ewoc (uuid is assigned
+;; there).  The gensym'd VAL is still evaluated for its side effects
+;; regardless of uuid presence.
+(gv-define-setter mutecipher-acp--node-collapsed-p (val node)
+  (let ((v (gensym "val")))
+    `(let ((,v ,val))
+       (when-let ((uuid (macp-node-uuid ,node)))
+         (puthash uuid (and ,v t)
+                  (mutecipher-acp--collapse-overrides-table)))
+       ,v)))
 
 ;; Setters use `gv-define-setter' with an explicit gensymmed binding
 ;; for VAL so the RHS is evaluated unconditionally — preserving the

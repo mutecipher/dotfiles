@@ -26,12 +26,19 @@
 (require 'ewoc)
 (require 'mutecipher-acp-model)
 
-(defconst mutecipher-acp--persist-schema-version 5
+(defconst mutecipher-acp--persist-schema-version 6
   "Schema version for persisted ACP transcript files.
 Bump when the on-disk format changes incompatibly.  The loader
 silently skips files with an unknown version.
 
 History:
+  6 — `macp-node' lost its `collapsed' slot.  Render-time collapse
+      state now lives in a per-buffer override map keyed by uuid, with
+      `mutecipher-acp-collapse-tool-calls-by-default' as the fallback
+      — non-persisted on purpose, so a defcustom flip applies to
+      resumed sessions instead of being shadowed by stale per-node
+      bools.  Net layout shifts `uuid' from slot 4 to slot 3; v5
+      records read against the new struct would mis-align uuid.
   5 — `macp-tool-call' lost `cached-start-line' + `cached-start-key'
       (render-time memo slots replaced by ingest-time resolution) and
       gained a `start-line' slot.  Net layout shifts by one slot; v4

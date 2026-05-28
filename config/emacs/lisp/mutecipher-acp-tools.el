@@ -327,18 +327,19 @@ exactly as before."
 (defun mutecipher-acp--enter-toplevel-tool-call (session buf tc call-id index plan)
   "Insert TC as a stand-alone `tool-call' node in SESSION's BUF.
 INDEX is SESSION's `tool-call-index'; CALL-ID is registered there when
-non-nil.  PLAN, when non-nil, suppresses the default-collapse so the
-ExitPlanMode markdown body stays visible."
+non-nil.  PLAN, when non-nil, forces the card expanded (overriding the
+`collapse-tool-calls-by-default' defcustom) so the ExitPlanMode
+markdown body stays visible — recorded via the collapse-overrides map
+after `--ewoc-enter-tail' assigns the uuid."
   (mutecipher-acp--with-sticky-tail buf
     (let* ((inhibit-read-only t)
-           (collapsed (and mutecipher-acp-collapse-tool-calls-by-default
-                           (not plan)))
+           (data (make-macp-node :kind 'tool-call :data tc))
            (node (mutecipher-acp--ewoc-enter-tail
                   mutecipher-acp--ewoc
                   (macp-session-queue-head-node session)
-                  (make-macp-node :kind 'tool-call
-                                  :data tc
-                                  :collapsed collapsed))))
+                  data)))
+      (when plan
+        (setf (mutecipher-acp--node-collapsed-p data) nil))
       (when call-id
         (puthash call-id node index))
       (mutecipher-acp--invalidate-next-non-tool node))))
@@ -347,17 +348,16 @@ ExitPlanMode markdown body stays visible."
   "Open a new `tool-group' node in SESSION's BUF carrying TC as its sole child.
 Registers CALL-ID → group-node in INDEX and stores the node on
 SESSION's `current-tool-group' slot so a subsequent adjacent read can
-append to the same group."
+append to the same group.  Initial collapse comes from
+`mutecipher-acp-collapse-tool-calls-by-default' via
+`--node-collapsed-p' — no override is seeded at construction."
   (mutecipher-acp--with-sticky-tail buf
     (let* ((inhibit-read-only t)
            (group (make-macp-tool-group :children (list tc) :closed nil))
-           (collapsed mutecipher-acp-collapse-tool-calls-by-default)
            (node (mutecipher-acp--ewoc-enter-tail
                   mutecipher-acp--ewoc
                   (macp-session-queue-head-node session)
-                  (make-macp-node :kind 'tool-group
-                                  :data group
-                                  :collapsed collapsed))))
+                  (make-macp-node :kind 'tool-group :data group))))
       (when call-id
         (puthash call-id node index))
       (setf (mutecipher-acp--session-current-tool-group session) node)
@@ -492,9 +492,9 @@ stay expanded."
         (let ((wrapper-is-tool-call
                (eq (macp-node-kind wrapper) 'tool-call)))
           (when (and wrapper-is-tool-call
-                     (not (macp-node-collapsed wrapper))
+                     (not (mutecipher-acp--node-collapsed-p wrapper))
                      (mutecipher-acp--should-auto-collapse-p tc))
-            (setf (macp-node-collapsed wrapper) t))
+            (setf (mutecipher-acp--node-collapsed-p wrapper) t))
           (mutecipher-acp--with-sticky-tail buf
             (let ((inhibit-read-only t))
               (ewoc-invalidate mutecipher-acp--ewoc node)
