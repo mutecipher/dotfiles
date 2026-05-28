@@ -361,14 +361,11 @@ Indented four spaces inside the card."
 
 (defun mutecipher-acp--pp-tool-call-diffs (tc)
   "Insert TC's diffs at point, anchored at the file line when known.
-Relative paths in `:locations[0].path' resolve against the session's
-cwd.  Each diff pair (oldText . newText) renders via the diff module."
-  (let* ((session (and mutecipher-acp--session-id
-                       (gethash mutecipher-acp--session-id
-                                mutecipher-acp--sessions)))
-         (cwd     (and session (macp-session-cwd session)))
-         (diffs   (macp-tool-call-diffs tc))
-         (start   (mutecipher-acp--tool-call-start-line tc cwd)))
+Relative paths in `:locations[0].path' resolve against TC's own `cwd'
+slot (set at `--enter-tool-call' time).  Each diff pair
+(oldText . newText) renders via the diff module."
+  (let ((diffs (macp-tool-call-diffs tc))
+        (start (mutecipher-acp--tool-call-start-line tc)))
     (dolist (pair diffs)
       (when-let ((body (mutecipher-acp--diff-body-for
                         (car pair) (cdr pair) start)))

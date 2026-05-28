@@ -719,8 +719,9 @@ expands it against the session cwd before opening."
           (let ((tc (make-macp-tool-call
                      :name "Edit"
                      :locations (vector (list :path relpath))
-                     :diffs (list (cons "needle" "NEEDLE here")))))
-            (should (eq 3 (mutecipher-acp--tool-call-start-line tc dir)))))
+                     :diffs (list (cons "needle" "NEEDLE here"))
+                     :cwd dir)))
+            (should (eq 3 (mutecipher-acp--tool-call-start-line tc)))))
       (delete-directory dir t))))
 
 (ert-deftest macp-test-find-line-in-file ()

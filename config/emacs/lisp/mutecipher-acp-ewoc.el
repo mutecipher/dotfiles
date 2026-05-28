@@ -407,18 +407,17 @@ inserted region (e.g. `--apply-markdown')."
     (insert (car g) (apply #'propertize text props))
     body-start))
 
-(defun mutecipher-acp--change-set-relativize (path)
-  "Relativize PATH against the current session's cwd, falling back to basename.
+(defun mutecipher-acp--change-set-relativize (cs path)
+  "Relativize PATH against CS's pinned cwd, falling back to basename.
 `file-truename's the cwd before comparison so symlinked roots — macOS
 `/tmp' → `/private/tmp', `$TMPDIR' firmlinks, symlinked project roots —
 don't force absolute-path display.  Falls back to the basename when
-PATH lies outside cwd or no session is current."
-  (or (when-let* ((sid     mutecipher-acp--session-id)
-                  (session (gethash sid mutecipher-acp--sessions))
-                  (cwd     (macp-session-cwd session))
-                  (cwd-tn  (condition-case _err
-                               (file-truename cwd)
-                             (error cwd))))
+PATH lies outside cwd, or when CS has no cwd recorded (legacy persisted
+change-sets pre-cwd-slot)."
+  (or (when-let* ((cwd    (macp-change-set-cwd cs))
+                  (cwd-tn (condition-case _err
+                              (file-truename cwd)
+                            (error cwd))))
         (and (file-in-directory-p path cwd-tn)
              (file-relative-name path cwd-tn)))
       (file-name-nondirectory path)))
@@ -472,7 +471,7 @@ declined.  Drops the `revert:' suffix once no file is left to revert."
       (let ((line (format "  %s %s%s\n"
                           (mutecipher-acp--change-set-file-glyph fc)
                           (mutecipher-acp--change-set-relativize
-                           (macp-file-change-path fc))
+                           cs (macp-file-change-path fc))
                           (mutecipher-acp--change-set-file-note fc))))
         (insert (propertize line 'face 'mutecipher-acp-change-set-face))))
     (insert "\n")))

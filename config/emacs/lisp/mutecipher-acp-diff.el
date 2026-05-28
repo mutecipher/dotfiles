@@ -199,16 +199,22 @@ file line.  Honors `mutecipher-acp-diff-max-lines'."
             (line-number-at-pos (match-beginning 0))))
       (error nil))))
 
-(defun mutecipher-acp--tool-call-start-line (tc &optional cwd)
+(defun mutecipher-acp--tool-call-start-line (tc)
   "Return the 1-based file line to anchor TC's diffs at, or nil.
 claude-code-acp ships `:line 1' for every Edit, so we distrust `:line'
 and search the file for the diff's `newText' first (correct post-edit),
 then `oldText' (correct pre-edit), then fall back to `locations[0].line'.
 Result is memoized on TC keyed by diff-count + locations so spinner
-re-renders don't re-read the file."
+re-renders don't re-read the file.
+
+Relative `:locations[0].path' values resolve against TC's own `cwd' slot
+(set at `--enter-tool-call' time) — the renderer never reads ambient
+session state, so the same TC produces the same anchor regardless of
+which buffer/session is current."
   (let* ((locs   (macp-tool-call-locations tc))
          (loc    (and locs (> (length locs) 0) (aref locs 0)))
          (diffs  (macp-tool-call-diffs tc))
+         (cwd    (macp-tool-call-cwd tc))
          (key    (cons (or (macp-tool-call-rendered-diff-count tc) 0) locs)))
     (cond
      ((null diffs) nil)

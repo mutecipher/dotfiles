@@ -26,12 +26,17 @@
 (require 'ewoc)
 (require 'mutecipher-acp-model)
 
-(defconst mutecipher-acp--persist-schema-version 3
+(defconst mutecipher-acp--persist-schema-version 4
   "Schema version for persisted ACP transcript files.
 Bump when the on-disk format changes incompatibly.  The loader
 silently skips files with an unknown version.
 
 History:
+  4 — `macp-tool-call' and `macp-change-set' each gained a `cwd' slot
+      so pretty-printers can resolve relative paths without reaching
+      into the session table.  v3 records are one slot short on both
+      structs and would signal `args-out-of-range' through the new
+      accessors at render time.
   3 — `macp-tool-call' gained a `raw-input' slot; v2 records are one
       slot short and would signal `args-out-of-range' through the new
       accessor at render time.

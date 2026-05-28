@@ -54,7 +54,10 @@
   plan-body            ; full plan markdown (only for ExitPlanMode-style tools)
   cached-start-line    ; memoized line number from --tool-call-start-line
   cached-start-key    ; (rendered-diff-count . locations) when last computed
-  raw-input)           ; original :rawInput plist; consumed by per-tool body renderers
+  raw-input            ; original :rawInput plist; consumed by per-tool body renderers
+  cwd)                 ; cwd in effect when the call was entered; used to resolve
+                       ; relative `:locations[0].path' for diff line anchoring
+                       ; without the renderer reaching into the session table
 
 (cl-defstruct macp-tool-group
   ;; Ordered list of `macp-tool-call' children that share a "read-only"
@@ -93,9 +96,13 @@
                       ; state into pre-turn-content
 
 (cl-defstruct macp-change-set
-  files)              ; alist ((abs-path . macp-file-change) ...)
+  files               ; alist ((abs-path . macp-file-change) ...)
                       ; alist not hash table — round-trips cleanly through
                       ; the existing prin1/read persistence layer
+  cwd)                ; cwd in effect when the change-set was created; pins
+                      ; the anchor for `--change-set-relativize' so the badge
+                      ; renders against the right root even when the session's
+                      ; cwd has drifted or `--session-id' isn't bound
 
 (cl-defstruct (macp-session (:constructor mutecipher-acp--make-session))
   id conn buffer agent cwd

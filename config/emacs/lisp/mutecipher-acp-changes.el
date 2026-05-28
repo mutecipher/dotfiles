@@ -244,7 +244,9 @@ gap."
         (condition-case err
             (let* ((cs (or (macp-turn-change-set turn)
                            (setf (macp-turn-change-set turn)
-                                 (make-macp-change-set :files nil))))
+                                 (make-macp-change-set
+                                  :files nil
+                                  :cwd   (macp-session-cwd session)))))
                    (existing (cdr (assoc path (macp-change-set-files cs))))
                    (call-id (macp-tool-call-call-id tc))
                    (should-snapshot

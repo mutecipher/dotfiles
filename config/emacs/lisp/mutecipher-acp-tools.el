@@ -288,7 +288,8 @@ exactly as before."
                      :diffs      nil
                      :rendered-diff-count 0
                      :plan-body  plan
-                     :raw-input  raw-in)))
+                     :raw-input  raw-in
+                     :cwd        (macp-session-cwd session))))
       (let ((new-pairs (mutecipher-acp--ingest-tool-content
                         tc (plist-get update :content))))
         (mutecipher-acp--maybe-capture-change-set session tc new-pairs))
