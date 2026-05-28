@@ -203,8 +203,19 @@ re-querying the window.")
   "Non-nil once this buffer has rendered at least one GFM table.
 Gates the global resize handler so it skips table-free buffers.")
 
-(defvar-local mutecipher-acp--md-last-window-width nil
-  "Window body width (columns) used at the last table re-fit.")
+(defvar-local mutecipher-acp--md-target-width nil
+  "Width (columns) the pretty-printer should lay tables out at.
+Source of truth read by `--md-table-text-width' instead of querying
+the live window — the PP stays pure with respect to the windowing
+system and a headless ert test can set this var to assert layout
+deterministically.
+
+Maintained by `--md-refit-buffer' (the sole writer): set whenever the
+window-size or window-buffer hook detects a width change, and used as
+the comparison key so an unchanged width doesn't trigger an unnecessary
+refit.  nil until the buffer's first window-change fire, at which
+point an immediate refit replaces the initial `fill-column' fallback
+layout with the real window width.")
 
 (defun mutecipher-acp--md-table-parse-cells (line)
   "Return trimmed cells from pipe-delimited LINE, or nil if not table-shaped."
@@ -234,18 +245,22 @@ the vector, not characters."
 
 (defun mutecipher-acp--md-table-text-width (start)
   "Columns available to lay out a table whose head sits at START.
-Honours `mutecipher-acp--md-table-width-override' when bound; otherwise
-queries the window showing the buffer (falling back to `fill-column' or
-80 when undisplayed).  Subtracts the body's hanging indent — read from
-the `wrap-prefix' at START — plus a one-column right margin so a fitted
-table never abuts the window edge and triggers a continuation glyph."
+Width precedence: `--md-table-width-override' (dynamic binding used by
+the refit pipeline) → `--md-target-width' (buffer-local, maintained by
+the window-change hook) → `fill-column' → 80.  The PP never reads live
+window state — `--md-refit-buffer' is the one place that queries
+`window-body-width', writes the buffer-local, and triggers a rerender,
+so initial display of a freshly-hydrated buffer lays out at
+`fill-column' until the hook fires (immediately after display).
+
+Subtracts the body's hanging indent — read from the `wrap-prefix' at
+START — plus a one-column right margin so a fitted table never abuts
+the window edge and triggers a continuation glyph."
   (let* ((cap    mutecipher-acp-md-table-max-width)
          (full   (or mutecipher-acp--md-table-width-override
-                     (let ((win (get-buffer-window (current-buffer) 'visible)))
-                       (cond
-                        (win (window-body-width win))
-                        ((and (integerp fill-column) (> fill-column 0)) fill-column)
-                        (t 80)))))
+                     mutecipher-acp--md-target-width
+                     (and (integerp fill-column) (> fill-column 0) fill-column)
+                     80))
          (full   (if (integerp cap) (min full cap) full))
          (pfx    (get-text-property start 'wrap-prefix))
          (indent (cond ((stringp pfx)  (string-width pfx))
@@ -544,8 +559,8 @@ table's height can't scroll the reader's position away."
          (w    (and wins (apply #'min (mapcar #'window-body-width wins)))))
     (when w
       (with-current-buffer buf
-        (unless (eql w mutecipher-acp--md-last-window-width)
-          (setq mutecipher-acp--md-last-window-width w)
+        (unless (eql w mutecipher-acp--md-target-width)
+          (setq mutecipher-acp--md-target-width w)
           (let ((mutecipher-acp--md-table-width-override w)
                 (snap (mapcar (lambda (win)
                                 (cons win (copy-marker (window-start win) nil)))
@@ -579,7 +594,18 @@ shown in several of FRAME's windows."
 (defun mutecipher-acp--md-pass-tables (_beg _end line-starts)
   "Render GFM tables as an aligned Unicode grid via overlays.
 Walks LINE-STARTS, rendering at each table head and skipping subsequent
-starts that fall inside an already-rendered table region."
+starts that fall inside an already-rendered table region.
+
+Cold-start fill of `--md-target-width' — the window-change hook only
+runs `--md-refit-buffer' for buffers where `--md-has-tables' is already
+t, so a buffer displayed long before its first table arrived would
+otherwise read nil here and lay tables out at `fill-column' until the
+next window resize.  The query is once-per-buffer (idempotent via the
+nil-guard) and pulls from any currently-visible window, falling back
+through fill-column / 80 via `--md-table-text-width'."
+  (unless mutecipher-acp--md-target-width
+    (when-let ((win (get-buffer-window (current-buffer) 'visible)))
+      (setq mutecipher-acp--md-target-width (window-body-width win))))
   (let ((skip-until 0))
     (dolist (start line-starts)
       (when (> start skip-until)
