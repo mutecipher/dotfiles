@@ -97,7 +97,9 @@
       (should-not (mutecipher-acp--should-auto-collapse-p tc)))))
 
 (ert-deftest macp-test-auto-collapse-on-by-default ()
-  "Default-on: terminal-status tool calls collapse regardless of size."
+  "Default-on policy: `done' collapses regardless of size; `error'
+deliberately stays expanded so the failure body (stderr, raw output,
+diffs) is visible without a manual toggle."
   (let ((mutecipher-acp-collapse-tool-calls-by-default t))
     (let ((tc (make-macp-tool-call :status 'done :raw-output "one line")))
       (should (mutecipher-acp--should-auto-collapse-p tc)))
@@ -105,7 +107,7 @@
       (should (mutecipher-acp--should-auto-collapse-p tc)))
     (let ((tc (make-macp-tool-call :status 'error :raw-output ""
                                    :diffs '(("a" . "b")))))
-      (should (mutecipher-acp--should-auto-collapse-p tc)))))
+      (should-not (mutecipher-acp--should-auto-collapse-p tc)))))
 
 (ert-deftest macp-test-auto-collapse-pending ()
   (let ((mutecipher-acp-collapse-tool-calls-by-default t)
@@ -2664,21 +2666,23 @@ layout; render must not contain either glyph regardless of collapsed state."
         (should-not (string-match-p "▸" out))
         (should-not (string-match-p "▾" out))))))
 
-(ert-deftest macp-test-pp-tool-call-line-status-at-column-zero ()
-  "The status glyph must sit at column 0, matching the gutter column of
-user/assistant role glyphs — no leading whitespace."
-  (let* ((tc (make-macp-tool-call :name "T" :kind "read" :status 'done))
-         (out (macp-test--pp-tool-call-to-string tc t))
-         (first-char (aref out 0)))
-    ;; First char is not whitespace.
-    (should-not (memq first-char '(?\s ?\t)))
-    ;; First char IS the status glyph (or its ASCII fallback "✓").
-    (should (or (= first-char ?✓)
-                (string-prefix-p
-                 (or (and (fboundp 'mutecipher/icon-for-acp)
-                          (mutecipher/icon-for-acp 'status-done))
-                     "✓")
-                 out)))))
+(ert-deftest macp-test-pp-tool-call-line-gutter-layout ()
+  "Col 0-1 is the row gutter shared with user/assistant rows.  When a
+tool-call is in-flight, the spinner sits at col 0 with a trailing
+space.  When terminal (`done' / `error') the gutter is two spaces —
+no leading marker — and the next signifier (kind icon or name) shows
+up at col 4 after the 2-col tool-call indent."
+  ;; In-flight: spinner at col 0, space at col 1.
+  (let* ((tc  (make-macp-tool-call :name "T" :kind "read" :status 'running))
+         (out (macp-test--pp-tool-call-to-string tc t)))
+    (should-not (memq (aref out 0) '(?\s ?\t)))
+    (should (= (aref out 1) ?\s)))
+  ;; Terminal: gutter blank (two spaces); the row's first non-space
+  ;; sits at col >= 4 (kind icon or name).
+  (let* ((tc  (make-macp-tool-call :name "T" :kind "read" :status 'done))
+         (out (macp-test--pp-tool-call-to-string tc t)))
+    (should (= (aref out 0) ?\s))
+    (should (= (aref out 1) ?\s))))
 
 ;;;; Blank-line padding around non-tool message bodies
 
@@ -2762,41 +2766,46 @@ blank lines above every `[Plan]' header."
 
 ;;;; Post-fix coverage: expanded tool-calls don't visually abut
 
-(ert-deftest macp-test-pp-tool-call-expanded-emits-trailing-blank ()
-  "Expanded tool-call cards must end with `\\n\\n' so two adjacent
-expanded cards don't visually merge.  Collapsed cards stay at single
-`\\n' for tight stacking."
+(ert-deftest macp-test-pp-tool-call-ends-with-single-newline ()
+  "Both collapsed and expanded tool-call renders end with exactly one
+trailing `\\n'.  Adjacent tools stack tight by design; the master `--pp'
+dispatcher's `--ensure-blank-above' inserts a blank line before any
+following non-tool node, so a tool → non-tool transition still gets one
+blank of padding without baking it into the printer."
   (let* ((tc (make-macp-tool-call :name "T" :kind "read" :status 'done
                                   :raw-output "x"))
          (expanded  (macp-test--pp-tool-call-to-string tc nil))
          (collapsed (macp-test--pp-tool-call-to-string tc t)))
-    (should (string-suffix-p "\n\n" expanded))
-    (should (string-suffix-p "\n" collapsed))
-    (should-not (string-suffix-p "\n\n" collapsed))))
+    (should      (string-suffix-p "\n"   collapsed))
+    (should-not  (string-suffix-p "\n\n" collapsed))
+    (should      (string-suffix-p "\n"   expanded))
+    (should-not  (string-suffix-p "\n\n" expanded))))
 
 ;;;; Post-fix coverage: status glyph fallback for nil/unknown status
 
-(ert-deftest macp-test-tool-status-glyph-nil-falls-back-to-pending ()
-  "A tool-call with nil status renders the dim pending circle, NOT a
-literal `?' — the status glyph sits at column 0 (the gutter) and a
-stray `?' would be the most prominent character on the row."
-  (let* ((out (mutecipher-acp--tool-status-glyph nil))
-         (pending (mutecipher-acp--icon-or 'status-pending "○")))
-    (should (equal out pending))
-    (should-not (equal out "?"))))
+(ert-deftest macp-test-tool-status-glyph-nil-returns-nil ()
+  "Status glyph is reserved for in-flight states (`pending' / `running').
+Terminal states (`done', `error') AND nil/unrecognized return nil so
+the gutter renders blank — success is the default (markers denote
+exceptions) and failure surfaces via tool-name face + `failed' badge
+in the meta slot rather than a leading glyph."
+  (should-not (mutecipher-acp--tool-status-glyph nil))
+  (should-not (mutecipher-acp--tool-status-glyph 'done))
+  (should-not (mutecipher-acp--tool-status-glyph 'error))
+  (should-not (mutecipher-acp--tool-status-glyph 'bogus-symbol)))
 
 ;;;; Post-fix coverage: summary line has wrap-prefix for soft-wrap
 
 (ert-deftest macp-test-pp-tool-call-line-has-wrap-prefix ()
-  "Long tool inputs wrap to column 2 (`wrap-prefix') instead of
-column 0, so the continuation aligns under the body rather than under
-the gutter status glyph."
+  "Long tool inputs wrap to column 4 (`wrap-prefix') so the continuation
+aligns under the body's kind-icon column, not under the gutter status
+glyph at col 0 or the 2-col tool-call indent."
   (with-temp-buffer
     (mutecipher-acp--pp-tool-call-line
      (make-macp-tool-call :name "Edit" :kind "edit" :status 'done
                           :input "very/long/path/to/some/file.el"))
     (let ((wp (get-text-property (point-min) 'wrap-prefix)))
-      (should (equal wp "  ")))))
+      (should (equal wp "    ")))))
 
 ;;;; Post-fix coverage: --pulse-node skips the leading blank
 
