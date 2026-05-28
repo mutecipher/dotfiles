@@ -26,12 +26,18 @@
 (require 'ewoc)
 (require 'mutecipher-acp-model)
 
-(defconst mutecipher-acp--persist-schema-version 6
+(defconst mutecipher-acp--persist-schema-version 7
   "Schema version for persisted ACP transcript files.
 Bump when the on-disk format changes incompatibly.  The loader
 silently skips files with an unknown version.
 
 History:
+  7 — `macp-notice' replaced its `face' slot with `kind'.  Notices now
+      carry a domain discriminator (e.g. `parse-error') and the
+      renderer resolves face via `--notice-kind-faces' — face stops
+      doubling as the discriminator.  Same slot index but the value
+      changed type (face symbol → kind symbol); v6 records would
+      render with the old face name in the new slot, mis-themed.
   6 — `macp-node' lost its `collapsed' slot.  Render-time collapse
       state now lives in a per-buffer override map keyed by uuid, with
       `mutecipher-acp-collapse-tool-calls-by-default' as the fallback

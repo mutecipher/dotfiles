@@ -88,7 +88,10 @@
 
 (cl-defstruct macp-notice
   text          ; plain-text line content
-  face)         ; face symbol applied to the line
+  kind)         ; domain symbol (e.g. `parse-error') — the renderer
+                ; resolves face from kind via the alist in
+                ; `mutecipher-acp--notice-kind-faces' so face stops
+                ; doubling as the discriminator across notice variants
 
 (cl-defstruct macp-queued
   text)         ; pending prompt text waiting for the active turn to end

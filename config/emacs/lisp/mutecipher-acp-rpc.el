@@ -126,7 +126,7 @@ NOTIFY-FN is called as (method params) for incoming JSON-RPC notifications."
      (macp-session-id session)
      (format "ACP: dropped malformed JSON line (%s)"
              (error-message-string err))
-     'mutecipher-acp-error-face)))
+     'parse-error)))
 
 (cl-defun mutecipher-acp--request (conn method params &key success-fn error-fn)
   "Send an async JSON-RPC request over CONN.

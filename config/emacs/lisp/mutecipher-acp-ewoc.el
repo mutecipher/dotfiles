@@ -223,8 +223,11 @@ a response with a stray `\\n' don't leave the icon alone on a line."
     (when (mutecipher-acp--session-current-assistant session)
       (setf (mutecipher-acp--session-current-assistant session) nil))))
 
-(defun mutecipher-acp--enter-notice (session-id text &optional face)
-  "Enter a notice node in SESSION-ID's ewoc with TEXT and optional FACE."
+(defun mutecipher-acp--enter-notice (session-id text kind)
+  "Enter a notice node in SESSION-ID's ewoc with TEXT and domain KIND.
+KIND is a symbol (e.g. `parse-error') that the renderer maps to a
+face via `mutecipher-acp--notice-kind-faces' — callers don't pass
+the face directly so the discriminator stays on the data side."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
               (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
@@ -235,7 +238,7 @@ a response with a stray `\\n' don't leave the icon alone on a line."
          mutecipher-acp--ewoc
          (macp-session-queue-head-node session)
          (make-macp-node :kind 'notice
-                         :data (make-macp-notice :text text :face face)))))))
+                         :data (make-macp-notice :text text :kind kind)))))))
 
 (defun mutecipher-acp--enter-thought (session-id text)
   "Enter a thought node in SESSION-ID's ewoc carrying TEXT."
@@ -526,11 +529,25 @@ Trailing blank line keeps spacing uniform across node kinds."
                                          'mutecipher-acp-thought-face)
     (insert "\n")))
 
+(defconst mutecipher-acp--notice-kind-faces
+  '((parse-error . mutecipher-acp-error-face))
+  "Alist mapping `macp-notice' kind symbols to rendering faces.
+Unknown / nil kinds render in `default' — see `--pp-notice'.  Add
+entries here when introducing a new notice kind so the discriminator
+stays on the data side and themes pick up the face by name.")
+
+(defun mutecipher-acp--notice-face (kind)
+  "Return the face symbol that should render a notice of KIND."
+  (or (alist-get kind mutecipher-acp--notice-kind-faces) 'default))
+
 (defun mutecipher-acp--pp-notice (node)
-  "Render a notice NODE: `notice' icon gutter + one propertized line."
+  "Render a notice NODE: `notice' icon gutter + one propertized line.
+Face is derived from the notice's `kind' via `--notice-face' so the
+presentation choice can change theme-wide without touching individual
+notice constructions."
   (let* ((data (macp-node-data node))
          (text (or (macp-notice-text data) ""))
-         (face (or (macp-notice-face data) 'default)))
+         (face (mutecipher-acp--notice-face (macp-notice-kind data))))
     (mutecipher-acp--insert-with-gutter 'notice (concat text "\n") face)))
 
 (defun mutecipher-acp--pp-queued (node)
