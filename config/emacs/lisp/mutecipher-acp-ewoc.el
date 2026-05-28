@@ -199,7 +199,7 @@ a response with a stray `\\n' don't leave the icon alone on a line."
       (unless mutecipher-acp--ewoc
         (user-error "ACP: no ewoc in session buffer"))
       (let* ((ewoc mutecipher-acp--ewoc)
-             (node (macp-session-current-assistant session))
+             (node (mutecipher-acp--session-current-assistant session))
              (inhibit-read-only t))
         (unless node
           (mutecipher-acp--close-trailing-tool-group session-id)
@@ -208,7 +208,7 @@ a response with a stray `\\n' don't leave the icon alone on a line."
                       (macp-session-queue-head-node session)
                       (make-macp-node :kind 'assistant
                                       :data (make-macp-assistant :text ""))))
-          (setf (macp-session-current-assistant session) node))
+          (setf (mutecipher-acp--session-current-assistant session) node))
         (let* ((msg (macp-node-data (ewoc-data node)))
                (old (or (macp-assistant-text msg) ""))
                (chunk (if (string-empty-p old)
@@ -220,8 +220,8 @@ a response with a stray `\\n' don't leave the icon alone on a line."
 (defun mutecipher-acp--close-assistant (session-id)
   "Drop SESSION-ID's :current-assistant reference so a new node is entered next."
   (when-let ((session (gethash session-id mutecipher-acp--sessions)))
-    (when (macp-session-current-assistant session)
-      (setf (macp-session-current-assistant session) nil))))
+    (when (mutecipher-acp--session-current-assistant session)
+      (setf (mutecipher-acp--session-current-assistant session) nil))))
 
 (defun mutecipher-acp--enter-notice (session-id text &optional face)
   "Enter a notice node in SESSION-ID's ewoc with TEXT and optional FACE."
@@ -264,7 +264,7 @@ the previous group above the plan node."
     (mutecipher-acp--close-trailing-tool-group session-id)
     (mutecipher-acp--with-sticky-tail buf
       (let ((inhibit-read-only t)
-            (existing (macp-session-current-plan-node session)))
+            (existing (mutecipher-acp--session-current-plan-node session)))
         (cond
          (existing
           (let ((plan (macp-node-data (ewoc-data existing))))
@@ -277,7 +277,7 @@ the previous group above the plan node."
                        (macp-session-queue-head-node session)
                        (make-macp-node :kind 'plan
                                        :data (make-macp-plan :entries tasks)))))
-            (setf (macp-session-current-plan-node session) node))))))))
+            (setf (mutecipher-acp--session-current-plan-node session) node))))))))
 
 ;;;; Pretty-printer dispatch
 ;;

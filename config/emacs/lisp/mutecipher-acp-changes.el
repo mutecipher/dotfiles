@@ -226,7 +226,7 @@ on one file doesn't cascade out into the RPC handler and break the
 agent's turn — failures are logged and capture-status reflects the
 gap."
   (when (and session (or new-pairs (macp-tool-call-diffs tc)))
-    (when-let* ((turn-node (macp-session-current-turn-node session))
+    (when-let* ((turn-node (mutecipher-acp--session-current-turn-node session))
                 (turn     (macp-node-data (ewoc-data turn-node)))
                 ((macp-turn-p turn))
                 (path     (mutecipher-acp--resolve-loc-path

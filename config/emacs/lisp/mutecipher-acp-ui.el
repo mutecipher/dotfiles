@@ -174,7 +174,7 @@ so the affordance is discoverable without a manual lookup."
         (when (overlayp mutecipher-acp--streaming-caret-overlay)
           (delete-overlay mutecipher-acp--streaming-caret-overlay)
           (setq mutecipher-acp--streaming-caret-overlay nil))
-        (let ((assist (macp-session-current-assistant session)))
+        (let ((assist (mutecipher-acp--session-current-assistant session)))
           (when (and assist
                      (eq (macp-session-state session) 'streaming)
                      mutecipher-acp-composer-cursor-glyph)

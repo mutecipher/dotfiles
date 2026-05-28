@@ -222,9 +222,9 @@ composer."
     ;; `--hydrate-session-from-disk'.  Bound is tens-of-thousands per
     ;; session in the worst case, which is fine.
     (setf (macp-session-turn-counter session) counter
-          (macp-session-current-turn-node session) turn-node
-          (macp-session-current-assistant session) nil
-          (macp-session-current-plan-node session) nil)
+          (mutecipher-acp--session-current-turn-node session) turn-node
+          (mutecipher-acp--session-current-assistant session) nil
+          (mutecipher-acp--session-current-plan-node session) nil)
     (mutecipher-acp--bump-last-active session)
     turn-node))
 
@@ -233,7 +233,7 @@ composer."
 Enters a trailer node for any non-normal STOP-REASON."
   (mutecipher-acp--close-trailing-tool-group session-id)
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
-              (node    (macp-session-current-turn-node session))
+              (node    (mutecipher-acp--session-current-turn-node session))
               (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
     (let* ((turn (macp-node-data (ewoc-data node))))
@@ -249,7 +249,7 @@ Enters a trailer node for any non-normal STOP-REASON."
              (make-macp-node
               :kind 'trailer
               :data (make-macp-trailer :stop-reason stop-reason)))))))
-    (setf (macp-session-current-turn-node session) nil)
+    (setf (mutecipher-acp--session-current-turn-node session) nil)
     (mutecipher-acp--bump-last-active session)
     ;; Clean-boundary commit: the turn is finalized — flush to disk
     ;; synchronously so the most recent transcript survives a crash.

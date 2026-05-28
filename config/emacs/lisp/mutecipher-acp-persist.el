@@ -556,7 +556,7 @@ so resumed sessions render their prior transcript immediately."
                   ;; Any other kind closes the run too.
                   (_ (setq last-open-group-node nil)))))
             (when last-open-group-node
-              (setf (macp-session-current-tool-group session)
+              (setf (mutecipher-acp--session-current-tool-group session)
                     last-open-group-node)))
           ;; Reset the queue field and replay via the normal enqueue path
           ;; — that re-creates the `queued' EWOC nodes and re-anchors

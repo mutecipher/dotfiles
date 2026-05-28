@@ -109,6 +109,12 @@
                       ; cwd has drifted or `--session-id' isn't bound
 
 (cl-defstruct (macp-session (:constructor mutecipher-acp--make-session))
+  ;; Durable identity + protocol state — what the session IS, independent
+  ;; of how it's currently rendered.  EWOC-insertion-cursor view state
+  ;; (`current-turn-node', `current-assistant', `current-plan-node',
+  ;; `current-tool-group') lives buffer-local in the session buffer
+  ;; rather than on this struct — see the defvar-locals below + their
+  ;; `--session-current-*' accessors.
   id conn buffer agent cwd
   (state 'idle)
   state-started-at
@@ -116,9 +122,6 @@
   commands
   file-cache
   (turn-counter 0)
-  current-turn-node
-  current-assistant
-  current-plan-node
   available-modes
   current-mode-id
   title
@@ -128,8 +131,7 @@
   queue-head-node     ; ewoc node of the first queued entry, anchor for enter-before
   last-active         ; float-time of last user/agent activity, nil before any
   persist-dirty       ; t when in-memory state has unsaved changes
-  loading             ; t while session/load replay is in progress (suppresses persist)
-  current-tool-group) ; ewoc node of the open trailing tool-group, or nil
+  loading)            ; t while session/load replay is in progress (suppresses persist)
 
 ;;;; Node identity
 
@@ -162,6 +164,108 @@ No-op when the node has no uuid (constructed outside `--ewoc-enter-tail')."
 
 (defvar-local mutecipher-acp--ewoc nil
   "The ewoc managing the current ACP session buffer's transcript.")
+
+;;;; Renderer insertion cursors (per session buffer, not on the session struct)
+;;
+;; These four buffer-locals replace `current-*' slots that used to live on
+;; `macp-session'.  They're EWOC view state — where the next streamed chunk,
+;; tool-call, or plan update should land — not durable session identity.
+;; Keeping them buffer-local lets a future feature render one session into
+;; two buffers (split inspector, comparison view) without the cursors
+;; fighting for a single slot, and makes the conflation visible at the
+;; storage layer rather than implicit in which fields persist.el omits.
+;;
+;; Callers use the `mutecipher-acp--session-current-*' accessor pairs
+;; (read + setf) so the call-site shape stays session-centric even though
+;; storage moved.
+
+(defvar-local mutecipher-acp--current-turn-node nil
+  "EWOC node of the active turn in this session buffer, or nil between turns.
+Set on `--open-turn', cleared on `--close-turn'.  `--maybe-capture-change-set'
+reads it via `--session-current-turn-node' to locate the turn whose
+change-set is being mutated.")
+
+(defvar-local mutecipher-acp--current-assistant nil
+  "EWOC node currently receiving streamed assistant chunks, or nil.
+`--append-assistant-chunk' sets this on first chunk and clears it on
+`--close-assistant', so subsequent chunks invalidate the same node
+instead of entering fresh ones.")
+
+(defvar-local mutecipher-acp--current-plan-node nil
+  "EWOC node carrying the active turn's plan, or nil.
+Lets `--enter-plan' mutate-in-place when the agent sends a plan update
+instead of stacking a new plan node per revision.")
+
+(defvar-local mutecipher-acp--current-tool-group nil
+  "EWOC node of the open trailing `tool-group', or nil.
+A run of adjacent read-only tool-calls folds into one group via this
+slot; `--close-trailing-tool-group' clears it whenever a new node
+kind interrupts the run.  Re-derived at hydrate time by walking the
+EWOC for the last still-open group.")
+
+;; Setters use `gv-define-setter' with an explicit gensymmed binding
+;; for VAL so the RHS is evaluated unconditionally — preserving the
+;; "setf evaluates the new value once" contract even when the session
+;; buffer has been killed (the buffer-local write itself is then a
+;; no-op).  A future caller writing `(setf (...) (progn (record) v))'
+;; against a torn-down session still runs the `record' side effect.
+
+(defun mutecipher-acp--session-current-turn-node (session)
+  "Return SESSION's active-turn EWOC node, or nil.
+Reads the `--current-turn-node' buffer-local in SESSION's buffer."
+  (when-let ((buf (macp-session-buffer session)))
+    (and (buffer-live-p buf)
+         (buffer-local-value 'mutecipher-acp--current-turn-node buf))))
+
+(gv-define-setter mutecipher-acp--session-current-turn-node (val session)
+  (let ((v (gensym "val")))
+    `(let ((,v ,val))
+       (when-let ((buf (macp-session-buffer ,session)))
+         (when (buffer-live-p buf)
+           (with-current-buffer buf
+             (setq mutecipher-acp--current-turn-node ,v)))))))
+
+(defun mutecipher-acp--session-current-assistant (session)
+  "Return SESSION's active assistant-streaming EWOC node, or nil."
+  (when-let ((buf (macp-session-buffer session)))
+    (and (buffer-live-p buf)
+         (buffer-local-value 'mutecipher-acp--current-assistant buf))))
+
+(gv-define-setter mutecipher-acp--session-current-assistant (val session)
+  (let ((v (gensym "val")))
+    `(let ((,v ,val))
+       (when-let ((buf (macp-session-buffer ,session)))
+         (when (buffer-live-p buf)
+           (with-current-buffer buf
+             (setq mutecipher-acp--current-assistant ,v)))))))
+
+(defun mutecipher-acp--session-current-plan-node (session)
+  "Return SESSION's active plan EWOC node, or nil."
+  (when-let ((buf (macp-session-buffer session)))
+    (and (buffer-live-p buf)
+         (buffer-local-value 'mutecipher-acp--current-plan-node buf))))
+
+(gv-define-setter mutecipher-acp--session-current-plan-node (val session)
+  (let ((v (gensym "val")))
+    `(let ((,v ,val))
+       (when-let ((buf (macp-session-buffer ,session)))
+         (when (buffer-live-p buf)
+           (with-current-buffer buf
+             (setq mutecipher-acp--current-plan-node ,v)))))))
+
+(defun mutecipher-acp--session-current-tool-group (session)
+  "Return SESSION's open trailing tool-group EWOC node, or nil."
+  (when-let ((buf (macp-session-buffer session)))
+    (and (buffer-live-p buf)
+         (buffer-local-value 'mutecipher-acp--current-tool-group buf))))
+
+(gv-define-setter mutecipher-acp--session-current-tool-group (val session)
+  (let ((v (gensym "val")))
+    `(let ((,v ,val))
+       (when-let ((buf (macp-session-buffer ,session)))
+         (when (buffer-live-p buf)
+           (with-current-buffer buf
+             (setq mutecipher-acp--current-tool-group ,v)))))))
 
 ;;;; Session lookup / buffer naming
 

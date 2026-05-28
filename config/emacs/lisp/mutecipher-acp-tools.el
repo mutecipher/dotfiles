@@ -221,12 +221,12 @@ of joining the previous one.  No-op when no group is open or when the
 slot still points at a node that's no longer live (defensive against
 session/load replay paths that rebuild the ewoc)."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
-              (node    (macp-session-current-tool-group session)))
+              (node    (mutecipher-acp--session-current-tool-group session)))
     (let* ((wrapper (ignore-errors (ewoc-data node)))
            (group   (and wrapper (macp-node-data wrapper))))
       (when (and group (macp-tool-group-p group))
         (setf (macp-tool-group-closed group) t)))
-    (setf (macp-session-current-tool-group session) nil)))
+    (setf (mutecipher-acp--session-current-tool-group session) nil)))
 
 (defun mutecipher-acp--node-find-tc (node call-id)
   "Return the `macp-tool-call' inside NODE matching CALL-ID, or nil.
@@ -311,7 +311,7 @@ exactly as before."
        ;; Read-only + grouping enabled + open group: append in place.
        ((and mutecipher-acp-group-read-only-tool-calls
              (mutecipher-acp--tool-call-read-only-p tc)
-             (macp-session-current-tool-group session))
+             (mutecipher-acp--session-current-tool-group session))
         (mutecipher-acp--append-to-tool-group session buf tc call-id index))
        ;; Read-only + grouping enabled + no open group: start one.
        ((and mutecipher-acp-group-read-only-tool-calls
@@ -360,7 +360,7 @@ append to the same group."
                                   :collapsed collapsed))))
       (when call-id
         (puthash call-id node index))
-      (setf (macp-session-current-tool-group session) node)
+      (setf (mutecipher-acp--session-current-tool-group session) node)
       (mutecipher-acp--invalidate-next-non-tool node))))
 
 (defun mutecipher-acp--append-to-tool-group (session buf tc call-id index)
@@ -372,7 +372,7 @@ to the multi-child branch (different trailing-newline count), so the
 next non-tool node's leading-blank decision may be stale — same
 reason `--enter-toplevel-tool-call' and `--open-tool-group' invalidate
 their follower."
-  (let* ((node    (macp-session-current-tool-group session))
+  (let* ((node    (mutecipher-acp--session-current-tool-group session))
          (wrapper (ewoc-data node))
          (group   (macp-node-data wrapper)))
     (setf (macp-tool-group-children group)

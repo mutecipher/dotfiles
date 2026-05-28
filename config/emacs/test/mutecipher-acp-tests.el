@@ -1945,7 +1945,7 @@ RPC and persistence I/O."
                  :call-id "c1" :name "Edit" :kind "edit"
                  :locations (vector (list :path path)))))
         (let ((turn (macp-node-data
-                     (ewoc-data (macp-session-current-turn-node session)))))
+                     (ewoc-data (mutecipher-acp--session-current-turn-node session)))))
           (should (null (macp-turn-change-set turn)))
           (mutecipher-acp--maybe-capture-change-set
            session tc (list (cons "old" "new")))
@@ -1967,7 +1967,7 @@ RPC and persistence I/O."
         (mutecipher-acp--maybe-capture-change-set
          session tc (list (cons "old" "brave new")))
         (let* ((turn (macp-node-data
-                      (ewoc-data (macp-session-current-turn-node session))))
+                      (ewoc-data (mutecipher-acp--session-current-turn-node session))))
                (cs   (macp-turn-change-set turn))
                (fc   (cdr (assoc canon (macp-change-set-files cs)))))
           (should fc)
@@ -1998,7 +1998,7 @@ to the ORIGINAL pre-turn content (not the intermediate state)."
         (mutecipher-acp--maybe-capture-change-set
          session tc2 (list (cons "STAGE_ONE" "STAGE_TWO"))))
       (let* ((turn (macp-node-data
-                    (ewoc-data (macp-session-current-turn-node session))))
+                    (ewoc-data (mutecipher-acp--session-current-turn-node session))))
              (cs   (macp-turn-change-set turn))
              (canon (file-truename path))
              (fc   (cdr (assoc canon (macp-change-set-files cs)))))
@@ -2017,7 +2017,7 @@ to the ORIGINAL pre-turn content (not the intermediate state)."
       (mutecipher-acp--maybe-capture-change-set
        session tc (list (cons "old" "new")))
       (let* ((turn (macp-node-data
-                    (ewoc-data (macp-session-current-turn-node session)))))
+                    (ewoc-data (mutecipher-acp--session-current-turn-node session)))))
         (should (null (macp-turn-change-set turn)))))))
 
 (ert-deftest macp-test-change-set-no-current-turn-skipped ()
@@ -2035,7 +2035,7 @@ to the ORIGINAL pre-turn content (not the intermediate state)."
                  :call-id "c1" :locations (vector (list :path path)))))
         (mutecipher-acp--maybe-capture-change-set session tc nil)
         (let ((turn (macp-node-data
-                     (ewoc-data (macp-session-current-turn-node session)))))
+                     (ewoc-data (mutecipher-acp--session-current-turn-node session)))))
           (should (null (macp-turn-change-set turn))))))))
 
 ;;;; Revert command
@@ -2203,7 +2203,7 @@ TC.diffs."
         (mutecipher-acp--maybe-capture-change-set
          session tc (list (cons "PRE_EDIT" "POST_EDIT")))
         (let* ((turn (macp-node-data
-                      (ewoc-data (macp-session-current-turn-node session)))))
+                      (ewoc-data (mutecipher-acp--session-current-turn-node session)))))
           (should (null (macp-turn-change-set turn))))
         ;; Second call: locations now resolve; new-pairs nil (already
         ;; ingested) but tc.diffs has them.  Retroactive capture.
@@ -2211,7 +2211,7 @@ TC.diffs."
               (vector (list :path path)))
         (mutecipher-acp--maybe-capture-change-set session tc nil)
         (let* ((turn (macp-node-data
-                      (ewoc-data (macp-session-current-turn-node session))))
+                      (ewoc-data (mutecipher-acp--session-current-turn-node session))))
                (cs   (macp-turn-change-set turn))
                (canon (file-truename path))
                (fc   (cdr (assoc canon (macp-change-set-files cs)))))
@@ -2237,7 +2237,7 @@ the prior pairs survive on the file-change."
         (mutecipher-acp--maybe-capture-change-set
          session tc (list (cons "PRE_EDIT" "POST_EDIT"))))
       (let* ((turn (macp-node-data
-                    (ewoc-data (macp-session-current-turn-node session))))
+                    (ewoc-data (mutecipher-acp--session-current-turn-node session))))
              (cs (macp-turn-change-set turn))
              (canon (file-truename path))
              (fc (cdr (assoc canon (macp-change-set-files cs)))))
@@ -2253,7 +2253,7 @@ the prior pairs survive on the file-change."
                  :diffs (list (cons "PRE_EDIT" "POST_EDIT")))))
         (mutecipher-acp--maybe-capture-change-set session tc nil))
       (let* ((turn (macp-node-data
-                    (ewoc-data (macp-session-current-turn-node session))))
+                    (ewoc-data (mutecipher-acp--session-current-turn-node session))))
              (cs (macp-turn-change-set turn))
              (canon (file-truename path))
              (fc (cdr (assoc canon (macp-change-set-files cs)))))
@@ -2287,15 +2287,15 @@ marked modified (not killed) so the user can recover its contents."
     (let ((sid (macp-session-id session)))
       (mutecipher-acp--open-turn sid "first")
       (let ((t1 (macp-node-data
-                 (ewoc-data (macp-session-current-turn-node session)))))
+                 (ewoc-data (mutecipher-acp--session-current-turn-node session)))))
         (mutecipher-acp--close-turn sid 'end_turn)
         (mutecipher-acp--open-turn sid "second")
         (let ((t2 (macp-node-data
-                   (ewoc-data (macp-session-current-turn-node session)))))
+                   (ewoc-data (mutecipher-acp--session-current-turn-node session)))))
           (mutecipher-acp--close-turn sid 'end_turn)
           (mutecipher-acp--open-turn sid "third")
           (let ((t3 (macp-node-data
-                     (ewoc-data (macp-session-current-turn-node session)))))
+                     (ewoc-data (mutecipher-acp--session-current-turn-node session)))))
             ;; Turns after t1 are t2 and t3.
             (let ((later (mutecipher-acp--later-turns-after t1)))
               (should (equal (list t2 t3) later)))
@@ -2309,7 +2309,7 @@ reverting turn 1 must flag P as a conflict."
     (let ((sid (macp-session-id session)))
       (mutecipher-acp--open-turn sid "first")
       (let* ((t1 (macp-node-data
-                  (ewoc-data (macp-session-current-turn-node session))))
+                  (ewoc-data (mutecipher-acp--session-current-turn-node session))))
              (cs1 (make-macp-change-set
                    :files (list
                            (cons "/canonical/foo.el"
@@ -2321,7 +2321,7 @@ reverting turn 1 must flag P as a conflict."
         (mutecipher-acp--close-turn sid 'end_turn)
         (mutecipher-acp--open-turn sid "second")
         (let* ((t2 (macp-node-data
-                    (ewoc-data (macp-session-current-turn-node session))))
+                    (ewoc-data (mutecipher-acp--session-current-turn-node session))))
                (cs2 (make-macp-change-set
                      :files (list
                              (cons "/canonical/foo.el"
@@ -2357,12 +2357,12 @@ reverting turn 1 must flag P as a conflict."
     (let ((sid (macp-session-id session)))
       (mutecipher-acp--open-turn sid "first")
       (let ((t1 (macp-node-data
-                 (ewoc-data (macp-session-current-turn-node session)))))
+                 (ewoc-data (mutecipher-acp--session-current-turn-node session)))))
         (setf (macp-turn-change-set t1) (make-macp-change-set))
         (mutecipher-acp--close-turn sid 'end_turn)
         (mutecipher-acp--open-turn sid "second")
         (let* ((t2 (macp-node-data
-                    (ewoc-data (macp-session-current-turn-node session))))
+                    (ewoc-data (mutecipher-acp--session-current-turn-node session))))
                (cs2 (make-macp-change-set
                      :files (list
                              (cons "/canonical/foo.el"
@@ -3123,7 +3123,7 @@ later read won't re-fold into it."
         (should     (macp-tool-group-closed (macp-node-data (nth 0 nodes))))
         (should-not (macp-tool-group-closed (macp-node-data (nth 2 nodes))))
         (should (eq (nth 2 nodes)
-                    (ewoc-data (macp-session-current-tool-group s))))))))
+                    (ewoc-data (mutecipher-acp--session-current-tool-group s))))))))
 
 (ert-deftest macp-test-tool-group-defcustom-off-restores-legacy ()
   "With `mutecipher-acp-group-read-only-tool-calls' nil, reads insert
@@ -3219,8 +3219,8 @@ restored."
                     ((symbol-function 'mutecipher-acp--save-index)   #'ignore))
             (mutecipher-acp--hydrate-session-from-disk session))
           ;; Trailing open group must be restored, not the closed one.
-          (should (macp-session-current-tool-group session))
-          (let ((slot-node (macp-session-current-tool-group session)))
+          (should (mutecipher-acp--session-current-tool-group session))
+          (let ((slot-node (mutecipher-acp--session-current-tool-group session)))
             (should (eq 'tool-group
                         (macp-node-kind (ewoc-data slot-node))))
             (should-not
