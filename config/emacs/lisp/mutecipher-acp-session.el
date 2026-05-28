@@ -199,8 +199,11 @@ and bumps `:turn-counter'.  Returns the turn-header node.
 
 When a pending queue is present, the new nodes land ABOVE the
 queue-head-node so queued items stay visually pinned just above the
-composer."
-  (mutecipher-acp--close-trailing-tool-group session-id)
+composer.
+
+Closing the trailing read-only tool-group is handled by
+`--ewoc-enter-tail' (turn-header isn't a `tool-group' kind); no
+explicit close needed here."
   (let* ((session (gethash session-id mutecipher-acp--sessions))
          (buf     (macp-session-buffer session))
          (counter (1+ (or (macp-session-turn-counter session) 0)))

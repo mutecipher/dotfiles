@@ -303,10 +303,9 @@ exactly as before."
       (cond
        ;; Plan-bearing calls (ExitPlanMode) are never folded — the plan
        ;; body is the whole point of the call, so it stays as its own
-       ;; expanded card.  Treat them like a non-read tool: close any
-       ;; open group first.
+       ;; expanded card.  Trailing-group close is handled by
+       ;; `--ewoc-enter-tail' inside `--enter-toplevel-tool-call'.
        (plan
-        (mutecipher-acp--close-trailing-tool-group session-id)
         (mutecipher-acp--enter-toplevel-tool-call session buf tc call-id index plan))
        ;; Read-only + grouping enabled + open group: append in place.
        ((and mutecipher-acp-group-read-only-tool-calls
@@ -317,10 +316,10 @@ exactly as before."
        ((and mutecipher-acp-group-read-only-tool-calls
              (mutecipher-acp--tool-call-read-only-p tc))
         (mutecipher-acp--open-tool-group session buf tc call-id index))
-       ;; Non-read (or grouping disabled): close any open group, insert
-       ;; as a top-level tool-call node — original behavior.
+       ;; Non-read (or grouping disabled): insert as a top-level
+       ;; tool-call node.  Trailing-group close is handled by
+       ;; `--ewoc-enter-tail' inside `--enter-toplevel-tool-call'.
        (t
-        (mutecipher-acp--close-trailing-tool-group session-id)
         (mutecipher-acp--enter-toplevel-tool-call session buf tc call-id index plan)))
       (mutecipher-acp--reconcile-spinner-for-session session))))
 

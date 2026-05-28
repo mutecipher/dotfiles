@@ -171,7 +171,19 @@ falls through to `ewoc-enter-last'.  Callers pass the session's
 
 Also populates DATA's `:uuid' slot (unless already set — persistence
 replay reuses the stored id) and registers `(uuid . node)' in the
-current session's `node-index' for O(1) addressing."
+current session's `node-index' for O(1) addressing.
+
+Centralizes the close-trailing-tool-group policy: any non-`tool-group'
+entry interrupts an open read-only run, so the dispatcher closes the
+trailing group here on behalf of every enter helper.  During hydrate
+the session's `current-tool-group' is nil throughout (set only at the
+end of replay from an EWOC walk), so the close calls are no-ops and
+persisted open groups are preserved correctly.  Phase-transition
+events that close without entering a node (turn-end, plan-update on an
+existing node) still call `--close-trailing-tool-group' explicitly."
+  (when (and mutecipher-acp--session-id
+             (not (eq (macp-node-kind data) 'tool-group)))
+    (mutecipher-acp--close-trailing-tool-group mutecipher-acp--session-id))
   (let ((node (if anchor
                   (ewoc-enter-before ewoc anchor data)
                 (ewoc-enter-last ewoc data))))
@@ -202,7 +214,6 @@ a response with a stray `\\n' don't leave the icon alone on a line."
              (node (mutecipher-acp--session-current-assistant session))
              (inhibit-read-only t))
         (unless node
-          (mutecipher-acp--close-trailing-tool-group session-id)
           (setq node (mutecipher-acp--ewoc-enter-tail
                       ewoc
                       (macp-session-queue-head-node session)
@@ -231,7 +242,6 @@ the face directly so the discriminator stays on the data side."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
               (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
-    (mutecipher-acp--close-trailing-tool-group session-id)
     (mutecipher-acp--with-sticky-tail buf
       (let ((inhibit-read-only t))
         (mutecipher-acp--ewoc-enter-tail
@@ -245,7 +255,6 @@ the face directly so the discriminator stays on the data side."
   (when-let* ((session (gethash session-id mutecipher-acp--sessions))
               (buf     (macp-session-buffer session))
               (_       (buffer-live-p buf)))
-    (mutecipher-acp--close-trailing-tool-group session-id)
     (mutecipher-acp--with-sticky-tail buf
       (let ((inhibit-read-only t))
         (mutecipher-acp--ewoc-enter-tail
