@@ -182,12 +182,6 @@ consistent classification."
     ('done    'status-done)
     ('error   'status-error)))
 
-(defun mutecipher-acp--icon-or (kind fallback)
-  "Return the propertized icon for KIND, or FALLBACK string if unavailable."
-  (or (and (fboundp 'mutecipher/icon-for-acp)
-           (mutecipher/icon-for-acp kind))
-      fallback))
-
 ;;;; Spinner
 ;;
 ;; In-flight tool calls (`pending' / `running') render a rotating glyph

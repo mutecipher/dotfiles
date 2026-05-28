@@ -18,12 +18,36 @@
 (require 'mutecipher-acp-model)
 (require 'mutecipher-acp-log)
 
-;; `--close-trailing-tool-group' lives in tools.el (which requires
-;; this module) — forward-declare so the assistant/notice/thought/plan
-;; enter helpers below byte-compile cleanly.  Runtime ordering is fine
-;; because the agent never sends an assistant chunk before tools.el
-;; has loaded alongside the rest of mutecipher-acp.
-(declare-function mutecipher-acp--close-trailing-tool-group "mutecipher-acp-tools")
+(defun mutecipher-acp--close-trailing-tool-group (session-id)
+  "Mark SESSION-ID's open trailing tool-group closed and clear the slot.
+After this, the next read-only tool call opens a fresh group instead
+of joining the previous one.  No-op when no group is open or when the
+slot still points at a node that's no longer live (defensive against
+session/load replay paths that rebuild the ewoc).
+
+Lives here next to `--ewoc-enter-tail' (its centralized caller, see
+the dispatcher's docstring) rather than in `mutecipher-acp-tools' —
+the function only touches model.el structs + buffer-locals, so it
+belongs at the ewoc layer with the rest of the entry helpers, not
+above it in the tool-call layer."
+  (when-let* ((session (gethash session-id mutecipher-acp--sessions))
+              (node    (mutecipher-acp--session-current-tool-group session)))
+    (let* ((wrapper (ignore-errors (ewoc-data node)))
+           (group   (and wrapper (macp-node-data wrapper))))
+      (when (and group (macp-tool-group-p group))
+        (setf (macp-tool-group-closed group) t)))
+    (setf (mutecipher-acp--session-current-tool-group session) nil)))
+
+(defun mutecipher-acp--icon-or (kind fallback)
+  "Return the propertized icon for KIND, or FALLBACK string if unavailable.
+Generic helper shared by every pretty-printer that wants a Nerd Font
+glyph with a graceful ASCII fallback; lives at the ewoc layer rather
+than in `mutecipher-acp-tool-card' so both `--pp-plan' (this module)
+and the tool-call printers (tool-card.el, which requires ewoc) can
+reach it without an upward forward-declare."
+  (or (and (fboundp 'mutecipher/icon-for-acp)
+           (mutecipher/icon-for-acp kind))
+      fallback))
 
 ;; `mutecipher-acp--composer-start' lives in composer.el (loaded after
 ;; this module) — forward-declare so `--pulse-node' can clamp its end
@@ -304,7 +328,6 @@ the previous group above the plan node."
 ;; touching the dispatcher.
 
 (declare-function mutecipher-acp--apply-markdown "mutecipher-acp-markdown")
-(declare-function mutecipher-acp--icon-or        "mutecipher-acp-tool-card")
 (declare-function mutecipher/icon-for-acp        "mutecipher-icons")
 
 (defvar mutecipher-acp--pp-node-kinds nil

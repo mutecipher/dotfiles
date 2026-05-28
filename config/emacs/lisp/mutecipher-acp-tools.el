@@ -214,20 +214,6 @@ so the trailing-`\\n'-aware counting semantics are shared with
 
 ;;;; Enter / update tool-call nodes
 
-(defun mutecipher-acp--close-trailing-tool-group (session-id)
-  "Mark SESSION-ID's open trailing tool-group closed and clear the slot.
-After this, the next read-only tool call opens a fresh group instead
-of joining the previous one.  No-op when no group is open or when the
-slot still points at a node that's no longer live (defensive against
-session/load replay paths that rebuild the ewoc)."
-  (when-let* ((session (gethash session-id mutecipher-acp--sessions))
-              (node    (mutecipher-acp--session-current-tool-group session)))
-    (let* ((wrapper (ignore-errors (ewoc-data node)))
-           (group   (and wrapper (macp-node-data wrapper))))
-      (when (and group (macp-tool-group-p group))
-        (setf (macp-tool-group-closed group) t)))
-    (setf (mutecipher-acp--session-current-tool-group session) nil)))
-
 (defun mutecipher-acp--node-find-tc (node call-id)
   "Return the `macp-tool-call' inside NODE matching CALL-ID, or nil.
 NODE is an ewoc node whose data is a `macp-node' of kind `tool-call'

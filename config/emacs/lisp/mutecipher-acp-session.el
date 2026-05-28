@@ -24,6 +24,22 @@
 
 (defvar mutecipher-acp-agents)
 
+;;;; Session-buffer setup
+
+(defun mutecipher-acp--get-or-create-buffer (session-id agent-name)
+  "Return (or create) the session buffer for SESSION-ID / AGENT-NAME.
+Lives here rather than in `mutecipher-acp-model' so the data layer
+stops reaching upward into UI to call `mutecipher-acp-session-mode'
+— session.el already requires both model and ui, which is the right
+place for buffer + mode wiring."
+  (let* ((name (mutecipher-acp--buffer-name agent-name session-id))
+         (buf  (get-buffer-create name)))
+    (with-current-buffer buf
+      (unless (derived-mode-p 'mutecipher-acp-session-mode)
+        (mutecipher-acp-session-mode)
+        (setq mutecipher-acp--session-id session-id)))
+    buf))
+
 ;;;; Connection management
 
 (defun mutecipher-acp--connect (agent-name)

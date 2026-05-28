@@ -15,6 +15,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'ewoc)                  ; for `ewoc-data' in `--unindex-node'
 
 (cl-defstruct macp-node
   ;; New slots MUST be added at the END.  `cl-defstruct' accessors are
@@ -358,18 +359,6 @@ Reads the `--current-turn-node' buffer-local in SESSION's buffer."
 (defun mutecipher-acp--buffer-name (agent-name session-id)
   "Return buffer name for AGENT-NAME and SESSION-ID."
   (format "*ACP: %s [%s]*" agent-name (mutecipher-acp--id-prefix session-id)))
-
-(declare-function mutecipher-acp-session-mode "mutecipher-acp-ui")
-
-(defun mutecipher-acp--get-or-create-buffer (session-id agent-name)
-  "Return (or create) the session buffer for SESSION-ID / AGENT-NAME."
-  (let* ((name (mutecipher-acp--buffer-name agent-name session-id))
-         (buf  (get-buffer-create name)))
-    (with-current-buffer buf
-      (unless (derived-mode-p 'mutecipher-acp-session-mode)
-        (mutecipher-acp-session-mode)
-        (setq mutecipher-acp--session-id session-id)))
-    buf))
 
 (provide 'mutecipher-acp-model)
 ;;; mutecipher-acp-model.el ends here
