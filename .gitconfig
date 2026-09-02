@@ -7,6 +7,9 @@
 [commit]
   gpgsign = true
 
+[pull]
+  rebase = true
+
 [push]
   autoSetupRemote = true
 
@@ -18,3 +21,11 @@
 
 [include]
   path = ~/.gitconfig.overrides
+
+[credential "https://github.com"]
+	helper = 
+	helper = !/opt/homebrew/bin/gh auth git-credential
+
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/opt/homebrew/bin/gh auth git-credential
