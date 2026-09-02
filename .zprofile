@@ -25,3 +25,16 @@ elif [ -s "${NVM_DIR:-$HOME/.nvm}/nvm.sh" ]; then
   source "$NVM_DIR/nvm.sh"
   [ -s "$NVM_DIR/bash_completion" ] && source "$NVM_DIR/bash_completion"
 fi
+
+# pyenv initialization — prefer Homebrew's copy when present, else the standalone installer layout
+if ! command -v pyenv >/dev/null 2>&1 && [ -x "${PYENV_ROOT:-$HOME/.pyenv}/bin/pyenv" ]; then
+  export PYENV_ROOT="${PYENV_ROOT:-$HOME/.pyenv}"
+  export PATH="$PYENV_ROOT/bin:$PATH"
+fi
+if command -v pyenv >/dev/null 2>&1; then
+  eval "$(pyenv init - zsh)"
+  command -v pyenv-virtualenv-init >/dev/null 2>&1 && eval "$(pyenv virtualenv-init - zsh)"
+fi
+
+# rbenv initialization
+eval "$(rbenv init - --no-rehash zsh)"
