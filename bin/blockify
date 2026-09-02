@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+#
+# blockify: render a pixel bitmap as Unicode block-character art.
+#
+# Takes an ASCII bitmap — any character other than space, "." or "0" counts
+# as an "on" pixel — and collapses it into half-block characters (2 pixel
+# rows per text row) or quadrant blocks (2x2 pixels per text cell). With
+# --image it thresholds a real image file first, via ImageMagick.
+#
+# Usage:
+#   blockify [options] [file]
+#   blockify --image FILE [options]
+#
+# Options:
+#   --quad          2x2 pixels per cell (▘▝▖▗▚▞▌▐▛▜▙▟) instead of half blocks
+#   --invert        swap on and off pixels
+#   --off CHARS     characters treated as "off" (default: " .0")
+#   --image FILE    read an image instead of a bitmap (needs ImageMagick)
+#   --width N       output columns for --image (default: 32)
+#   -h, --help      show this help
+#
+# Examples:
+#   blockify sketches/mascot.txt
+#   blockify --image logo.png --width 24 --quad
+#   printf '.##.\n####\n#..#\n#..#\n' | blockify
+
+set -euo pipefail
+
+usage() {
+  sed -n '3,26p' "$0" | cut -c 3-
+}
+
+mode=half
+invert=0
+off=" .0"
+image=""
+width=32
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --quad)    mode=quad; shift ;;
+    --invert)  invert=1; shift ;;
+    --off)     off="${2-}"; shift 2 ;;
+    --image)   image="${2-}"; shift 2 ;;
+    --width)   width="${2-}"; shift 2 ;;
+    -h|--help) usage; exit 0 ;;
+    --)        shift; break ;;
+    -*)
+      echo "blockify: unknown option '$1'" >&2
+      usage >&2
+      exit 1
+      ;;
+    *) break ;;
+  esac
+done
+
+if [[ -n "$image" && $# -gt 0 ]]; then
+  echo "blockify: --image and a bitmap file are mutually exclusive" >&2
+  exit 1
+fi
+
+if ! [[ "$width" =~ ^[0-9]+$ ]] || [[ "$width" -lt 1 ]]; then
+  echo "blockify: --width must be a positive integer" >&2
+  exit 1
+fi
+
+# Turn an image into an ASCII bitmap by thresholding it to 1-bit and
+# reading the plain PBM back out. Pixels are square under half blocks but
+# half as wide as they are tall under quadrants, so quad squashes to match.
+bitmap_from_image() {
+  local file=$1 px_w=$width
+
+  if ! command -v magick >/dev/null 2>&1; then
+    echo "blockify: --image needs ImageMagick (brew install imagemagick)" >&2
+    exit 1
+  fi
+  if [[ ! -f "$file" ]]; then
+    echo "blockify: no such file: $file" >&2
+    exit 1
+  fi
+
+  if [[ "$mode" == quad ]]; then
+    px_w=$(( width * 2 ))
+    magick "$file" -colorspace Gray -resize "${px_w}x" -resize '100%x50%!' \
+      -threshold 50% -compress none pbm:-
+  else
+    magick "$file" -colorspace Gray -resize "${px_w}x" \
+      -threshold 50% -compress none pbm:-
+  fi | awk '
+    /^#/ { next }
+    { for (i = 1; i <= NF; i++) tok[++n] = $i }
+    END {
+      if (tok[1] != "P1") {
+        print "blockify: unexpected image output (not a plain PBM)" > "/dev/stderr"
+        exit 1
+      }
+      w = tok[2] + 0; h = tok[3] + 0; k = 3
+      for (y = 0; y < h; y++) {
+        line = ""
+        for (x = 0; x < w; x++) line = line (tok[++k] == "1" ? "#" : ".")
+        print line
+      }
+    }'
+}
+
+render() {
+  awk -v mode="$mode" -v invert="$invert" -v off="$off" '
+    function on(row, col,   c) {
+      c = substr(lines[row], col, 1)
+      if (c == "") return invert
+      return (index(off, c) > 0) == (invert == 1)
+    }
+    BEGIN {
+      half[0] = " "; half[1] = "▄"; half[2] = "▀"; half[3] = "█"
+
+      quad[0]  = " "; quad[1]  = "▗"; quad[2]  = "▖"; quad[3]  = "▄"
+      quad[4]  = "▝"; quad[5]  = "▐"; quad[6]  = "▞"; quad[7]  = "▟"
+      quad[8]  = "▘"; quad[9]  = "▚"; quad[10] = "▌"; quad[11] = "▙"
+      quad[12] = "▀"; quad[13] = "▜"; quad[14] = "▛"; quad[15] = "█"
+    }
+    { lines[NR] = $0; if (length($0) > w) w = length($0) }
+    END {
+      step = (mode == "quad") ? 2 : 1
+      for (y = 1; y <= NR; y += 2) {
+        out = ""
+        for (x = 1; x <= w; x += step) {
+          if (mode == "quad")
+            out = out quad[on(y, x) * 8 + on(y, x + 1) * 4 + on(y + 1, x) * 2 + on(y + 1, x + 1)]
+          else
+            out = out half[on(y, x) * 2 + on(y + 1, x)]
+        }
+        sub(/ +$/, "", out)
+        print out
+      }
+    }'
+}
+
+if [[ -n "$image" ]]; then
+  bitmap_from_image "$image" | render
+else
+  cat -- "$@" | render
+fi
