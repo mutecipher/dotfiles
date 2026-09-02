@@ -62,9 +62,8 @@ link .zprofile .zprofile
 info "Git"
 link .gitconfig .gitconfig
 
-info "Editors"
+info "Editor"
 link config/nvim  .config/nvim
-link config/emacs .config/emacs
 
 info "Terminals"
 link config/ghostty .config/ghostty
