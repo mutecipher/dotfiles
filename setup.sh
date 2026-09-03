@@ -72,9 +72,9 @@ info "Other"
 link config/starship.toml .config/starship.toml
 
 info "Herdr"
-link config/herdr/config.toml .config/herdr/config.toml
+link config/herdr .config/herdr
 
 info "Pi"
-link config/pi/settings.json .pi/agent/settings.json
+link config/pi .pi
 
 info "Done."
