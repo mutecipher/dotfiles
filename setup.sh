@@ -71,4 +71,10 @@ link config/ghostty .config/ghostty
 info "Other"
 link config/starship.toml .config/starship.toml
 
+info "Herdr"
+link config/herdr/config.toml .config/herdr/config.toml
+
+info "Pi"
+link config/pi/settings.json .pi/agent/settings.json
+
 info "Done."

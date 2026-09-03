@@ -16,6 +16,8 @@ curl -fsSL https://raw.githubusercontent.com/mutecipher/dotfiles/main/install.sh
 
 This clones the repo to `~/.dotfiles` (or pulls if it already exists) and symlinks everything. Existing files are backed up with a `.bak` suffix.
 
+It also bootstraps `herdr` (via its installer) and `pi` (via `npm install -g`) if they're missing. `pi` needs Node/npm, so install nvm from the `Brewfile` and start a fresh shell first.
+
 ## Re-running after updates
 
 ```sh

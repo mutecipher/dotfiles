@@ -1,1 +1,24 @@
 config/nvim/lazy-lock.json
+
+# pi — only settings.json is managed. Everything else under ~/.pi/agent is
+# state, secret, or plugin-owned config and must never be committed (defensive:
+# these only match if files are copied/symlinked in).
+config/pi/models.json
+config/pi/mcp.json
+config/pi/model-routing.json
+config/pi/auth.json
+config/pi/trust.json
+config/pi/models-store.json
+config/pi/sessions/
+config/pi/goals/
+config/pi/logs/
+config/pi/mcp-oauth/
+config/pi/git/
+config/pi/agents/
+config/pi/extensions/herdr-agent-state.ts
+
+# herdr — only config.toml is managed; runtime state must never be committed.
+config/herdr/session.json
+config/herdr/*.log
+config/herdr/*.sock
+config/herdr/.plugins.lock

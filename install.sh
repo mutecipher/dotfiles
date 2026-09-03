@@ -36,3 +36,23 @@ fi
 # ── run setup ─────────────────────────────────────────────────────────────────
 
 sh "$DOTFILES/setup.sh"
+
+# ── bootstrap tools (idempotent) ──────────────────────────────────────────────
+
+# herdr — terminal workspace manager (self-updates via `herdr update`)
+if command -v herdr >/dev/null 2>&1 || [ -x "$HOME/.local/bin/herdr" ]; then
+  info "herdr already installed"
+else
+  info "Installing herdr..."
+  curl -fsSL https://herdr.dev/install.sh | sh || die "herdr install failed"
+fi
+
+# pi — coding agent (npm global under nvm)
+if command -v pi >/dev/null 2>&1; then
+  info "pi already installed"
+elif command -v npm >/dev/null 2>&1; then
+  info "Installing pi..."
+  npm install -g @earendil-works/pi-coding-agent || die "pi install failed"
+else
+  info "npm not on PATH — skipping pi (install Node via nvm, then re-run install.sh)"
+fi
