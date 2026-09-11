@@ -9,6 +9,7 @@ config/pi/agent/*
 
 # herdr — only config.toml is managed; runtime state must never be committed.
 config/herdr/session.json
+config/herdr/release-notes.json
 config/herdr/*.log
 config/herdr/*.sock
 config/herdr/.plugins.lock
