@@ -107,8 +107,6 @@ alias dotfiles='cd $HOME/.dotfiles'
 alias k=kubectl
 alias kn='kubectl config set-context --current --namespace'
 alias vim=nvim
-alias dcu='devcontainer up --docker-path podman --docker-compose-path podman-compose --workspace-folder . --buildkit never'
-alias dce='devcontainer exec --workspace-folder . --docker-path podman --docker-compose-path podman-compose'
 
 # starship initialization
 eval "$(starship init zsh)"
