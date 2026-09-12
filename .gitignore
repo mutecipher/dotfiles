@@ -6,6 +6,7 @@ config/nvim/lazy-lock.json
 # sessions/, goals/, logs/, models-store.json, trust.json, etc.
 config/pi/agent/*
 !config/pi/agent/settings.json
+!config/pi/agent/AGENTS.md
 
 # herdr — only config.toml is managed; runtime state must never be committed.
 config/herdr/session.json
