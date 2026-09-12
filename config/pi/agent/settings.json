@@ -1,6 +1,6 @@
 {
   "defaultProvider": "deepseek",
-  "defaultModel": "deepseek-v4-pro",
+  "defaultModel": "deepseek-flash",
   "defaultThinkingLevel": "high",
   "hideThinkingBlock": true,
   "showCacheMissNotices": false,
@@ -66,15 +66,16 @@
   "packages": [
     "git:github.com/mutecipher/pi-goal",
     "git:github.com/mutecipher/pi-mcp",
-    "git:github.com/mutecipher/pi-model-router",
     "git:github.com/mutecipher/pi-subagent",
     "git:github.com/mutecipher/pi-web-tools",
     "git:github.com:mutecipher/pi-todo",
-    "git:github.com/mutecipher/pi-ask-question"
+    "git:github.com/mutecipher/pi-ask-question",
+    "git:github.com/mutecipher/pi-ssh-tools"
   ],
   "extensions": [],
   "skills": [],
   "prompts": [],
   "themes": [],
-  "enableSkillCommands": true
+  "enableSkillCommands": true,
+  "lastChangelogVersion": "0.85.1"
 }
