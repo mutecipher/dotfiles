@@ -360,3 +360,10 @@ pane_history = false
 # Maximum scrollback buffer size in bytes retained per pane terminal.
 # Matches Ghostty's default scrollback-limit behavior.
 # scrollback_limit_bytes = 10000000
+
+# herdr-spaces-sort plugin bindings
+[[keys.command]]
+key = "prefix+alt+p"
+type = "plugin_action"
+command = "mutecipher.spaces-sort.pick"
+description = "reorder spaces (picker)"
