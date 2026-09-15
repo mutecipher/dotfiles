@@ -1,0 +1,6 @@
+cask "calibre"
+cask "discord"
+cask "playdate-mirror"
+cask "prusaslicer"
+cask "raspberry-pi-imager"
+cask "sony-ps-remote-play"

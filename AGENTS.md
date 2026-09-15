@@ -12,6 +12,8 @@ Personal dotfiles repository. Configs live here and are symlinked into `$HOME` o
 - `lib/` — shell utility library; `bin/` scripts source it via `$DOTFILES_LIB`
   (exported in `.zshrc`), e.g. `. "$DOTFILES_LIB/clipboard.sh"`
 - `Brewfile` — Homebrew dependencies (stays in repo, not symlinked)
+- `Brewfile.personal` — extra packages for my personal machine only; installed
+  separately with `brew bundle --file=Brewfile.personal`, never included by `Brewfile`
 - `setup.sh` — POSIX `sh` (no bashisms); add a `link` call here to symlink a new dotfile
 
 ## Editing rules
