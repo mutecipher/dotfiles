@@ -9,8 +9,13 @@ config/pi/agent/*
 !config/pi/agent/AGENTS.md
 
 # herdr — only config.toml is managed; runtime state must never be committed.
+# plugins/ and plugins.json are plugin-owned clones and the registry generated
+# from them; *.bak-* are installer-written backups of config.toml.
 config/herdr/session.json
 config/herdr/release-notes.json
 config/herdr/*.log
 config/herdr/*.sock
 config/herdr/.plugins.lock
+config/herdr/plugins.json
+config/herdr/plugins/
+config/herdr/config.toml.bak-*
