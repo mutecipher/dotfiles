@@ -23,9 +23,10 @@ It also bootstraps `herdr` (via its installer) and `pi` (via `npm install -g`) i
 ```sh
 brew bundle                            # shared, every machine
 brew bundle --file=Brewfile.personal   # personal machine only
+brew bundle --file=Brewfile.work       # work laptop only
 ```
 
-`Brewfile.personal` holds things I only want at home. It is not included by `Brewfile`, so `brew bundle cleanup` needs the same `--file` or it will offer to uninstall everything in it.
+`Brewfile.personal` holds things I only want at home; `Brewfile.work` holds work-only tools. Neither is included by `Brewfile`, so `brew bundle cleanup` needs the same `--file` or it will offer to uninstall everything in it.
 
 ## Re-running after updates
 

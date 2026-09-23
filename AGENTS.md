@@ -14,6 +14,7 @@ Personal dotfiles repository. Configs live here and are symlinked into `$HOME` o
 - `Brewfile` — Homebrew dependencies (stays in repo, not symlinked)
 - `Brewfile.personal` — extra packages for my personal machine only; installed
   separately with `brew bundle --file=Brewfile.personal`, never included by `Brewfile`
+- `Brewfile.work` — extra packages for my work laptop only; same rules as `Brewfile.personal`
 - `setup.sh` — POSIX `sh` (no bashisms); add a `link` call here to symlink a new dotfile
 
 ## Editing rules

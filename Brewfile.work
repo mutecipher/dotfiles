@@ -1,0 +1,4 @@
+brew "awscli"
+brew "go"
+brew "tfenv"
+brew "yarn"
